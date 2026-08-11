@@ -34,15 +34,21 @@ jobs:
             zip unzip
           # Ubuntu 22.04 默认 clang 14 不识别 GCC 的
           # -Wno-deprecated-literal-operator 等选项，导致 -Werror 报错。
-          # 从 LLVM 官方源升级到 clang-17（支持这些兼容选项）。
+          # 从 LLVM 官方源升级到 clang-17（支持这些兼容选项），并强制指定为默认。
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
           sudo apt-get install -y clang-17 lld-17
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
-          sudo update-alternatives --install /usr/bin/ld ld /usr/bin/ld.lld-17 100
+          # update-alternatives --install 使用相同优先级(100)时不会自动切换，
+          # 必须用 --set 强制指定 clang-17，或直接覆盖符号链接。
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 200 --force
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 200 --force
+          sudo update-alternatives --set clang /usr/bin/clang-17
+          sudo update-alternatives --set clang++ /usr/bin/clang++-17
+          sudo update-alternatives --install /usr/bin/ld ld /usr/bin/ld.lld-17 200 --force
+          sudo update-alternatives --set ld /usr/bin/ld.lld-17
           clang --version
+          echo "CXX -> $(readlink -f $(which clang++))"
 
       - name: 校验 Linux 依赖是否就绪
         # 提前验证各插件所需的 pkg-config 是否存在，避免 CMake 阶段才报错。
@@ -91,7 +97,15 @@ jobs:
           unzip -l .dart_tool/ffmpeg_placeholder_linux.zip
 
       - name: 构建 Linux (arm64)
-        run: flutter build linux --release
+        # 显式指定 CC/CXX 指向 clang-17，确保 Flutter 构建使用能识别
+        # -Wno-deprecated-literal-operator 等 GCC 兼容选项的编译器。
+        env:
+          CC: /usr/bin/clang-17
+          CXX: /usr/bin/clang++-17
+        run: |
+          which clang clang++
+          clang --version | head -1
+          flutter build linux --release
 
       - name: 打包 deb
         run: bash linux/packaging/deb/build_deb.sh arm64
