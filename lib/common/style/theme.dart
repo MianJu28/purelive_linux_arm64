@@ -26,6 +26,12 @@ class MyTheme {
     if (PlatformUtils.isAndroid) {
       return GoogleFonts.roboto().fontFamily;
     }
+    if (PlatformUtils.isLinux) {
+      // Linux 桌面默认不携带中文字体，很多精简系统（如树莓派）
+      // 缺 CJK 字体导致中文显示为方框。应用已打包完整中文字体
+      // PingFangSC.ttf（见 pubspec fonts），故 Linux 直接使用它。
+      return 'PingFang';
+    }
     return null;
   }
 
