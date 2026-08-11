@@ -116,6 +116,9 @@ apply_standard_settings(${BINARY_NAME})
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+# 过滤后的 registrant 被写入 build 目录，但 #include "generated_plugin_registrant.h"
+# 使用相对路径，需在此显式加入源码目录以便找到该头文件。
+target_include_directories(${BINARY_NAME} PRIVATE "${FLUTTER_MANAGED_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
