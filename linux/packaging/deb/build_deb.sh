@@ -45,13 +45,15 @@ DEB_VERSION="${VERSION//[^a-zA-Z0-9.~]/.}"
 DEB_VERSION="${DEB_VERSION//\~/.}"
 
 APP_NAME="pure_live"
+# deb 包名不允许下划线（只允许 a-z0-9+-.），故使用 purelive 作为 Package 名。
+PKG_NAME="purelive"
 APP_DISPLAY_NAME="纯粹直播"
 APP_ID="com.example.pure_live"
 ICON_SRC="${PROJECT_DIR}/assets/icons/icon.png"
 
 BUNDLE_DIR="${PROJECT_DIR}/build/linux/${FLUTTER_TRIPLE}/release/bundle"
 OUTPUT_DIR="${PROJECT_DIR}/dist"
-OUTPUT_FILE="${OUTPUT_DIR}/${APP_NAME}-${DEB_VERSION}-linux-${DEB_ARCH}.deb"
+OUTPUT_FILE="${OUTPUT_DIR}/${PKG_NAME}-${DEB_VERSION}-linux-${DEB_ARCH}.deb"
 
 # ---------- 校验 ----------
 if [ ! -d "${BUNDLE_DIR}" ]; then
@@ -125,7 +127,7 @@ INSTALLED_SIZE="$(du -sk "${OPT_DIR}" | cut -f1)"
 DEBIAN_DIR="${PKG_ROOT}/DEBIAN"
 mkdir -p "${DEBIAN_DIR}"
 cat > "${DEBIAN_DIR}/control" <<EOF
-Package: ${APP_NAME}
+Package: ${PKG_NAME}
 Version: ${DEB_VERSION}
 Section: x11
 Priority: optional
@@ -141,8 +143,8 @@ EOF
 mkdir -p "${OUTPUT_DIR}"
 # 使用标准 deb 文件名 <name>_<version>_<arch>.deb（下划线分隔），
 # 便于 dpkg-deb 正确解析包名/版本/架构，避免包名非法字符校验失败。
-DEB_FILENAME="${APP_NAME}_${DEB_VERSION}_${DEB_ARCH}.deb"
-echo "==> Package: ${APP_NAME}"
+DEB_FILENAME="${PKG_NAME}_${DEB_VERSION}_${DEB_ARCH}.deb"
+echo "==> Package: ${PKG_NAME}"
 echo "==> Version: ${DEB_VERSION}"
 echo "==> OUTPUT_FILE: ${OUTPUT_FILE}"
 dpkg-deb --build --root-owner-group "${PKG_ROOT}" "${OUTPUT_DIR}/${DEB_FILENAME}"
