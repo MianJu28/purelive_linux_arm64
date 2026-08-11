@@ -139,6 +139,17 @@ EOF
 
 # ---------- 打包 ----------
 mkdir -p "${OUTPUT_DIR}"
-dpkg-deb --build --root-owner-group "${PKG_ROOT}" "${OUTPUT_FILE}"
+# 使用标准 deb 文件名 <name>_<version>_<arch>.deb（下划线分隔），
+# 便于 dpkg-deb 正确解析包名/版本/架构，避免包名非法字符校验失败。
+DEB_FILENAME="${APP_NAME}_${DEB_VERSION}_${DEB_ARCH}.deb"
+echo "==> Package: ${APP_NAME}"
+echo "==> Version: ${DEB_VERSION}"
+echo "==> OUTPUT_FILE: ${OUTPUT_FILE}"
+dpkg-deb --build --root-owner-group "${PKG_ROOT}" "${OUTPUT_DIR}/${DEB_FILENAME}"
+
+# 若需要保留带 linux- 的旧命名，可在此重命名
+if [ -f "${OUTPUT_DIR}/${DEB_FILENAME}" ] && [ "${OUTPUT_DIR}/${DEB_FILENAME}" != "${OUTPUT_FILE}" ]; then
+  cp "${OUTPUT_DIR}/${DEB_FILENAME}" "${OUTPUT_FILE}"
+fi
 
 echo "✅ 已生成 deb 包: ${OUTPUT_FILE}"
