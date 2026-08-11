@@ -30,7 +30,8 @@ jobs:
             libayatana-appindicator3-dev \
             libmpv-dev mpv \
             libnm-dev \
-            libasound2-dev
+            libasound2-dev \
+            zip unzip
 
       - name: 校验 Linux 依赖是否就绪
         # 提前验证各插件所需的 pkg-config 是否存在，避免 CMake 阶段才报错。
@@ -62,6 +63,21 @@ jobs:
         # target（2.4.1+ 声明了 native pluginClass 但无 Linux 原生实现，
         # 会触发 "No target auto_orientation_v2_plugin" 的 CMake 错误）。
         run: flutter pub get
+
+      - name: 生成 FFmpeg 占位包（Linux arm64 无预编译 FFmpeg）
+        # ffmpeg_kit_extended_flutter 官方仅支持 Linux x86_64，arm64 无预编译库。
+        # pubspec 中 ffmpeg_kit_extended_config.linux 指向此占位 zip，
+        # Build Hook 解压后因找不到 libffmpegkit.so 会静默跳过（不报错），
+        # 从而让编译通过；代价是 Linux arm64 上直播录制功能不可用。
+        # 注意：zip 内必须保留同名子目录（ffmpeg_placeholder_linux/），
+        # 否则 Hook 解压后 fallback 指向的目录不存在，listSync 会抛异常。
+        run: |
+          mkdir -p .dart_tool/ffmpeg_placeholder_linux
+          echo "Placeholder for linux-arm64: ffmpeg_kit not available" > .dart_tool/ffmpeg_placeholder_linux/README.txt
+          cd .dart_tool
+          zip -r ffmpeg_placeholder_linux.zip ffmpeg_placeholder_linux
+          cd ..
+          unzip -l .dart_tool/ffmpeg_placeholder_linux.zip
 
       - name: 构建 Linux (arm64)
         run: flutter build linux --release

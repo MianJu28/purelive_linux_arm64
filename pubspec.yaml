@@ -301,3 +301,8 @@ ffmpeg_kit_extended_config:
   windows: https://github.com/akashskypatel/ffmpeg-kit-builders/releases/download/v0.10.2-windows/bundle-base-windows-x86_64-shared-lgpl.zip
   android: https://github.com/akashskypatel/ffmpeg-kit-builders/releases/download/v0.10.2-android/bundle-base-shared-lgpl-release.aar
   macos: https://github.com/akashskypatel/ffmpeg-kit-builders/releases/download/v0.10.2-macos/bundle-base-macos-universal-lgpl.xcframework.zip
+  # Linux: ffmpeg_kit_extended_flutter 官方暂不支持 Linux arm64（仅 x86_64）。
+  # 为避免 arm64 构建时 Build Hook 下载不存在的 bundle 而失败，这里指向一个
+  # 由 CI 在构建前生成的占位 zip（不含 .so）。Build Hook 解压后因找不到
+  # libffmpegkit.so 会静默跳过，编译可通过，但 Linux arm64 上直播录制功能不可用。
+  linux: .dart_tool/ffmpeg_placeholder_linux.zip
