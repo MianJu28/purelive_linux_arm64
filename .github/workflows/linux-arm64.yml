@@ -29,12 +29,13 @@ jobs:
             libwpewebkit-1.0-dev libwpe-1.0-dev libwpebackend-fdo-1.0-dev \
             libayatana-appindicator3-dev \
             libmpv-dev mpv \
-            libnm-dev
+            libnm-dev \
+            libasound2-dev
 
       - name: 校验 Linux 依赖是否就绪
         # 提前验证各插件所需的 pkg-config 是否存在，避免 CMake 阶段才报错。
         run: |
-          for p in gtk+-3.0 ayatana-appindicator3-0.1 wpe-webkit-1.0 wpe-1.0 wpebackend-fdo-1.0; do
+          for p in gtk+-3.0 ayatana-appindicator3-0.1 wpe-webkit-1.0 wpe-1.0 wpebackend-fdo-1.0 alsa; do
             if pkg-config --exists "$p"; then
               echo "OK: $p"
             else
