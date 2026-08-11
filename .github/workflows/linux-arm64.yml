@@ -1,0 +1,45 @@
+name: Linux arm64 构建
+
+on:
+  # 1. 支持手动触发：可以手动点击运行
+  workflow_dispatch:
+
+  # 2. 支持推送 Tag 触发：git push tag 时自动运行
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: 签出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Linux 构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libglib2.0-dev
+
+      - name: 设置Flutter环境
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 更新Flutter packages
+        run: flutter pub get
+
+      - name: 构建 Linux (arm64)
+        run: flutter build linux --release
+
+      - name: 打包 deb
+        run: bash linux/packaging/deb/build_deb.sh arm64
+
+      - name: 上传 Linux deb 包
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-deb
+          path: dist/*.deb
+          retention-days: 1

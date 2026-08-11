@@ -359,6 +359,10 @@ jobs:
           - 功能：多直播源、WebDAV、弹幕显示
           - 快捷键：空格(播放/暂停) \| ESC(全屏切换) \| 上下键(音量) \| R(刷新)
 
+          ### 🐧 Linux 版
+          - **DEB 安装包**：适配 Ubuntu/Debian (arm64)，适合树莓派等 ARM 设备
+          - 功能：多直播源、WebDAV、弹幕显示
+
           ### 🍎 macOS 版
           感谢 RebornQ 开发 | 适配：macOS 10.15+ (x64) | 同 Windows 核心功能
 
