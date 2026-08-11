@@ -59,6 +59,16 @@ jobs:
       - name: 更新Flutter packages
         run: flutter pub get
 
+      - name: 移除 auto_orientation_v2 的 Linux 插件注册
+        # auto_orientation_v2 在 pubspec 中错误地声明了 native pluginClass，
+        # 但其 Linux 端实际是纯 Dart 实现，Flutter 生成的 generated_plugins.cmake
+        # 会引用不存在的 auto_orientation_v2_plugin target，导致 CMake 生成失败。
+        # 该插件在 Linux 上无原生代码且项目代码也不会调用，直接移除其注册。
+        run: |
+          sed -i '/auto_orientation_v2/d' linux/flutter/generated_plugins.cmake
+          echo "移除后 remaining plugin refs:"
+          grep -c "auto_orientation" linux/flutter/generated_plugins.cmake || true
+
       - name: 构建 Linux (arm64)
         run: flutter build linux --release
 
