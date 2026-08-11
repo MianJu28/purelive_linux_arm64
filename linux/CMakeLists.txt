@@ -56,6 +56,32 @@ pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
 
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
+# ============================================================
+# 剔除 flutter_inappwebview_linux 插件（Linux 构建实时过滤）
+#
+# flutter_inappwebview_linux 需要 WPE WebKit 2.40+，但 Ubuntu
+# 22.04/24.04 官方源均无该版本（22.04 仅 1.x，API 不兼容导致
+# 编译失败；24.04 无包）。为让 Linux arm64 构建通过，此处将
+# 该插件从 generated_plugins.cmake 与 generated_plugin_registrant.cc
+# 中剔除（在 CMake 配置阶段实时处理，不受这两个生成文件被
+# `flutter build` 重新生成的影响）。
+# 代价：Linux 上的网页搜索、B 站 WebView 登录功能不可用。
+# ============================================================
+set(FLUTTER_PLUGINS_GEN "${FLUTTER_MANAGED_DIR}/generated_plugins.cmake")
+set(FLUTTER_PLUGINS_FILTERED "${CMAKE_BINARY_DIR}/generated_plugins_filtered.cmake")
+file(READ "${FLUTTER_PLUGINS_GEN}" _plugins_content)
+string(REGEX REPLACE "\n[[:space:]]*flutter_inappwebview_linux" "" _plugins_content "${_plugins_content}")
+file(WRITE "${FLUTTER_PLUGINS_FILTERED}" "${_plugins_content}")
+
+set(FLUTTER_REGISTRANT_GEN "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc")
+set(FLUTTER_REGISTRANT_FILTERED "${CMAKE_BINARY_DIR}/generated_plugin_registrant_filtered.cc")
+file(READ "${FLUTTER_REGISTRANT_GEN}" _registrant_content)
+string(REPLACE "#include <flutter_inappwebview_linux/flutter_inappwebview_linux_plugin.h>\n"
+  "" _registrant_content "${_registrant_content}")
+string(REGEX REPLACE "\n[[:space:]]*g_autoptr\\(FlPluginRegistrar\\) flutter_inappwebview_linux_registrar[[:space:]]*=[[:space:]]*fl_plugin_registry_get_registrar_for_plugin\\(registry, \"FlutterInappwebviewLinuxPlugin\"\\);[[:space:]]*\n[[:space:]]*flutter_inappwebview_linux_plugin_register_with_registrar\\(flutter_inappwebview_linux_registrar\\);"
+  "" _registrant_content "${_registrant_content}")
+file(WRITE "${FLUTTER_REGISTRANT_FILTERED}" "${_registrant_content}")
+
 # Define the application target. To change its name, change BINARY_NAME above,
 # not the value here, or `flutter run` will no longer work.
 #
@@ -63,7 +89,7 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 add_executable(${BINARY_NAME}
   "main.cc"
   "my_application.cc"
-  "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
+  "${FLUTTER_REGISTRANT_FILTERED}"
 )
 
 # Apply the standard set of build settings. This can be removed for applications
@@ -88,8 +114,8 @@ set_target_properties(${BINARY_NAME}
 
 
 # Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
-include(flutter/generated_plugins.cmake)
+# them to the application. 已在上方实时过滤掉 flutter_inappwebview_linux。
+include("${FLUTTER_PLUGINS_FILTERED}")
 
 
 # === Installation ===
