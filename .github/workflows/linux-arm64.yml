@@ -32,6 +32,17 @@ jobs:
             libnm-dev \
             libasound2-dev \
             zip unzip
+          # Ubuntu 22.04 默认 clang 14 不识别 GCC 的
+          # -Wno-deprecated-literal-operator 等选项，导致 -Werror 报错。
+          # 从 LLVM 官方源升级到 clang-17（支持这些兼容选项）。
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+          sudo apt-get install -y clang-17 lld-17
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
+          sudo update-alternatives --install /usr/bin/ld ld /usr/bin/ld.lld-17 100
+          clang --version
 
       - name: 校验 Linux 依赖是否就绪
         # 提前验证各插件所需的 pkg-config 是否存在，避免 CMake 阶段才报错。
