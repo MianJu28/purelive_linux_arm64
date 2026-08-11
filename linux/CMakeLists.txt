@@ -87,8 +87,12 @@ set(FLUTTER_REGISTRANT_GEN "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.c
 set(FLUTTER_REGISTRANT_FILTERED "${CMAKE_BINARY_DIR}/generated_plugin_registrant_filtered.cc")
 if(EXISTS "${FLUTTER_REGISTRANT_GEN}")
   file(READ "${FLUTTER_REGISTRANT_GEN}" _registrant_content)
-  string(REPLACE "flutter_inappwebview_linux" "" _registrant_content "${_registrant_content}")
-  string(REPLACE "FlutterInappwebviewLinuxPlugin" "" _registrant_content "${_registrant_content}")
+  # 整行移除 inappwebview 的 include，避免只替换插件名残留 "/_plugin.h"。
+  string(REPLACE "#include <flutter_inappwebview_linux/flutter_inappwebview_linux_plugin.h>\n"
+    "" _registrant_content "${_registrant_content}")
+  # 移除注册调用块（两行）。
+  string(REPLACE "  g_autoptr(FlPluginRegistrar) flutter_inappwebview_linux_registrar =\n      fl_plugin_registry_get_registrar_for_plugin(registry, \"FlutterInappwebviewLinuxPlugin\");\n  flutter_inappwebview_linux_plugin_register_with_registrar(flutter_inappwebview_linux_registrar);\n"
+    "" _registrant_content "${_registrant_content}")
   file(WRITE "${FLUTTER_REGISTRANT_FILTERED}" "${_registrant_content}")
   if(_registrant_content MATCHES "inappwebview")
     message(WARNING "registrant 仍包含 inappwebview!")
