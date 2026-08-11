@@ -39,8 +39,10 @@ esac
 
 # ---------- 读取版本 ----------
 VERSION="$(grep '^version:' "${PROJECT_DIR}/pubspec.yaml" | sed 's/version: *//; s/[`"'"'"']//g' | head -n1)"
-# deb 版本号不允许出现 '+' ，替换为 '~'
-DEB_VERSION="${VERSION/+/\~}"
+# dpkg-deb 会把输出文件名当作包名校验，包名只允许小写字母数字和 -+.。
+# '+' 是 deb 版本号允许的字符，但为保险统一替换为 '.'，避免任何非法字符。
+DEB_VERSION="${VERSION//[^a-zA-Z0-9.~]/.}"
+DEB_VERSION="${DEB_VERSION//\~/.}"
 
 APP_NAME="pure_live"
 APP_DISPLAY_NAME="纯粹直播"
