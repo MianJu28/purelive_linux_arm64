@@ -588,9 +588,12 @@ class DanmakuViewer extends StatelessWidget {
   final VideoController controller;
 
   /// 规范化弹幕字体：`Default`/空字符串并非真实字体族，直接传给渲染引擎
-  /// 会导致字体查找失败而显示方框，此时应回退到系统默认字体（null）。
+  /// 会导致字体查找失败而显示方框。此时应回退到平台可用的中文字体族
+  /// （Linux/Windows 使用打包的 PingFang，其余平台走引擎默认 null）。
   static String? _validDanmakuFontFamily(String family) {
-    if (family.isEmpty || family == 'Default') return null;
+    if (family.isEmpty || family == 'Default') {
+      return PlatformUtils.resolveDefaultDanmakuFontFamily();
+    }
     return family;
   }
 

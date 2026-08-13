@@ -1,5 +1,6 @@
 import 'package:pure_live/common/index.dart';
 import 'package:flame_barrage/flame_barrage.dart';
+import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/modules/live_play/widgets/video_player/video_controller.dart';
 
 class CompactDanmakuOverlay extends StatelessWidget {
@@ -24,7 +25,7 @@ class CompactDanmakuOverlay extends StatelessWidget {
 
             final danmakuFontFamily = controller.danmakuFontFamilyName.value;
             final resolvedDanmakuFontFamily = (danmakuFontFamily.isEmpty || danmakuFontFamily == 'Default')
-                ? null
+                ? PlatformUtils.resolveDefaultDanmakuFontFamily()
                 : danmakuFontFamily;
 
             return FlameBarrageWidget(
