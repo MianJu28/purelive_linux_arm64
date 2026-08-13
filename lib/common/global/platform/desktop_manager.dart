@@ -104,7 +104,7 @@ class DesktopManager {
       final fullscreen = GlobalPlayerState.to.isFullscreen.value;
       final pipMode = GlobalPlayerState.to.isPipMode.value;
 
-      if (!PlatformUtils.isWindows) {
+      if (!PlatformUtils.isDesktopNotMac) {
         return child ?? const SizedBox.shrink();
       }
 
