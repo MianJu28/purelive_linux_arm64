@@ -111,6 +111,17 @@ jobs:
           flutter config --enable-native-assets
           flutter build linux --release
 
+      - name: 诊断 native-assets 产物
+        # 排查 libdart_quickjs.so 是否被 native-assets 编译并打进 bundle。
+        # 若 bundle/lib 中无该 .so，则斗鱼/抖音签名仍会 FFI 加载失败。
+        run: |
+          echo "=== native_assets 目录 ==="
+          find build/linux/arm64/release/native_assets -type f 2>/dev/null || echo "native_assets 目录不存在"
+          echo "=== bundle/lib 内容 ==="
+          ls -la build/linux/arm64/release/bundle/lib/ 2>/dev/null
+          echo "=== 搜索 libdart_quickjs.so ==="
+          find build/linux/arm64/release -name "libdart_quickjs.so" 2>/dev/null || echo "未找到 libdart_quickjs.so"
+
       - name: 打包 deb
         run: bash linux/packaging/deb/build_deb.sh arm64
 
