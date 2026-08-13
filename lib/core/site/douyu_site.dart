@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'dart:convert';
+import 'dart:developer' show debugPrint;
 import 'package:pure_live/common/index.dart';
 import 'package:html_unescape/html_unescape.dart';
-import 'package:pure_live/core/common/log.dart';
 import 'package:pure_live/model/live_category.dart';
 import 'package:pure_live/model/live_anchor_item.dart';
 import 'package:pure_live/core/scripts/douyu_sign.dart';
@@ -227,7 +227,6 @@ class DouyuSite implements LiveSite {
         },
       );
       var crptext = json.decode(jsEncResult)["data"]["room$roomId"].toString();
-      var signData = await _getSignData(crptext, roomInfo["room_id"].toString(), roomId);
 
       return LiveRoom(
         cover: roomInfo["room_pic"].toString(),
@@ -242,13 +241,22 @@ class DouyuSite implements LiveSite {
         liveStatus: roomInfo["show_status"] == 1 ? LiveStatus.live : LiveStatus.offline,
         status: roomInfo["show_status"] == 1,
         danmakuData: roomInfo["room_id"].toString(),
-        data: signData,
+        data: () {
+          try {
+            final sign = DouyuSign.getSign(crptext, roomInfo["room_id"].toString());
+            debugPrint('[DOUYU-SIGN-OK] getSign 成功, sign=${sign.length > 80 ? sign.substring(0, 80) + '...' : sign}');
+            return sign;
+          } catch (e, s) {
+            debugPrint('[DOUYU-SIGN-FAIL] DouyuSign.getSign 抛异常(本地 dart_quickjs 签名失败)\nerror=$e\nstack=$s');
+            rethrow;
+          }
+        }(),
         platform: Sites.douyuSite,
         link: "https://www.douyu.com/$roomId",
         isRecord: roomInfo["videoLoop"] == 1,
       );
     } catch (e, s) {
-      Log.d('[DOUYU-ROOMDETAIL-FAIL] DouyuSite.getRoomDetail 失败，已回退为已关播\nroomId=$roomId error=$e\nstack=$s');
+      debugPrint('[DOUYU-ROOMDETAIL-FAIL] DouyuSite.getRoomDetail 失败，已回退为已关播\nroomId=$roomId error=$e\nstack=$s');
       LiveRoom liveRoom =
           SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
             (r) => r.roomId == roomId && r.platform == platform,
@@ -259,44 +267,6 @@ class DouyuSite implements LiveSite {
       liveRoom.status = false;
       return liveRoom;
     }
-  }
-
-  /// 计算斗鱼 getH5Play 所需的签名参数串。
-  ///
-  /// 优先使用本地 dart_quickjs 执行 crptext 中的混淆 JS（ub98484234 函数）。
-  /// 在 Linux arm64 等 quickjs 原生库无法加载的平台上，dart_quickjs 会抛异常，
-  /// 此时回退到纯 Dart 的远程签名接口（alive.nsapps.cn），保证斗鱼仍可播放。
-  Future<String> _getSignData(String crptext, String rid, String roomId) async {
-    // 1. 优先本地 dart_quickjs 签名
-    try {
-      final sign = DouyuSign.getSign(crptext, rid);
-      Log.d('[DOUYU-SIGN-OK] getSign 成功, sign=${sign.length > 80 ? sign.substring(0, 80) + '...' : sign}');
-      return sign;
-    } catch (e, s) {
-      Log.d('[DOUYU-SIGN-FALLBACK] 本地 dart_quickjs 签名失败，回退远程签名接口\nrid=$rid error=$e\nstack=$s');
-    }
-
-    // 2. 回退：拉取直播间页面，提取混淆 JS，交给远程签名接口计算
-    try {
-      final pageHtml = await HttpClient.instance.getText(
-        "https://www.douyu.com/$roomId",
-        queryParameters: {},
-        header: {
-          'referer': 'https://www.douyu.com/$roomId',
-          'user-agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43',
-        },
-      );
-      final remoteSign = await getPlayArgs(pageHtml, rid);
-      if (remoteSign.isNotEmpty) {
-        Log.d('[DOUYU-SIGN-FALLBACK-OK] 远程签名成功, sign=${remoteSign.length > 80 ? remoteSign.substring(0, 80) + '...' : remoteSign}');
-        return remoteSign;
-      }
-    } catch (e, s) {
-      Log.d('[DOUYU-SIGN-FALLBACK-FAIL] 远程签名接口失败\nrid=$rid error=$e\nstack=$s');
-    }
-
-    throw Exception('DouyuSign 签名失败：本地 quickjs 与远程接口均不可用 (rid=$rid)');
   }
 
   @override

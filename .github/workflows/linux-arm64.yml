@@ -110,9 +110,7 @@ jobs:
           clang --version | head -1
           # 启用 native-assets，让 dart_quickjs 的 hook/build.dart 编译 libdart_quickjs.so
           flutter config --enable-native-assets
-          flutter build linux --release -v > /tmp/build_verbose.log 2>&1 || { echo "构建失败，见 /tmp/build_verbose.log"; tail -80 /tmp/build_verbose.log; exit 1; }
-          echo "=== 确认 dart_quickjs hook 已编译 .so ==="
-          find .dart_tool/hooks_runner -name "libdart_quickjs.so" 2>/dev/null || echo "警告: hooks_runner 未编译 libdart_quickjs.so"
+          flutter build linux --release
 
       - name: 手动安装 libdart_quickjs.so 到 bundle
         # Flutter Linux 的 native-assets 打包链路（InstallCodeAssets + CMake
@@ -123,15 +121,11 @@ jobs:
         run: |
           SO=$(find .dart_tool/hooks_runner -name "libdart_quickjs.so" | head -1)
           if [ -n "$SO" ]; then
-            echo "拷贝 $SO -> bundle/lib/"
             cp -v "$SO" build/linux/arm64/release/bundle/lib/libdart_quickjs.so
-            file build/linux/arm64/release/bundle/lib/libdart_quickjs.so
           else
             echo "错误: 未找到编译出的 libdart_quickjs.so"
             exit 1
           fi
-          echo "=== 确认 bundle/lib 含 libdart_quickjs.so ==="
-          ls -la build/linux/arm64/release/bundle/lib/libdart_quickjs.so
 
       - name: 打包 deb
         run: bash linux/packaging/deb/build_deb.sh arm64
