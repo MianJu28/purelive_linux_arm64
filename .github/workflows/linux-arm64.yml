@@ -108,32 +108,30 @@ jobs:
         run: |
           which clang clang++
           clang --version | head -1
+          # 启用 native-assets，让 dart_quickjs 的 hook/build.dart 编译 libdart_quickjs.so
           flutter config --enable-native-assets
-          echo "=== dart_quickjs hook 是否被 pub 拉取 ==="
-          find ~/.pub-cache -path "*dart_quickjs*/hook/build.dart" 2>/dev/null || echo "pub cache 中无 dart_quickjs hook"
-          echo "=== package_config 是否包含 dart_quickjs ==="
-          grep -c "dart_quickjs" .dart_tool/package_config.json 2>/dev/null || echo "package_config 无 dart_quickjs"
-          echo "=== 构建开始 ==="
-          flutter build linux --release -v > /tmp/build_verbose.log 2>&1 || { echo "构建失败，见 /tmp/build_verbose.log"; tail -50 /tmp/build_verbose.log; exit 1; }
-          echo "=== native_assets 目录 (InstallCodeAssets 是否拷贝 .so) ==="
-          find build/linux/arm64/release/native_assets -type f 2>/dev/null || echo "native_assets 目录不存在 => InstallCodeAssets 未执行"
-          echo "=== 构建后 linux/CMakeLists.txt 是否含 NATIVE_ASSETS_DIR ==="
-          grep -n "NATIVE_ASSETS_DIR\|native_assets" linux/CMakeLists.txt 2>/dev/null || echo "linux/CMakeLists.txt 无 NATIVE_ASSETS_DIR => CmakeNativeAssetsMigration 未生效"
-          echo "=== hooks_runner 编译的 .so ==="
-          find .dart_tool/hooks_runner -name "libdart_quickjs.so" 2>/dev/null || echo "hooks_runner 无 libdart_quickjs.so"
-          echo "=== dart_build_result.json 全盘搜索 ==="
-          find . -name "dart_build_result.json" 2>/dev/null | head
+          flutter build linux --release -v > /tmp/build_verbose.log 2>&1 || { echo "构建失败，见 /tmp/build_verbose.log"; tail -80 /tmp/build_verbose.log; exit 1; }
+          echo "=== 确认 dart_quickjs hook 已编译 .so ==="
+          find .dart_tool/hooks_runner -name "libdart_quickjs.so" 2>/dev/null || echo "警告: hooks_runner 未编译 libdart_quickjs.so"
 
-      - name: 诊断 native-assets 产物
-        # 排查 libdart_quickjs.so 是否被 native-assets 编译并打进 bundle。
-        # 若 bundle/lib 中无该 .so，则斗鱼/抖音签名仍会 FFI 加载失败。
+      - name: 手动安装 libdart_quickjs.so 到 bundle
+        # Flutter Linux 的 native-assets 打包链路（InstallCodeAssets + CMake
+        # migration）在本项目上未生效（native_assets 目录未生成、CMakeLists
+        # 无 NATIVE_ASSETS_DIR），导致编译出的 libdart_quickjs.so 未进 bundle。
+        # 但 .so 已由 hooks_runner 编译成功，这里手动把它拷贝到 bundle/lib/，
+        # 运行期 @ffi.DefaultAsset 会从 bundle 的 lib/ 相对路径加载。
         run: |
-          echo "=== native_assets 目录 ==="
-          find build/linux/arm64/release/native_assets -type f 2>/dev/null || echo "native_assets 目录不存在"
-          echo "=== bundle/lib 内容 ==="
-          ls -la build/linux/arm64/release/bundle/lib/ 2>/dev/null
-          echo "=== 搜索 libdart_quickjs.so ==="
-          find build/linux/arm64/release -name "libdart_quickjs.so" 2>/dev/null || echo "未找到 libdart_quickjs.so"
+          SO=$(find .dart_tool/hooks_runner -name "libdart_quickjs.so" | head -1)
+          if [ -n "$SO" ]; then
+            echo "拷贝 $SO -> bundle/lib/"
+            cp -v "$SO" build/linux/arm64/release/bundle/lib/libdart_quickjs.so
+            file build/linux/arm64/release/bundle/lib/libdart_quickjs.so
+          else
+            echo "错误: 未找到编译出的 libdart_quickjs.so"
+            exit 1
+          fi
+          echo "=== 确认 bundle/lib 含 libdart_quickjs.so ==="
+          ls -la build/linux/arm64/release/bundle/lib/libdart_quickjs.so
 
       - name: 打包 deb
         run: bash linux/packaging/deb/build_deb.sh arm64
