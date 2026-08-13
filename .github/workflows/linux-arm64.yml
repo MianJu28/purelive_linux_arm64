@@ -109,6 +109,11 @@ jobs:
           which clang clang++
           clang --version | head -1
           flutter config --enable-native-assets
+          echo "=== dart_quickjs hook 是否被 pub 拉取 ==="
+          find ~/.pub-cache -path "*dart_quickjs*/hook/build.dart" 2>/dev/null || echo "pub cache 中无 dart_quickjs hook"
+          echo "=== package_config 是否包含 dart_quickjs ==="
+          grep -c "dart_quickjs" .dart_tool/package_config.json 2>/dev/null || echo "package_config 无 dart_quickjs"
+          echo "=== 构建开始 ==="
           flutter build linux --release
 
       - name: 诊断 native-assets 产物
