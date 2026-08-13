@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'dart:convert';
-import 'dart:developer' show debugPrint;
 import 'package:pure_live/common/index.dart';
 import 'package:html_unescape/html_unescape.dart';
+import 'package:pure_live/core/common/log.dart';
 import 'package:pure_live/model/live_category.dart';
 import 'package:pure_live/model/live_anchor_item.dart';
 import 'package:pure_live/core/scripts/douyu_sign.dart';
@@ -248,7 +248,7 @@ class DouyuSite implements LiveSite {
         isRecord: roomInfo["videoLoop"] == 1,
       );
     } catch (e, s) {
-      debugPrint('[DOUYU-ROOMDETAIL-FAIL] DouyuSite.getRoomDetail 失败，已回退为已关播\nroomId=$roomId error=$e\nstack=$s');
+      Log.d('[DOUYU-ROOMDETAIL-FAIL] DouyuSite.getRoomDetail 失败，已回退为已关播\nroomId=$roomId error=$e\nstack=$s');
       LiveRoom liveRoom =
           SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
             (r) => r.roomId == roomId && r.platform == platform,
@@ -270,10 +270,10 @@ class DouyuSite implements LiveSite {
     // 1. 优先本地 dart_quickjs 签名
     try {
       final sign = DouyuSign.getSign(crptext, rid);
-      debugPrint('[DOUYU-SIGN-OK] getSign 成功, sign=${sign.length > 80 ? sign.substring(0, 80) + '...' : sign}');
+      Log.d('[DOUYU-SIGN-OK] getSign 成功, sign=${sign.length > 80 ? sign.substring(0, 80) + '...' : sign}');
       return sign;
     } catch (e, s) {
-      debugPrint('[DOUYU-SIGN-FALLBACK] 本地 dart_quickjs 签名失败，回退远程签名接口\nrid=$rid error=$e\nstack=$s');
+      Log.d('[DOUYU-SIGN-FALLBACK] 本地 dart_quickjs 签名失败，回退远程签名接口\nrid=$rid error=$e\nstack=$s');
     }
 
     // 2. 回退：拉取直播间页面，提取混淆 JS，交给远程签名接口计算
@@ -289,11 +289,11 @@ class DouyuSite implements LiveSite {
       );
       final remoteSign = await getPlayArgs(pageHtml, rid);
       if (remoteSign.isNotEmpty) {
-        debugPrint('[DOUYU-SIGN-FALLBACK-OK] 远程签名成功, sign=${remoteSign.length > 80 ? remoteSign.substring(0, 80) + '...' : remoteSign}');
+        Log.d('[DOUYU-SIGN-FALLBACK-OK] 远程签名成功, sign=${remoteSign.length > 80 ? remoteSign.substring(0, 80) + '...' : remoteSign}');
         return remoteSign;
       }
     } catch (e, s) {
-      debugPrint('[DOUYU-SIGN-FALLBACK-FAIL] 远程签名接口失败\nrid=$rid error=$e\nstack=$s');
+      Log.d('[DOUYU-SIGN-FALLBACK-FAIL] 远程签名接口失败\nrid=$rid error=$e\nstack=$s');
     }
 
     throw Exception('DouyuSign 签名失败：本地 quickjs 与远程接口均不可用 (rid=$rid)');
