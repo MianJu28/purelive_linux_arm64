@@ -99,12 +99,16 @@ jobs:
       - name: 构建 Linux (arm64)
         # 显式指定 CC/CXX 指向 clang-17，确保 Flutter 构建使用能识别
         # -Wno-deprecated-literal-operator 等 GCC 兼容选项的编译器。
+        # 启用 native-assets：让 dart_quickjs 的 hook/build.dart 在 arm64 上
+        # 编译 libdart_quickjs.so（斗鱼/抖音签名依赖它）。不启用则该 .so 不会
+        # 生成，运行时 FFI 加载失败，导致斗鱼/抖音无法播放。
         env:
           CC: /usr/bin/clang-17
           CXX: /usr/bin/clang++-17
         run: |
           which clang clang++
           clang --version | head -1
+          flutter config --enable-native-assets
           flutter build linux --release
 
       - name: 打包 deb
