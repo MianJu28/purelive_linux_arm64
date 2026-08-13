@@ -23,6 +23,9 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
   void _activateFont(FontModel model, {String? targetFileName}) {
     if (isDanmakuSettings) {
       SettingsService.to.danmaku.danmakuFontFamilyName.v = model.id;
+      // 弹幕字体需先通过 FontLoader 注册对应字体族，否则渲染引擎找不到
+      // 该字体族会回退失败而显示方框。
+      FontDownloadManager.instance.loadFont(model.id, fileName: targetFileName ?? '');
       Get.updateLocale(Get.locale ?? const Locale('zh', 'CN'));
     } else {
       SettingsService.to.font.activateFontFamily(model, targetFileName: targetFileName);

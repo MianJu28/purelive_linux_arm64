@@ -22,11 +22,16 @@ class CompactDanmakuOverlay extends StatelessWidget {
             final scale = settings.pipDanmakuAutoScale.v ? (width / 350.0).clamp(0.65, 1.0).toDouble() : 1.0;
             final fontSize = settings.pipDanmakuFontSize.v * scale;
 
+            final danmakuFontFamily = controller.danmakuFontFamilyName.value;
+            final resolvedDanmakuFontFamily = (danmakuFontFamily.isEmpty || danmakuFontFamily == 'Default')
+                ? null
+                : danmakuFontFamily;
+
             return FlameBarrageWidget(
               controller: controller.pipDanmakuController,
               config: BarrageConfig(
                 fontSize: fontSize,
-                fontFamily: controller.danmakuFontFamilyName.value,
+                fontFamily: resolvedDanmakuFontFamily,
                 area: settings.pipDanmakuArea.v,
                 baseSpeed: settings.pipDanmakuSpeed.v * scale,
                 opacity: settings.pipDanmakuOpacity.v,

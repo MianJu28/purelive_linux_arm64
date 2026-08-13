@@ -587,6 +587,13 @@ class DanmakuViewer extends StatelessWidget {
 
   final VideoController controller;
 
+  /// 规范化弹幕字体：`Default`/空字符串并非真实字体族，直接传给渲染引擎
+  /// 会导致字体查找失败而显示方框，此时应回退到系统默认字体（null）。
+  static String? _validDanmakuFontFamily(String family) {
+    if (family.isEmpty || family == 'Default') return null;
+    return family;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(
@@ -602,7 +609,7 @@ class DanmakuViewer extends StatelessWidget {
           fontWeight: FontWeight.values[controller.danmakuFontBorder.value],
           showStroke: controller.enableDanmakuStroke.value,
           fps: controller.danmakuFps.value,
-          fontFamily: controller.danmakuFontFamilyName.value,
+          fontFamily: _validDanmakuFontFamily(controller.danmakuFontFamilyName.value),
           pictureCacheMaxSize: 9999,
           barragePoolMaxSize: 300,
         ),
