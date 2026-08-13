@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:convert';
+import 'dart:developer' show debugPrint;
 import 'package:pure_live/common/index.dart';
 import 'package:html_unescape/html_unescape.dart';
 import 'package:pure_live/model/live_category.dart';
@@ -240,12 +241,22 @@ class DouyuSite implements LiveSite {
         liveStatus: roomInfo["show_status"] == 1 ? LiveStatus.live : LiveStatus.offline,
         status: roomInfo["show_status"] == 1,
         danmakuData: roomInfo["room_id"].toString(),
-        data: DouyuSign.getSign(crptext, roomInfo["room_id"].toString()),
+        data: () {
+          try {
+            final sign = DouyuSign.getSign(crptext, roomInfo["room_id"].toString());
+            debugPrint('[DOUYU-SIGN-OK] getSign 成功, sign=${sign.length > 80 ? sign.substring(0, 80) + '...' : sign}');
+            return sign;
+          } catch (e, s) {
+            debugPrint('[DOUYU-SIGN-FAIL] DouyuSign.getSign 抛异常(本地 dart_quickjs 签名失败)\nerror=$e\nstack=$s');
+            rethrow;
+          }
+        }(),
         platform: Sites.douyuSite,
         link: "https://www.douyu.com/$roomId",
         isRecord: roomInfo["videoLoop"] == 1,
       );
-    } catch (e) {
+    } catch (e, s) {
+      debugPrint('[DOUYU-ROOMDETAIL-FAIL] DouyuSite.getRoomDetail 失败，已回退为已关播\nroomId=$roomId error=$e\nstack=$s');
       LiveRoom liveRoom =
           SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
             (r) => r.roomId == roomId && r.platform == platform,
