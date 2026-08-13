@@ -114,7 +114,9 @@ jobs:
           echo "=== package_config 是否包含 dart_quickjs ==="
           grep -c "dart_quickjs" .dart_tool/package_config.json 2>/dev/null || echo "package_config 无 dart_quickjs"
           echo "=== 构建开始 ==="
-          flutter build linux --release
+          flutter build linux --release -v > /tmp/build_verbose.log 2>&1 || { echo "构建失败，见 /tmp/build_verbose.log"; tail -50 /tmp/build_verbose.log; exit 1; }
+          echo "=== native-assets 相关日志 ==="
+          grep -iE "native asset|native_assets|packages with native|dart_quickjs|hook/build|CBuilder|quickjs|build hook|skipping" /tmp/build_verbose.log | head -40 || echo "无 native-assets 日志"
 
       - name: 诊断 native-assets 产物
         # 排查 libdart_quickjs.so 是否被 native-assets 编译并打进 bundle。
