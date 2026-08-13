@@ -115,8 +115,12 @@ jobs:
           grep -c "dart_quickjs" .dart_tool/package_config.json 2>/dev/null || echo "package_config 无 dart_quickjs"
           echo "=== 构建开始 ==="
           flutter build linux --release -v > /tmp/build_verbose.log 2>&1 || { echo "构建失败，见 /tmp/build_verbose.log"; tail -50 /tmp/build_verbose.log; exit 1; }
-          echo "=== native-assets 相关日志 ==="
-          grep -iE "native asset|native_assets|packages with native|dart_quickjs|hook/build|CBuilder|quickjs|build hook|skipping" /tmp/build_verbose.log | head -40 || echo "无 native-assets 日志"
+          echo "=== dart_build_result.json (DartBuild 是否运行) ==="
+          ls -la build/linux/arm64/release/dart_build_result.json 2>/dev/null || echo "dart_build_result.json 不存在 => DartBuild target 未执行"
+          echo "=== native_assets.json (是否有 code asset) ==="
+          cat build/linux/arm64/release/native_assets.json 2>/dev/null | head -40 || echo "native_assets.json 不存在 => 无 code asset 编译"
+          echo "=== native-assets 关键日志 ==="
+          grep -aiE "packages with native|No packages|Skipping native|dart_quickjs|CBuilder|HookException|build hook.*(fail|error)|native assets.*(fail|error)|Compiling native" /tmp/build_verbose.log | head -30 || echo "无匹配日志"
 
       - name: 诊断 native-assets 产物
         # 排查 libdart_quickjs.so 是否被 native-assets 编译并打进 bundle。
