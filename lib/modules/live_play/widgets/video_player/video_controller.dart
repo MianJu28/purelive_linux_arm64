@@ -401,14 +401,14 @@ class VideoController with ChangeNotifier {
   }
 
   Future<double?> volume() async {
-    if (Platform.isWindows) {
+    if (PlatformHelper.isDesktop) {
       return room.getSavedVolume();
     }
     return await _volumeController.getVolume();
   }
 
   void setVolume(double value) async {
-    if (Platform.isWindows) {
+    if (PlatformHelper.isDesktop) {
       _playerManager.setVolume(value);
     } else {
       await _volumeController.setVolume(value);

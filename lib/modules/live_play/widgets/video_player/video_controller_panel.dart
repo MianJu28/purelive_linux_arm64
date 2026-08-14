@@ -1224,7 +1224,7 @@ class BottomActionBar extends StatelessWidget {
                                   LineSelectorButton(controller: controller),
                               ],
                               VideoFitSetting(controller: controller),
-                              if (Platform.isWindows) OverlayVolumeControl(controller: controller),
+                              if (Platform.isWindows || Platform.isLinux) OverlayVolumeControl(controller: controller),
                               if (Platform.isWindows)
                                 Obx(() {
                                   return Row(
