@@ -1,18 +1,19 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:pure_live/common/index.dart';
+import 'package:pure_live/plugins/event_bus.dart';
 import 'package:pure_live/plugins/emoji_manager.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/core/danmaku/huya_danmaku.dart';
-import 'package:pure_live/modules/live_play/load_type.dart';
 import 'package:pure_live/core/danmaku/douyin_danmaku.dart';
-import 'package:pure_live/modules/live_play/player_state.dart';
 import 'package:pure_live/modules/live_play/states/ui_state.dart';
+import 'package:pure_live/modules/live_play/states/load_type.dart';
 import 'package:pure_live/modules/live_play/states/room_state.dart';
 import 'package:pure_live/modules/live_play/states/player_state.dart';
 import 'package:back_button_interceptor/back_button_interceptor.dart';
 import 'package:pure_live/modules/live_play/states/live_play_state.dart';
+import 'package:pure_live/modules/live_play/controllers/player_state.dart';
 import 'package:pure_live/modules/live_play/widgets/danmaku_list_view.dart';
 import 'package:pure_live/recorder/pages/recorder/recorder_controller.dart';
 import 'package:pure_live/modules/live_play/controllers/timer_controller.dart';
@@ -254,6 +255,8 @@ class LivePlayController extends GetxController with GetSingleTickerProviderStat
 
       if (liveRoom.platform != Sites.iptvSite) {
         SettingsService.to.history.addRoomToHistory(liveRoom);
+        SettingsService.to.fav.updateRoom(liveRoom);
+        EventBus.instance.emit('refresh_room_changed', true);
       }
 
       const except = [Sites.kuaishouSite, Sites.iptvSite, Sites.ccSite];
@@ -276,6 +279,10 @@ class LivePlayController extends GetxController with GetSingleTickerProviderStat
     setNormalScreen();
     GlobalPlayerState.to.isFullscreen.value = false;
     GlobalPlayerState.to.isWindowFullscreen.value = false;
+    if (liveRoom.platform != Sites.iptvSite) {
+      SettingsService.to.fav.updateRoom(liveRoom);
+      EventBus.instance.emit('refresh_room_changed', true);
+    }
     ToastUtil.show(
       liveRoom.liveStatus == LiveStatus.banned ? i18n('server_error_retry_later') : i18n('stream_not_live'),
     );
