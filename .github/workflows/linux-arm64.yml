@@ -61,15 +61,16 @@ jobs:
             fi
           done
 
-      - name: 安装 Flutter 3.44.9 (arm64)
+      - name: 安装 Flutter 3.47.0 (arm64)
         # Flutter 官方不提供 Linux arm64 预编译 SDK，
         # subosito/flutter-action 无法在 arm64 runner 上解析版本，
         # 因此直接从源码克隆并 checkout 到项目指定版本。
         # 注意：$GITHUB_PATH 仅在当前 step 结束后的后续 step 生效，
         # 当前 step 内必须使用 $HOME/flutter/bin/flutter 完整路径。
-        # 项目 pubspec.yaml 要求 Dart SDK ^3.10.4，需使用 Flutter 3.44.9（对应 Dart 3.10.4）。
+        # 项目 pubspec.yaml 要求 Dart SDK ^3.13.0，需使用 Flutter 3.47.0
+        # （对应 Dart 3.13.x，与 .fvmrc 及上游 Linux 构建一致）。
         run: |
-          git clone --depth 1 --branch 3.44.9 https://github.com/flutter/flutter.git "$HOME/flutter"
+          git clone --depth 1 --branch 3.47.0 https://github.com/flutter/flutter.git "$HOME/flutter"
           echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
           "$HOME/flutter/bin/flutter" config --no-analytics
           "$HOME/flutter/bin/flutter" --version
