@@ -70,7 +70,9 @@ add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 # 该插件从 generated_plugins.cmake 与 generated_plugin_registrant.cc
 # 中剔除（在 CMake 配置阶段实时处理，不受这两个生成文件被
 # `flutter build` 重新生成的影响）。
-# 代价：Linux 上的网页搜索、B 站 WebView 登录功能不可用。
+# 影响说明：网页搜索在 Linux 上已改走系统浏览器（url_launcher 调
+# launchUrl），不受此过滤影响、正常可用；真正受影响的仅是无法内嵌
+# WebView 的功能，如 B 站 WebView 登录。
 # ============================================================
 set(FLUTTER_PLUGINS_GEN "${FLUTTER_MANAGED_DIR}/generated_plugins.cmake")
 set(FLUTTER_PLUGINS_FILTERED "${CMAKE_BINARY_DIR}/generated_plugins_filtered.cmake")
