@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -21,10 +22,11 @@ import 'package:pure_live/pkg/tars/net/base_tars_http.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
 import 'package:pure_live/core/tars/get_cdn_token_ex_req.dart';
 import 'package:pure_live/core/tars/get_cdn_token_ex_resp.dart';
+import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
 
 class HuyaSite implements LiveSite {
   @override
-  String id = "huya";
+  String id = Sites.huyaSite;
   static const baseUrl = "https://m.huya.com/";
   @override
   String name = "虎牙直播";
@@ -37,6 +39,19 @@ class HuyaSite implements LiveSite {
   static const String HYSDK_UA = "HYSDK(Windows,30000002)_APP(pc_exe&7090000&official)_SDK(trans&2.35.0.5996)";
   static Map<String, String> requestHeaders = {'Origin': baseUrl, 'Referer': baseUrl, 'User-Agent': HYSDK_UA};
   final BaseTarsHttp tupClient = BaseTarsHttp("http://wup.huya.com", "liveui", headers: requestHeaders);
+
+  /// Huya's public room detail currently returns `userCount` and
+  /// `totalCount` as the same multi-million popularity value. Treating
+  /// `userCount` as a concurrent head count relabels heat as people online.
+  /// Current website captures show URI 8006 `iAttendeeCount` in the same
+  /// multi-million range, so it is also kept as popularity rather than a
+  /// concurrent-viewer head count.
+  static ({String popularity, String onlineViewers}) parseRoomAudience(Map<String, dynamic>? liveData) {
+    final totalCount = liveData?['totalCount']?.toString().trim() ?? '';
+    final userCount = liveData?['userCount']?.toString().trim() ?? '';
+    return (popularity: totalCount.isNotEmpty ? totalCount : userCount, onlineViewers: '');
+  }
+
   @override
   Future<List<LiveCategory>> getCategores(int page, int pageSize) async {
     List<LiveCategory> categories = [
@@ -109,6 +124,8 @@ class HuyaSite implements LiveSite {
         cover: cover,
         nick: item["nick"].toString(),
         watching: item["totalCount"].toString(),
+        popularity: item["totalCount"].toString(),
+        audienceMetricType: AudienceMetricType.popularity,
         avatar: item["avatar180"],
         area: item["gameFullName"].toString(),
         liveStatus: LiveStatus.live,
@@ -214,6 +231,8 @@ class HuyaSite implements LiveSite {
           nick: item["nick"].toString(),
           avatar: item["avatar180"],
           watching: item["totalCount"].toString(),
+          popularity: item["totalCount"].toString(),
+          audienceMetricType: AudienceMetricType.popularity,
           platform: Sites.huyaSite,
           liveStatus: LiveStatus.live,
           status: true,
@@ -324,9 +343,13 @@ class HuyaSite implements LiveSite {
         }
       }
       bool isXingxiu = data['liveData']['gid'] == 1663;
+      final audience = parseRoomAudience(Map<String, dynamic>.from(data['liveData'] as Map));
       return LiveRoom(
         cover: data['liveData']?['screenshot'] ?? '',
-        watching: data['liveData']?['userCount']?.toString() ?? '',
+        watching: audience.popularity,
+        onlineViewers: audience.onlineViewers,
+        popularity: audience.popularity,
+        audienceMetricType: AudienceMetricType.popularity,
         roomId: roomId,
         area: data['liveData']?['gameFullName'] ?? '',
         title: data['liveData']?['introduction'] ?? '',
@@ -338,19 +361,20 @@ class HuyaSite implements LiveSite {
         liveStatus: data['liveStatus'] == "ON" || data['liveStatus'] == "REPLAY" ? LiveStatus.live : LiveStatus.offline,
         platform: Sites.huyaSite,
         data: HuyaUrlDataModel(url: "", lines: huyaLines, bitRates: huyaBiterates, uid: "", isXingxiu: isXingxiu),
-        danmakuData: HuyaDanmakuArgs(ayyuid: data["profileInfo"]["uid"] ?? 0, topSid: topSid, subSid: subSid),
+        danmakuData: HuyaDanmakuArgs(
+          uid: int.tryParse(data["profileInfo"]?["uid"]?.toString() ?? "") ?? 0,
+          topSid: topSid,
+          subSid: subSid,
+        ),
         link: "https://www.huya.com/$roomId",
       );
     } else {
-      LiveRoom liveRoom =
-          SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
-            (r) => r.roomId == roomId && r.platform == platform,
-          ) ??
-          LiveRoom(roomId: roomId, platform: platform);
-
-      liveRoom.liveStatus = LiveStatus.offline;
-      liveRoom.status = false;
-      return liveRoom;
+      if (Get.isRegistered<PlayerController>()) {
+        final PlayerController playerController = Get.find<PlayerController>();
+        final currentRoom = playerController.currentRoom;
+        if (currentRoom != null) return currentRoom.getLiveRoomWithError();
+      }
+      return LiveRoom(roomId: roomId, platform: platform).getLiveRoomWithError();
     }
   }
 
@@ -408,6 +432,8 @@ class HuyaSite implements LiveSite {
         liveStatus: LiveStatus.live,
         avatar: item["game_imgUrl"].toString(),
         watching: item["game_total_count"].toString(),
+        popularity: item["game_total_count"].toString(),
+        audienceMetricType: AudienceMetricType.popularity,
         platform: Sites.huyaSite,
       );
       items.add(roomItem);

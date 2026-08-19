@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'dart:convert';
-import 'dart:developer' show debugPrint;
+
 import 'package:pure_live/common/index.dart';
 import 'package:html_unescape/html_unescape.dart';
 import 'package:pure_live/model/live_category.dart';
@@ -11,10 +11,11 @@ import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/core/interface/live_site.dart';
 import 'package:pure_live/core/danmaku/douyu_danmaku.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
+import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
 
 class DouyuSite implements LiveSite {
   @override
-  String id = "douyu";
+  String id = Sites.douyuSite;
 
   @override
   String name = "斗鱼直播";
@@ -89,6 +90,8 @@ class DouyuSite implements LiveSite {
       var roomItem = LiveRoom(
         cover: item['rs16'].toString(),
         watching: item['ol'].toString(),
+        popularity: item['ol'].toString(),
+        audienceMetricType: AudienceMetricType.popularity,
         roomId: item['rid'].toString(),
         title: item['rn'].toString(),
         nick: item['nn'].toString(),
@@ -155,8 +158,7 @@ class DouyuSite implements LiveSite {
       data: args,
       header: {
         'referer': 'https://www.douyu.com/$roomId',
-        'user-agent':
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43",
+        'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43",
       },
       formUrlEncoded: true,
     );
@@ -181,6 +183,8 @@ class DouyuSite implements LiveSite {
         var roomItem = LiveRoom(
           cover: item['rs16'].toString(),
           watching: item['ol'].toString(),
+          popularity: item['ol'].toString(),
+          audienceMetricType: AudienceMetricType.popularity,
           roomId: item['rid'].toString(),
           title: item['rn'].toString(),
           nick: item['nn'].toString(),
@@ -206,8 +210,7 @@ class DouyuSite implements LiveSite {
         queryParameters: {},
         header: {
           'referer': 'https://www.douyu.com/$roomId',
-          'user-agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43',
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43',
         },
       );
       Map roomInfo;
@@ -222,8 +225,7 @@ class DouyuSite implements LiveSite {
         queryParameters: {},
         header: {
           'referer': 'https://www.douyu.com/$roomId',
-          'user-agent':
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43",
+          'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.43",
         },
       );
       var crptext = json.decode(jsEncResult)["data"]["room$roomId"].toString();
@@ -231,6 +233,8 @@ class DouyuSite implements LiveSite {
       return LiveRoom(
         cover: roomInfo["room_pic"].toString(),
         watching: roomInfo["room_biz_all"]["hot"].toString(),
+        popularity: roomInfo["room_biz_all"]["hot"].toString(),
+        audienceMetricType: AudienceMetricType.popularity,
         roomId: roomId,
         title: roomInfo["room_name"].toString(),
         nick: roomInfo["owner_name"].toString(),
@@ -255,17 +259,13 @@ class DouyuSite implements LiveSite {
         link: "https://www.douyu.com/$roomId",
         isRecord: roomInfo["videoLoop"] == 1,
       );
-    } catch (e, s) {
-      debugPrint('[DOUYU-ROOMDETAIL-FAIL] DouyuSite.getRoomDetail 失败，已回退为已关播\nroomId=$roomId error=$e\nstack=$s');
-      LiveRoom liveRoom =
-          SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
-            (r) => r.roomId == roomId && r.platform == platform,
-          ) ??
-          LiveRoom(roomId: roomId, platform: platform);
-
-      liveRoom.liveStatus = LiveStatus.offline;
-      liveRoom.status = false;
-      return liveRoom;
+    } catch (e) {
+      if (Get.isRegistered<PlayerController>()) {
+        final PlayerController playerController = Get.find<PlayerController>();
+        final currentRoom = playerController.currentRoom;
+        if (currentRoom != null) return currentRoom.getLiveRoomWithError();
+      }
+      return LiveRoom(roomId: roomId, platform: platform).getLiveRoomWithError();
     }
   }
 
@@ -276,8 +276,7 @@ class DouyuSite implements LiveSite {
       "https://www.douyu.com/japi/search/api/searchShow",
       queryParameters: {"kw": keyword, "page": page, "pageSize": 20},
       header: {
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.51',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.51',
         'referer': 'https://www.douyu.com/search/',
         'Cookie': 'dy_did=$did;acf_did=$did',
       },
@@ -302,6 +301,8 @@ class DouyuSite implements LiveSite {
         nick: item["nickName"].toString(),
         platform: Sites.douyuSite,
         watching: item["hot"].toString(),
+        popularity: item["hot"].toString(),
+        audienceMetricType: AudienceMetricType.popularity,
       );
       items.add(roomItem);
     }
@@ -326,8 +327,7 @@ class DouyuSite implements LiveSite {
       "https://www.douyu.com/japi/search/api/searchUser",
       queryParameters: {"kw": keyword, "page": page, "pageSize": 20, "filterType": 1},
       header: {
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.51',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.51',
         'referer': 'https://www.douyu.com/search/',
         'Cookie': 'dy_did=$did;acf_did=$did',
       },
@@ -352,27 +352,6 @@ class DouyuSite implements LiveSite {
   Future<bool> getLiveStatus({required String platform, required String roomId}) async {
     var detail = await getRoomDetail(roomId: roomId, platform: platform);
     return detail.status!;
-  }
-
-  Future<String> getPlayArgs(String html, String rid) async {
-    //取加密的js
-    html =
-        RegExp(
-          r"(vdwdae325w_64we[\s\S]*function ub98484234[\s\S]*?)function",
-          multiLine: true,
-        ).firstMatch(html)?.group(1) ??
-        "";
-    html = html.replaceAll(RegExp(r"eval.*?;}"), "strc;}");
-
-    var result = await HttpClient.instance.postJson(
-      "http://alive.nsapps.cn/api/AllLive/DouyuSign",
-      data: {"html": html, "rid": rid},
-    );
-
-    if (result["code"] == 0) {
-      return result["data"].toString();
-    }
-    return "";
   }
 
   int parseHotNum(String hn) {

@@ -17,7 +17,10 @@ class PlayerSettingsController extends GetxController {
   final RxString videoHardwareDecoder = hiveString('videoHardwareDecoder', 'auto');
 
   final RxBool floatPlay = hiveBool('floatPlay', false);
-  final RxBool audioOnly = hiveBool('audioOnly', false);
+  final RxBool windowsPipAlwaysOnTop = hiveBool('windowsPipAlwaysOnTop', false);
+  // Kept as an inert compatibility field for old backups. Audio-only is now
+  // room-scoped and controlled by the headphone action or ASMR auto-start.
+  final RxBool audioOnly = false.obs;
   final RxBool useHardStopOnExit = hiveBool('useHardStopOnExit', false);
 
   List<BoxFit> get videoFitArray => AppConsts().videoFitType.map((e) => e['attr'] as BoxFit).toList();
@@ -59,7 +62,8 @@ class PlayerSettingsController extends GetxController {
       'audioOutputDriver': audioOutputDriver.v,
       'videoHardwareDecoder': videoHardwareDecoder.v,
       'floatPlay': floatPlay.v,
-      'audioOnly': audioOnly.v,
+      'windowsPipAlwaysOnTop': windowsPipAlwaysOnTop.v,
+      'audioOnly': false,
       'useHardStopOnExit': useHardStopOnExit.v,
     };
   }
@@ -76,7 +80,8 @@ class PlayerSettingsController extends GetxController {
     audioOutputDriver.v = json['audioOutputDriver'] ?? 'auto';
     videoHardwareDecoder.v = json['videoHardwareDecoder'] ?? 'auto';
     floatPlay.v = json['floatPlay'] ?? false;
-    audioOnly.v = json['audioOnly'] ?? false;
+    windowsPipAlwaysOnTop.v = json['windowsPipAlwaysOnTop'] ?? false;
+    audioOnly.v = false;
     useHardStopOnExit.v = json['useHardStopOnExit'] ?? false;
   }
 
@@ -94,7 +99,8 @@ class PlayerSettingsController extends GetxController {
       'audioOutputDriver': player['audioOutputDriver'] ?? 'auto',
       'videoHardwareDecoder': player['videoHardwareDecoder'] ?? 'auto',
       'floatPlay': player['floatPlay'] ?? false,
-      'audioOnly': player['audioOnly'] ?? false,
+      'windowsPipAlwaysOnTop': player['windowsPipAlwaysOnTop'] ?? false,
+      'audioOnly': false,
       'useHardStopOnExit': player['useHardStopOnExit'] ?? false,
     };
   }

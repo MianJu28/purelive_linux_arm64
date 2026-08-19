@@ -1,8 +1,23 @@
 {
-  "version": "2.0.23",
-  "build_number": 34,
-  "version_num": 2002334,
-  "version_desc": "- 优化播放页面。\n- Android 系统画中画、Windows 小窗和应用内悬浮窗支持显示弹幕。\n- 小窗弹幕支持颜色、字号、速度、透明度、显示区域、最大数量、发送间隔、FPS 和自动缩放。\n- 使用独立小窗弹幕控制器，优化悬浮窗切换时的资源保留与释放。\n- 修复 Windows 构建中的移动端屏幕方向插件目标问题。\n- 更新 Flutter、FFmpeg 构建产物地址和 GitHub Actions。\n",
+  "version": "2.1.4",
+  "build_number": 52,
+  "version_num": 2010452,
+  "android_abis": [
+    "armeabi-v7a",
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "version_desc": "v2.1.4 阶段性全平台更新\n- Bilibili 热门迁移到当前匿名推荐接口，增加回退、结构校验和封面缓存修复。\n- Windows 动态识别窗口所在显示器当前及最高刷新率，优化滚动、转场、缓存和重复监听。\n- 同步上游 5d3e526a，兼容 sooplive.com / sooplive.co.kr 与当前 SOOP 播放链路。\n- 补齐 Android arm64、Windows x64、Linux x64、macOS universal 和 iOS arm64 设备归档。\n",
   "prerelease": false,
-  "download_url": "https://github.com/liuchuancong/pure_live/releases"
+  "download_url": "https://github.com/liuchuancong/pure_live/releases",
+  "platforms": {
+    "windows": {
+      "version": "2.1.4",
+      "build_number": 52,
+      "version_num": 2010452,
+      "version_desc": "v2.1.4 阶段性全平台更新\n- Bilibili 热门迁移到当前匿名推荐接口，增加回退、结构校验和封面缓存修复。\n- Windows 动态识别窗口所在显示器当前及最高刷新率，优化滚动、转场、缓存和重复监听。\n- 同步上游 5d3e526a，兼容 sooplive.com / sooplive.co.kr 与当前 SOOP 播放链路。\n- 继续保留可选安装目录和安装目录 AppData 数据迁移。\n",
+      "prerelease": false,
+      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v2.1.4"
+    }
+  }
 }

@@ -20,9 +20,44 @@ class _AreaCardState extends State<AreaCard> {
     return AreaPicMapper.getPic(widget.category.areaName);
   }
 
+  Widget _buildNetworkImage(String imageUrl) {
+    return Obx(() {
+      final epoch = SettingsService.to.cache.imageCacheEpoch.v;
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final logicalWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 160.0;
+          final cacheWidth = (logicalWidth * MediaQuery.devicePixelRatioOf(context)).round().clamp(160, 640).toInt();
+          return CachedNetworkImage(
+            key: ValueKey('$imageUrl#$epoch'),
+            cacheKey: imageUrl,
+            imageUrl: imageUrl,
+            httpHeaders: networkImageHeaders(imageUrl),
+            cacheManager: CustomImageCacheManager.instance,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.low,
+            memCacheWidth: cacheWidth,
+            maxWidthDiskCache: 640,
+            fadeInDuration: Duration.zero,
+            fadeOutDuration: Duration.zero,
+            placeholder: (context, url) => ColoredBox(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              child: Center(
+                child: Icon(Icons.live_tv_rounded, color: Theme.of(context).disabledColor.withValues(alpha: 0.3)),
+              ),
+            ),
+            errorWidget: (context, url, error) => ColoredBox(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              child: Center(child: Icon(Icons.broken_image_rounded, color: Theme.of(context).disabledColor)),
+            ),
+          );
+        },
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final displayImageUrl = _getFinalUrl();
+    final displayImageUrl = normalizeNetworkImageUrl(_getFinalUrl());
 
     return Card(
       margin: EdgeInsets.zero,
@@ -37,8 +72,7 @@ class _AreaCardState extends State<AreaCard> {
               cover: '',
               nick: widget.category.areaName,
               watching: '',
-              avatar:
-                  'https://img95.699pic.com/xsj/0q/x6/7p.jpg%21/fw/700/watermark/url/L3hzai93YXRlcl9kZXRhaWwyLnBuZw/align/southeast',
+              avatar: 'https://img95.699pic.com/xsj/0q/x6/7p.jpg%21/fw/700/watermark/url/L3hzai93YXRlcl9kZXRhaWwyLnBuZw/align/southeast',
               area: '',
               liveStatus: LiveStatus.live,
               status: true,
@@ -61,15 +95,7 @@ class _AreaCardState extends State<AreaCard> {
                 color: Colors.white,
 
                 child: displayImageUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: displayImageUrl,
-                        cacheManager: CustomImageCacheManager.instance,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) =>
-                            AppStatusView(type: AppStatusType.loading, title: "", subtitle: "", isMini: true),
-                        errorWidget: (context, url, error) =>
-                            AppStatusView(type: AppStatusType.error, title: "", subtitle: "", isMini: true),
-                      )
+                    ? _buildNetworkImage(displayImageUrl)
                     : const Icon(Icons.live_tv_rounded, color: Colors.black, size: 38),
               ),
             ),

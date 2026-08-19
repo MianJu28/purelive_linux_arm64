@@ -13,7 +13,7 @@ class AccountPage extends GetView<AccountController> {
     return Scaffold(
       appBar: AppBar(title: Text(i18n('third_party_auth'))),
       body: ListView(
-        physics: const BouncingScrollPhysics(),
+        physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           context.buildGroupTitle(i18n('third_party_auth')),
@@ -76,7 +76,32 @@ class AccountPage extends GetView<AccountController> {
                     : Get.toNamed(RoutePath.kKuaishouCookie),
               );
             }),
-
+            Obx(() {
+              final isLogined = cookie.twitchCookie.v.isNotEmpty;
+              return _buildAccountTile(
+                context,
+                logo: 'assets/images/twitch.png',
+                title: i18n("site_twitch"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
+                isLogined: isLogined,
+                onTap: () => isLogined
+                    ? _showPlatformLogoutDialog(context, () => cookie.twitchCookie.v = "")
+                    : Get.toNamed(RoutePath.kTwitchCookie),
+              );
+            }),
+            Obx(() {
+              final isLogined = cookie.soopCookie.v.isNotEmpty;
+              return _buildAccountTile(
+                context,
+                logo: 'assets/images/soop.png',
+                title: i18n("site_soop"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
+                isLogined: isLogined,
+                onTap: () => isLogined
+                    ? _showPlatformLogoutDialog(context, () => cookie.soopCookie.v = "")
+                    : Get.toNamed(RoutePath.kSoop),
+              );
+            }),
             _buildAccountTile(
               context,
               logo: 'assets/images/douyu.png',
