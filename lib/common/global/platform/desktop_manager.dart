@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui';
 import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pure_live/common/index.dart';
@@ -13,6 +14,7 @@ import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/plugins/share_command_handler.dart';
 import 'package:pure_live/routes/route_observer_controller.dart';
 import 'package:pure_live/common/utils/share_command_handler.dart';
+import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/modules/live_play/controllers/player_state.dart';
 
 class DesktopManager {
@@ -172,10 +174,7 @@ class DesktopManager {
           break;
 
         case 'exit_app':
-          await windowManager.hide();
-          await windowManager.setPreventClose(false);
-          trayManager.destroy().catchError((e) => debugPrint('托盘注销失败: $e'));
-          windowManager.close().catchError((e) => debugPrint('窗口关闭失败: $e'));
+          await Utils.exitDesktopApplication();
           break;
       }
     } catch (e) {
@@ -448,6 +447,7 @@ class _WindowControlButtonState extends State<WindowControlButton> {
 mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
     implements WindowListener, TrayListener, WidgetsBindingObserver {
   bool _isDialogOpen = false;
+  Timer? _windowGeometryTimer;
   final _sizeController = SettingsService.to.window;
   @override
   void initState() {
@@ -460,6 +460,7 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
 
   @override
   void dispose() {
+    _windowGeometryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -493,6 +494,7 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
   }
 
   void _showProductSelectionDialog(LiveRoom room) {
+    final avatarUrl = normalizeNetworkImageUrl(room.avatar);
     showDialog(
       context: Get.context!,
       builder: (BuildContext context) {
@@ -508,10 +510,8 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
                   children: [
                     CircleAvatar(
                       radius: 24,
-                      backgroundImage: room.avatar != null && room.avatar!.isNotEmpty
-                          ? NetworkImage(room.avatar!)
-                          : null,
-                      child: room.avatar == null || room.avatar!.isEmpty ? const Icon(Icons.person) : null,
+                      backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                      child: avatarUrl.isEmpty ? const Icon(Icons.person) : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -643,22 +643,25 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
   @override
   void onWindowResize() {
     _sizeController.setTracking(true);
-    _updateWindowSizeToController();
+    _scheduleWindowSizeUpdate();
   }
 
   @override
   void onWindowResized() {
+    _windowGeometryTimer?.cancel();
+    _updateWindowSizeToController();
     _sizeController.setTracking(false);
   }
 
   @override
   void onWindowMove() {
     _sizeController.setTracking(true);
-    _updateWindowSizeToController();
   }
 
   @override
-  void onWindowMoved() {}
+  void onWindowMoved() {
+    _sizeController.setTracking(false);
+  }
 
   @override
   void onWindowEnterFullScreen() {
@@ -705,7 +708,10 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
   Future<bool> didPushRouteInformation(RouteInformation routeInformation) async => false;
 
   @override
-  Future<AppExitResponse> didRequestAppExit() async => AppExitResponse.exit;
+  Future<AppExitResponse> didRequestAppExit() async {
+    await HivePrefUtil.flush();
+    return AppExitResponse.exit;
+  }
 
   @override
   void didChangeViewFocus(ViewFocusEvent event) {}
@@ -733,9 +739,21 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
       _sizeController.updateSize(size);
     });
   }
+
+  void _scheduleWindowSizeUpdate() {
+    _windowGeometryTimer?.cancel();
+    _windowGeometryTimer = Timer(const Duration(milliseconds: 80), _updateWindowSizeToController);
+  }
 }
 
 class MyCustomScrollBehavior extends MaterialScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) => const PureLiveScrollPhysics();
+
+  @override
+  ScrollViewKeyboardDismissBehavior getKeyboardDismissBehavior(BuildContext context) =>
+      ScrollViewKeyboardDismissBehavior.onDrag;
+
   @override
   Set<PointerDeviceKind> get dragDevices => {
     PointerDeviceKind.touch,

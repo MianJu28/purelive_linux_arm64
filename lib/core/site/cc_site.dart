@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/model/live_category.dart';
 import 'package:pure_live/core/common/core_log.dart';
@@ -8,10 +9,11 @@ import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/core/interface/live_site.dart';
 import 'package:pure_live/core/danmaku/empty_danmaku.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
+import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
 
 class CCSite implements LiveSite {
   @override
-  String id = "cc";
+  String id = Sites.ccSite;
 
   @override
   String name = "网易CC直播";
@@ -86,6 +88,8 @@ class CCSite implements LiveSite {
           cover: item["cover"].toString(),
           nick: item["nickname"].toString(),
           watching: item["webcc_visitor"].toString(),
+          audienceMetricType: AudienceMetricType.onlineViewers,
+          onlineViewers: item["webcc_visitor"].toString(),
           avatar: item["purl"],
           area: item["game_name"] ?? '',
           liveStatus: LiveStatus.live,
@@ -157,6 +161,8 @@ class CCSite implements LiveSite {
           cover: item["cover"].toString(),
           nick: item["nickname"].toString(),
           watching: item["vision_visitor"].toString(),
+          audienceMetricType: AudienceMetricType.onlineViewers,
+          onlineViewers: item["vision_visitor"].toString(),
           avatar: item["purl"],
           area: item["game_name"] ?? '',
           liveStatus: LiveStatus.live,
@@ -184,9 +190,15 @@ class CCSite implements LiveSite {
       String urlToGetReal = "https://cc.163.com/live/channel/?channelids=$channelId";
       var resultReal = await HttpClient.instance.getJson(urlToGetReal, queryParameters: {'anchor_ccid': roomId});
       var roomInfo = resultReal["data"][0];
+      final onlineViewers =
+          [roomInfo['webcc_visitor'], roomInfo['vision_visitor'], roomInfo['visitor'], roomInfo['online_num']]
+              .map((value) => value?.toString() ?? '')
+              .firstWhere((value) => LiveRoom.parseAudienceNumber(value) > 0, orElse: () => '');
       return LiveRoom(
         cover: roomInfo["cover"],
-        watching: roomInfo["follower_num"].toString(),
+        watching: onlineViewers.isNotEmpty ? onlineViewers : roomInfo["follower_num"].toString(),
+        onlineViewers: onlineViewers,
+        audienceMetricType: onlineViewers.isNotEmpty ? AudienceMetricType.onlineViewers : AudienceMetricType.followers,
         roomId: roomInfo["ccid"].toString(),
         area: roomInfo["gamename"],
         title: roomInfo["title"],
@@ -202,15 +214,12 @@ class CCSite implements LiveSite {
         data: roomInfo["quickplay"] ?? roomInfo["stream_list"],
       );
     } catch (e) {
-      LiveRoom liveRoom =
-          SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
-            (r) => r.roomId == roomId && r.platform == platform,
-          ) ??
-          LiveRoom(roomId: roomId, platform: platform);
-
-      liveRoom.liveStatus = LiveStatus.offline;
-      liveRoom.status = false;
-      return liveRoom;
+      if (Get.isRegistered<PlayerController>()) {
+        final PlayerController playerController = Get.find<PlayerController>();
+        final currentRoom = playerController.currentRoom;
+        if (currentRoom != null) return currentRoom.getLiveRoomWithError();
+      }
+      return LiveRoom(roomId: roomId, platform: platform).getLiveRoomWithError();
     }
   }
 
@@ -233,6 +242,8 @@ class CCSite implements LiveSite {
         liveStatus: item['status'] != null && item['status'] == 1 ? LiveStatus.live : LiveStatus.offline,
         avatar: item["portrait"].toString(),
         watching: item["follower_num"].toString(),
+        followers: item["follower_num"].toString(),
+        audienceMetricType: AudienceMetricType.followers,
         platform: Sites.ccSite,
       );
       items.add(roomItem);
@@ -242,32 +253,17 @@ class CCSite implements LiveSite {
 
   @override
   Future<List<LiveAnchorItem>> searchAnchors(String keyword, {int page = 1, int pageSize = 30}) async {
-    var resultText = await HttpClient.instance.getJson(
-      "https://search.cdn.huya.com/",
-      queryParameters: {
-        "m": "Search",
-        "do": "getSearchContent",
-        "q": keyword,
-        "uid": 0,
-        "v": 1,
-        "typ": -5,
-        "livestate": 0,
-        "rows": pageSize,
-        "start": (page - 1) * pageSize,
-      },
-    );
-    var result = json.decode(resultText);
-    var items = <LiveAnchorItem>[];
-    for (var item in result["response"]["1"]["docs"]) {
-      var anchorItem = LiveAnchorItem(
-        roomId: item["room_id"].toString(),
-        avatar: item["game_avatarUrl180"].toString(),
-        userName: item["game_nick"].toString(),
-        liveStatus: item["gameLiveOn"],
-      );
-      items.add(anchorItem);
-    }
-    return items;
+    final rooms = await searchRooms(keyword, page: page, pageSize: pageSize);
+    return rooms
+        .map(
+          (room) => LiveAnchorItem(
+            roomId: room.roomId ?? '',
+            avatar: room.avatar ?? '',
+            userName: room.nick ?? '',
+            liveStatus: room.liveStatus == LiveStatus.live,
+          ),
+        )
+        .toList();
   }
 
   @override

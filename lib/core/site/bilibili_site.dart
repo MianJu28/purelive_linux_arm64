@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/model/live_category.dart';
@@ -9,10 +10,11 @@ import 'package:pure_live/core/interface/live_site.dart';
 import 'package:pure_live/core/common/convert_helper.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
 import 'package:pure_live/core/danmaku/bilibili_danmaku.dart';
+import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
 
 class BiliBiliSite implements LiveSite {
   @override
-  String id = "bilibili";
+  String id = Sites.bilibiliSite;
 
   @override
   String name = "哔哩哔哩直播";
@@ -95,6 +97,8 @@ class BiliBiliSite implements LiveSite {
           nick: item["uname"].toString(),
           avatar: item["face"].toString(),
           watching: item["online"].toString(),
+          popularity: item["online"].toString(),
+          audienceMetricType: AudienceMetricType.popularity,
           liveStatus: LiveStatus.live,
           area: item["area_name"].toString(),
           status: true,
@@ -182,31 +186,81 @@ class BiliBiliSite implements LiveSite {
 
   @override
   Future<List<LiveRoom>> getRecommendRooms({int page = 1, int pageSize = 30}) async {
-    try {
-      const baseUrl = "https://api.live.bilibili.com/xlive/web-interface/v1/second/getListByArea";
-      var url = "$baseUrl?platform=web&sort=online&page_size=$pageSize&page=$page";
-      var queryParams = await getWbiSign(url);
-      var result = await HttpClient.instance.getJson(baseUrl, queryParameters: queryParams, header: await getHeader());
+    const primaryUrl = 'https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList';
+    Object? primaryError;
 
-      var items = <LiveRoom>[];
-      for (var item in result["data"]["list"]) {
-        var roomItem = LiveRoom(
-          roomId: item["roomid"].toString(),
-          title: item["title"].toString(),
-          cover: "${item["cover"]}@400w.jpg",
-          area: item["area_name"].toString(),
-          nick: item["uname"].toString(),
-          avatar: item["face"].toString(),
-          watching: item["online"].toString(),
-          liveStatus: LiveStatus.live,
-          platform: Sites.bilibiliSite,
+    // The former signed second/getListByArea endpoint now intermittently (and
+    // for some routes consistently) returns code -352. The web homepage feed
+    // is the current anonymous recommendation source and needs no WBI key.
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final result = await HttpClient.instance.getJson(
+          primaryUrl,
+          queryParameters: {'platform': 'web', 'page': page},
+          header: await getHeader(),
         );
-        items.add(roomItem);
+        return parseRecommendRooms(result);
+      } catch (error) {
+        primaryError = error;
+        if (attempt == 0) await Future<void>.delayed(const Duration(milliseconds: 180));
       }
-      return items;
-    } catch (e) {
-      throw Exception(e.toString());
     }
+
+    // Retain a separate anonymous API as a bounded fallback. It currently
+    // accepts page sizes up to 30 and returns the same room fields.
+    try {
+      final result = await HttpClient.instance.getJson(
+        'https://api.live.bilibili.com/room/v1/Area/getListByAreaID',
+        queryParameters: {
+          'areaId': 0,
+          'parent_area_id': 0,
+          'sort': 'online',
+          'pageSize': pageSize.clamp(1, 30),
+          'page': page,
+        },
+        header: await getHeader(),
+      );
+      return parseRecommendRooms(result);
+    } catch (fallbackError) {
+      throw Exception('Bilibili recommend failed: primary=$primaryError; fallback=$fallbackError');
+    }
+  }
+
+  /// Parses both the current webMain response and the legacy anonymous
+  /// fallback. Kept pure so response-shape regressions can be unit tested.
+  static List<LiveRoom> parseRecommendRooms(dynamic response) {
+    if (response is! Map) throw const FormatException('Bilibili response is not an object');
+    if (response['code'] != 0) {
+      throw StateError('Bilibili API code=${response['code']}: ${response['message']}');
+    }
+
+    final data = response['data'];
+    final dynamic rawList = data is Map ? data['recommend_room_list'] : data;
+    if (rawList is! List) throw const FormatException('Bilibili recommendation list is missing');
+
+    return rawList
+        .whereType<Map>()
+        .map((raw) {
+          final item = Map<String, dynamic>.from(raw);
+          final roomId = (item['roomid'] ?? item['room_id'])?.toString() ?? '';
+          final cover = normalizeNetworkImageUrl((item['cover'] ?? item['user_cover'])?.toString());
+          return LiveRoom(
+            roomId: roomId,
+            title: item['title']?.toString() ?? '',
+            cover: cover.isEmpty ? '' : '$cover@400w.jpg',
+            area: (item['area_v2_name'] ?? item['area_name'] ?? item['areaName'])?.toString() ?? '',
+            nick: item['uname']?.toString() ?? '',
+            avatar: normalizeNetworkImageUrl(item['face']?.toString()),
+            watching: item['online']?.toString() ?? '',
+            popularity: item['online']?.toString() ?? '',
+            audienceMetricType: AudienceMetricType.popularity,
+            liveStatus: LiveStatus.live,
+            status: true,
+            platform: Sites.bilibiliSite,
+          );
+        })
+        .where((room) => room.roomId?.isNotEmpty == true)
+        .toList(growable: false);
   }
 
   Future<Map<String, dynamic>> getRoomInfo({required String roomId}) async {
@@ -222,6 +276,7 @@ class BiliBiliSite implements LiveSite {
 
   static String kImgKey = '';
   static String kSubKey = '';
+  static DateTime? _wbiKeysUpdatedAt;
   static const List<int> mixinKeyEncTab = [
     46,
     47,
@@ -288,8 +343,13 @@ class BiliBiliSite implements LiveSite {
     44,
     52,
   ];
-  Future<(String, String)> getWbiKeys() async {
-    if (kImgKey.isNotEmpty && kSubKey.isNotEmpty) {
+  Future<(String, String)> getWbiKeys({bool forceRefresh = false}) async {
+    final cacheAge = _wbiKeysUpdatedAt == null ? null : DateTime.now().difference(_wbiKeysUpdatedAt!);
+    if (!forceRefresh &&
+        kImgKey.isNotEmpty &&
+        kSubKey.isNotEmpty &&
+        cacheAge != null &&
+        cacheAge < const Duration(hours: 6)) {
       return (kImgKey, kSubKey);
     }
     // 获取最新的 img_key 和 sub_key
@@ -305,6 +365,7 @@ class BiliBiliSite implements LiveSite {
 
     kImgKey = imgKey;
     kSubKey = subKey;
+    _wbiKeysUpdatedAt = DateTime.now();
 
     return (imgKey, subKey);
   }
@@ -314,8 +375,8 @@ class BiliBiliSite implements LiveSite {
     return mixinKeyEncTab.fold("", (s, i) => s + origin[i]).substring(0, 32);
   }
 
-  Future<Map<String, String>> getWbiSign(String url) async {
-    var (imgKey, subKey) = await getWbiKeys();
+  Future<Map<String, String>> getWbiSign(String url, {bool forceRefresh = false}) async {
+    var (imgKey, subKey) = await getWbiKeys(forceRefresh: forceRefresh);
 
     // 为请求参数进行 wbi 签名
     var mixinKey = getMixinKey(imgKey + subKey);
@@ -340,22 +401,92 @@ class BiliBiliSite implements LiveSite {
     return queryParams;
   }
 
+  Future<BiliBiliDanmakuArgs> _discoverDanmaku(int realRoomId, {int maxAttempts = 4}) async {
+    const baseUrl = "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo";
+    final headers = await getHeader();
+    Map<String, dynamic>? data;
+    Object? lastError;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final signed = await getWbiSign('$baseUrl?id=$realRoomId&type=0', forceRefresh: attempt == 1 || attempt == 3);
+        final response = await HttpClient.instance.getJson(baseUrl, queryParameters: signed, header: headers);
+        final candidate = response['data'];
+        if (response['code'] == 0 && candidate is Map && candidate['token']?.toString().isNotEmpty == true) {
+          data = Map<String, dynamic>.from(candidate);
+          break;
+        }
+        lastError = StateError('getDanmuInfo code=${response['code']}');
+      } catch (error) {
+        lastError = error;
+      }
+      if (attempt + 1 < maxAttempts) {
+        await Future<void>.delayed(Duration(milliseconds: 180 * (attempt + 1)));
+      }
+    }
+    if (data == null) throw StateError('Bilibili danmaku discovery failed: $lastError');
+
+    // The generic gateway has stable public DNS while some ISP/mobile DNS
+    // resolvers intermittently omit the regional comet records returned by
+    // host_list. Try it first and retain the regional nodes as failovers.
+    const officialFallback = 'wss://broadcastlv.chat.bilibili.com/sub';
+    final serverUrls = <String>[officialFallback];
+    for (final item in (data['host_list'] as List?) ?? const []) {
+      final host = item?['host']?.toString().trim() ?? '';
+      if (host.isEmpty) continue;
+      final port = int.tryParse(item?['wss_port']?.toString() ?? '') ?? 443;
+      final endpoint = 'wss://$host${port == 443 ? '' : ':$port'}/sub';
+      if (!serverUrls.contains(endpoint)) serverUrls.add(endpoint);
+    }
+    return BiliBiliDanmakuArgs(
+      roomId: realRoomId,
+      // A remembered uid without its login cookie is not an authenticated
+      // identity. Sending it in a guest auth packet makes the gateway close
+      // the socket on some rooms; anonymous danmaku uses uid=0.
+      uid: cookie.trim().isEmpty ? 0 : userId,
+      token: data['token']?.toString() ?? '',
+      serverUrls: serverUrls,
+      buvid: buvid3,
+      cookie: headers['cookie'] ?? cookie,
+      headers: {
+        'user-agent': headers['user-agent'] ?? kDefaultUserAgent,
+        'origin': 'https://live.bilibili.com',
+        'referer': 'https://live.bilibili.com/$realRoomId',
+        if ((headers['cookie'] ?? '').isNotEmpty) 'cookie': headers['cookie'],
+      },
+      refresh: () => _discoverDanmaku(realRoomId),
+    );
+  }
+
   @override
   Future<LiveRoom> getRoomDetail({required String platform, required String roomId}) async {
     try {
       var roomInfo = await getRoomInfo(roomId: roomId);
       var realRoomId = roomInfo["room_info"]["room_id"].toString();
-      const danmuInfoBaseUrl = "https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo";
-      var danmuInfoUrl = "$danmuInfoBaseUrl?id=$realRoomId";
-      var queryParams = await getWbiSign(danmuInfoUrl);
-      var roomDanmakuResult = await HttpClient.instance.getJson(
-        danmuInfoBaseUrl,
-        queryParameters: queryParams,
-        header: await getHeader(),
-      );
-      List<String> serverHosts = (roomDanmakuResult["data"]["host_list"] as List)
-          .map<String>((e) => e["host"].toString())
-          .toList();
+      BiliBiliDanmakuArgs danmakuArgs;
+      try {
+        // Room entry must not wait through the whole chat retry chain.  A
+        // single quick discovery gives playback priority; the websocket layer
+        // then refreshes credentials with the full retry policy when needed.
+        danmakuArgs = await _discoverDanmaku(int.tryParse(realRoomId) ?? 0, maxAttempts: 1);
+      } catch (error) {
+        debugPrint('Bilibili danmaku discovery failed: $error');
+        final headers = await getHeader();
+        danmakuArgs = BiliBiliDanmakuArgs(
+          roomId: int.tryParse(realRoomId) ?? 0,
+          uid: cookie.trim().isEmpty ? 0 : userId,
+          token: '',
+          serverUrls: const ['wss://broadcastlv.chat.bilibili.com/sub'],
+          buvid: buvid3,
+          cookie: headers['cookie'] ?? cookie,
+          headers: {
+            'user-agent': headers['user-agent'] ?? kDefaultUserAgent,
+            'origin': 'https://live.bilibili.com',
+            'referer': 'https://live.bilibili.com/$realRoomId',
+            if ((headers['cookie'] ?? '').isNotEmpty) 'cookie': headers['cookie'],
+          },
+          refresh: () => _discoverDanmaku(int.tryParse(realRoomId) ?? 0),
+        );
+      }
       return LiveRoom(
         roomId: roomId,
         title: roomInfo["room_info"]["title"].toString(),
@@ -363,6 +494,8 @@ class BiliBiliSite implements LiveSite {
         nick: roomInfo["anchor_info"]["base_info"]["uname"].toString(),
         avatar: "${roomInfo["anchor_info"]["base_info"]["face"]}@100w.jpg",
         watching: roomInfo["room_info"]["online"].toString(),
+        popularity: roomInfo["room_info"]["online"].toString(),
+        audienceMetricType: AudienceMetricType.popularity,
         area: roomInfo['room_info']?['area_name'] ?? '',
         status: (asT<int?>(roomInfo["room_info"]["live_status"]) ?? 0) == 1,
         liveStatus: (asT<int?>(roomInfo["room_info"]["live_status"]) ?? 0) == 1 ? LiveStatus.live : LiveStatus.offline,
@@ -370,25 +503,15 @@ class BiliBiliSite implements LiveSite {
         introduction: roomInfo["room_info"]["description"].toString(),
         notice: "",
         platform: Sites.bilibiliSite,
-        danmakuData: BiliBiliDanmakuArgs(
-          roomId: int.tryParse(realRoomId) ?? 0,
-          uid: userId,
-          token: roomDanmakuResult["data"]["token"].toString(),
-          serverHost: serverHosts.isNotEmpty ? serverHosts.first : "broadcastlv.chat.bilibili.com",
-          buvid: buvid3,
-          cookie: cookie,
-        ),
+        danmakuData: danmakuArgs,
       );
     } catch (e) {
-      LiveRoom liveRoom =
-          SettingsService.to.fav.favoriteRooms.v.firstWhereOrNull(
-            (r) => r.roomId == roomId && r.platform == platform,
-          ) ??
-          LiveRoom(roomId: roomId, platform: platform);
-
-      liveRoom.liveStatus = LiveStatus.offline;
-      liveRoom.status = false;
-      return liveRoom;
+      if (Get.isRegistered<PlayerController>()) {
+        final PlayerController playerController = Get.find<PlayerController>();
+        final currentRoom = playerController.currentRoom;
+        if (currentRoom != null) return currentRoom.getLiveRoomWithError();
+      }
+      return LiveRoom(roomId: roomId, platform: platform).getLiveRoomWithError();
     }
   }
 
@@ -421,6 +544,9 @@ class BiliBiliSite implements LiveSite {
         cover: "https:${item["cover"]}@400w.jpg",
         nick: item["uname"].toString(),
         watching: item["online"].toString(),
+        popularity: item["online"].toString(),
+        followers: item["attentions"]?.toString() ?? '',
+        audienceMetricType: AudienceMetricType.popularity,
         liveStatus: (asT<int?>(item["live_status"]) ?? 0) == 1 ? LiveStatus.live : LiveStatus.offline,
         area: item["cate_name"].toString(),
         status: (asT<int?>(item["live_status"]) ?? 0) == 1,

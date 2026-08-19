@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/routes/app_navigation.dart';
 import 'package:pure_live/common/consts/app_consts.dart';
@@ -35,17 +36,19 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with DesktopWindowMixin {
+  StreamSubscription<SharedMedia>? _sharedMediaSubscription;
+
   @override
   void initState() {
     super.initState();
     if (PlatformUtils.isDesktop) {
       DesktopManager.initializeListeners(this);
     }
-    initSharedMediaListener();
-    initGlopalPlayer();
+    unawaited(initSharedMediaListener());
+    unawaited(initGlobalPlayer());
   }
 
-  Future<void> initGlopalPlayer() async {
+  Future<void> initGlobalPlayer() async {
     final String savedKey = SettingsService.to.player.videoPlayerKey.v;
     final String validKey = PlayerConsts.engines.containsKey(savedKey) ? savedKey : PlayerConsts.defaultKey;
     final PlayerEngine targetEngine = PlayerConsts.engines[validKey]!;
@@ -56,7 +59,7 @@ class _MyAppState extends State<MyApp> with DesktopWindowMixin {
     } else {
       defaultEngine = targetEngine;
     }
-    GlobalPlayerService.instance.initialize(defaultEngine: defaultEngine);
+    await GlobalPlayerService.instance.initialize(defaultEngine: defaultEngine);
   }
 
   @override
@@ -64,7 +67,9 @@ class _MyAppState extends State<MyApp> with DesktopWindowMixin {
     if (PlatformUtils.isDesktop) {
       DesktopManager.disposeListeners();
     }
-    GlobalPlayerService.instance.playerManager.dispose();
+    final subscription = _sharedMediaSubscription;
+    if (subscription != null) unawaited(subscription.cancel());
+    unawaited(GlobalPlayerService.instance.dispose());
     super.dispose();
   }
 
@@ -72,7 +77,7 @@ class _MyAppState extends State<MyApp> with DesktopWindowMixin {
     if (Platform.isAndroid) {
       final handler = ShareHandler.instance;
       await handler.getInitialSharedMedia();
-      handler.sharedMediaStream.listen((SharedMedia media) async {
+      _sharedMediaSubscription = handler.sharedMediaStream.listen((SharedMedia media) async {
         final path = media.content?.trim().toLowerCase() ?? '';
         if (path.isEmpty) return;
         if (path.endsWith('.m3u') || path.endsWith('.txt') || path.contains('.m3u8')) {
@@ -116,10 +121,19 @@ class _MyAppState extends State<MyApp> with DesktopWindowMixin {
               pageTransitionsTheme: const PageTransitionsTheme(
                 builders: <TargetPlatform, PageTransitionsBuilder>{
                   TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+                  TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
                 },
               ),
             ),
-            darkTheme: darkTheme.copyWith(appBarTheme: const AppBarTheme(surfaceTintColor: Colors.transparent)),
+            darkTheme: darkTheme.copyWith(
+              appBarTheme: const AppBarTheme(surfaceTintColor: Colors.transparent),
+              pageTransitionsTheme: const PageTransitionsTheme(
+                builders: <TargetPlatform, PageTransitionsBuilder>{
+                  TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+                  TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+                },
+              ),
+            ),
             locale: context.locale,
             navigatorObservers: [FlutterSmartDialog.observer, BackButtonObserver()],
             builder: FlutterSmartDialog.init(

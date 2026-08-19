@@ -1,6 +1,7 @@
 import 'dart:ui';
+
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:pure_live/common/index.dart';
-import 'package:waterfall_flow/waterfall_flow.dart';
 import 'package:pure_live/common/widgets/keep_alive_wrapper.dart';
 
 class AreasRoomPage extends StatefulWidget {
@@ -43,17 +44,26 @@ class _AreasRoomPageState extends State<AreasRoomPage> {
               builder: (context, constraint) {
                 final width = constraint.maxWidth;
                 final crossAxisCount = width > 1280 ? 5 : (width > 960 ? 4 : (width > 640 ? 3 : 2));
-                return WaterfallFlow.builder(
-                  gridDelegate: SliverWaterfallFlowDelegateWithFixedCrossAxisCount(
-                    lastChildLayoutTypeBuilder: (index) => LastChildLayoutType.none,
+                final spacing = SettingsService.to.theme.crossAxisSpacing.v;
+                final itemWidth = (width - 12 - spacing * (crossAxisCount - 1)) / crossAxisCount;
+                return GridView.builder(
+                  scrollCacheExtent: ScrollCacheExtent.pixels(width > 680 ? 960 : 480),
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: false,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: SettingsService.to.theme.crossAxisSpacing.v,
+                    crossAxisSpacing: spacing,
                     mainAxisSpacing: SettingsService.to.theme.mainAxisSpacing.v,
+                    mainAxisExtent: itemWidth * 9 / 16 + 72,
                   ),
                   padding: const EdgeInsets.fromLTRB(6, 6, 6, 80),
                   controller: scrollController,
                   itemCount: list.length,
-                  itemBuilder: (context, index) => RoomCard(room: list[index], dense: true),
+                  itemBuilder: (context, index) {
+                    final room = list[index];
+                    return RoomCard(key: ValueKey('${room.platform}:${room.roomId}'), room: room, dense: true);
+                  },
                 );
               },
             );
@@ -73,7 +83,8 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
   Widget _buildAvatar(BuildContext context) {
     final theme = Theme.of(context);
     final String firstChar = (area.areaName?.isNotEmpty ?? false) ? area.areaName!.substring(0, 1) : "";
-    final bool hasPic = area.areaPic != null && area.areaPic!.isNotEmpty;
+    final pictureUrl = normalizeNetworkImageUrl(area.areaPic);
+    final bool hasPic = pictureUrl.isNotEmpty;
 
     return Container(
       width: 32,
@@ -82,7 +93,7 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
       child: ClipOval(
         child: hasPic
             ? Image.network(
-                area.areaPic!,
+                pictureUrl,
                 width: 32,
                 height: 32,
                 fit: BoxFit.cover,
@@ -189,10 +200,8 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
                                     children: [
                                       Text(
                                         i18n("follow"),
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).hintColor,
-                                          height: 1.1,
-                                        ),
+                                        style: Theme.of(context).textTheme.bodySmall
+                                            ?.copyWith(color: Theme.of(context).hintColor, height: 1.1),
                                       ),
                                       const SizedBox(height: 1),
                                       ConstrainedBox(
