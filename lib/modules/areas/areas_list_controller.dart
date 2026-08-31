@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/model/live_category.dart';
 import 'package:pure_live/plugins/area_pic_mapper.dart';
@@ -49,6 +50,19 @@ class AreasListController extends ServerAllPageController<LiveArea> {
     return _serverRawBackup[catId] ?? [];
   }
 
+  /// Switches a category from the catalogue already returned by the server.
+  ///
+  /// Re-entering [loadData] for every settled horizontal swipe needlessly
+  /// passed through the asynchronous loading pipeline and published extra
+  /// reactive frames. Category contents are local at this point, so update the
+  /// active slice synchronously and keep the finger-to-page transition linear.
+  void selectCategory(int index) {
+    if (isFlatten || index < 0 || index >= categories.length || tabIndex.value == index) return;
+    tabIndex.value = index;
+    currentPage = 1;
+    processLocalPaging();
+  }
+
   @override
   void processLocalPaging() {
     if (isFlatten) {
@@ -63,7 +77,7 @@ class AreasListController extends ServerAllPageController<LiveArea> {
         return;
       }
 
-      if (Get.width > 680) {
+      if (usesDesktopPagination) {
         int startIndex = (currentPage - 1) * pageSize.value;
         if (startIndex >= allItems.length) {
           currentPage = 1;
@@ -95,7 +109,6 @@ class AreasListController extends ServerAllPageController<LiveArea> {
       list.clear();
       canLoadMore.value = false;
       pageEmpty.value = true;
-      categories.refresh();
       finishRefreshControllers(IndicatorResult.noMore);
       return;
     }
@@ -105,16 +118,18 @@ class AreasListController extends ServerAllPageController<LiveArea> {
     totalCount.value = allItems.length;
 
     if (allItems.isEmpty) {
-      currentCategory.children.clear();
       list.clear();
       canLoadMore.value = false;
       pageEmpty.value = true;
-      categories.refresh();
+      if (usesDesktopPagination && currentCategory.children.isNotEmpty) {
+        currentCategory.children.clear();
+        categories.refresh();
+      }
       finishRefreshControllers(IndicatorResult.noMore);
       return;
     }
 
-    if (Get.width > 680) {
+    if (usesDesktopPagination) {
       int startIndex = (currentPage - 1) * pageSize.value;
       if (startIndex >= allItems.length) {
         currentPage = 1;
@@ -133,15 +148,13 @@ class AreasListController extends ServerAllPageController<LiveArea> {
         scrollToTopImmediate();
       }
       finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
+      categories.refresh();
     } else {
       list.assignAll(allItems);
-      currentCategory.children.assignAll(allItems);
       canLoadMore.value = false;
       pageEmpty.value = list.isEmpty;
       finishRefreshControllers(IndicatorResult.noMore);
     }
-
-    categories.refresh();
   }
 }
 

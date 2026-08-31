@@ -3,7 +3,7 @@ import 'dart:developer';
 import 'package:dio/dio.dart' as dio;
 import 'package:flutter/services.dart';
 import 'package:pure_live/common/index.dart';
-import 'package:pure_live/modules/live_play/widgets/live_dlna_dialog.dart';
+import 'package:pure_live/modules/live_play/dialogs/live_dlna_dialog.dart';
 
 class LiveUrlTool {
   static Future<List<String>> parseLiveUrl(String url) async {
@@ -94,6 +94,11 @@ class LiveUrlTool {
       final id = regExp.firstMatch(realUrl)?.group(1) ?? "";
 
       return [id, Sites.soopSite];
+    }
+    if (realUrl.contains("yy.com/")) {
+      final regExp = RegExp(r'(?:www\.)?yy\.com/([^/?]+)');
+      final roomId = regExp.firstMatch(realUrl)?.group(1) ?? "";
+      return [roomId, Sites.yySite];
     }
     return [];
   }

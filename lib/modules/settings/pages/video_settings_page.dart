@@ -2,13 +2,15 @@ import 'dart:io';
 
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
-import 'package:pure_live/common/services/settings/app_settings_controller.dart';
 import 'package:pure_live/player/utils/player_consts.dart';
+import 'package:pure_live/player/utils/window_helper.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/player/core/live_audio_service.dart';
-import 'package:pure_live/player/utils/window_helper.dart';
 import 'package:pure_live/modules/settings/pages/font_family_manager_page.dart';
+import 'package:pure_live/common/services/settings/app_settings_controller.dart';
 import 'package:pure_live/modules/settings/pages/pip_danmaku_settings_page.dart';
+import 'package:pure_live/modules/settings/pages/portrait_live_settings_page.dart';
+import 'package:pure_live/modules/settings/pages/audience_metric_settings_page.dart';
 
 class VideoSettingsPage extends GetView<SettingsService> {
   const VideoSettingsPage({super.key});
@@ -99,6 +101,20 @@ class VideoSettingsPage extends GetView<SettingsService> {
           // 播放行为设置
           context.buildGroupTitle(i18n("playback_behavior_settings")),
           context.buildModernCard([
+            context.buildTile(
+              title: i18n('portrait_live_settings'),
+              subtitle: i18n('portrait_live_settings_desc'),
+              icon: Icons.stay_current_portrait_rounded,
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Get.to(() => const PortraitLiveSettingsPage()),
+            ),
+            context.buildTile(
+              title: i18n('audience_metric_settings'),
+              subtitle: i18n('audience_metric_settings_desc'),
+              icon: Icons.groups_2_rounded,
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Get.to(() => const AudienceMetricSettingsPage()),
+            ),
             if (Platform.isAndroid)
               context.buildSwitchTile(
                 icon: Remix.music_2_line,
@@ -164,6 +180,42 @@ class VideoSettingsPage extends GetView<SettingsService> {
                 icon: Remix.pushpin_line,
                 onChanged: WindowHelper.instance.setPiPAlwaysOnTop,
               ),
+            if (Platform.isWindows)
+              context.buildSwitchTile(
+                title: i18n('windows_pip_remember_position'),
+                subtitle: i18n('windows_pip_remember_position_subtitle'),
+                value: SettingsService.to.window.rememberPipPosition,
+                icon: Remix.terminal_window_fill,
+                onChanged: (value) {
+                  SettingsService.to.window.rememberPipPosition.v = value;
+                },
+              ),
+            if (Platform.isWindows)
+              context.buildTile(
+                icon: Remix.reserved_line,
+                title: i18n('windows_pip_reset_position'),
+                subtitle: i18n('windows_pip_reset_position_subtitle'),
+                onTap: () async {
+                  final result = await showDialog<bool>(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: Text(i18n('windows_pip_reset_position')),
+                        content: Text(i18n('windows_pip_reset_position_confirm')),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(i18n('cancel'))),
+                          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: Text(i18n('confirm'))),
+                        ],
+                      );
+                    },
+                  );
+
+                  if (result == true) {
+                    SettingsService.to.window.clearWindowsPipGeometry();
+                  }
+                },
+              ),
+
             context.buildSwitchTile(
               title: i18n('enable_fullscreen_default'),
               subtitle: i18n('enable_fullscreen_default_subtitle'),

@@ -7,11 +7,21 @@ class FavoriteAreasController extends GetxController with GetTickerProviderState
   var favoriteAreas = [].obs;
   @override
   void onInit() {
-    tabSiteController = TabController(length: Sites().availableSites().length + 1, vsync: this);
+    tabSiteController = TabController(
+      length: Sites().availableSites().length + 1,
+      vsync: this,
+      animationDuration: pureLiveTabTransitionDuration,
+    );
     tabSiteController.addListener(() {
       tabSiteIndex.value = tabSiteController.index;
     });
     favoriteAreas.value = SettingsService.to.fav.favoriteAreas.v;
     super.onInit();
+  }
+
+  @override
+  void onClose() {
+    tabSiteController.dispose();
+    super.onClose();
   }
 }

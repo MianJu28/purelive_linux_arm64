@@ -24,13 +24,15 @@ final List<String> mirrors = [
   'https://gitproxy.click/',
 ];
 
-List<String> getMirrorUrls(String apkUrl) {
+List<String> getMirrorUrls(String apkUrl, {bool githubOriginOnly = false}) {
+  if (apkUrl.trim().isEmpty) return const [];
+  if (githubOriginOnly) return [apkUrl];
   final mirrorsUrl = mirrors.map((e) => '$e$apkUrl').toList();
   mirrorsUrl.add(apkUrl);
-  return mirrorsUrl;
+  return mirrorsUrl.toSet().toList(growable: false);
 }
 
-Future<void> downloadAndInstallApk(String apkUrl) async {
+Future<void> downloadAndInstallApk(String apkUrl, {String? fileName}) async {
   if (Platform.isAndroid) {
     try {
       final hasInstallPermission = await requestStorageInstallPermission();
@@ -44,5 +46,8 @@ Future<void> downloadAndInstallApk(String apkUrl) async {
     }
   }
   ToastUtil.show(i18n("downloading_apk", args: {"version": VersionUtil.latestVersion}));
-  Get.dialog(DownloadApkDialog(apkUrl: apkUrl, version: VersionUtil.latestVersion), barrierDismissible: false);
+  Get.dialog(
+    DownloadApkDialog(apkUrl: apkUrl, version: VersionUtil.latestVersion, fileName: fileName),
+    barrierDismissible: false,
+  );
 }

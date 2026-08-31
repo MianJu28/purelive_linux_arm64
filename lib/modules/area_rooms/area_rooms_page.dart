@@ -1,7 +1,7 @@
-import 'dart:ui';
-
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:pure_live/common/index.dart';
+import 'package:pure_live/plugins/cache_manager.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pure_live/common/widgets/keep_alive_wrapper.dart';
 
 class AreasRoomPage extends StatefulWidget {
@@ -47,9 +47,9 @@ class _AreasRoomPageState extends State<AreasRoomPage> {
                 final spacing = SettingsService.to.theme.crossAxisSpacing.v;
                 final itemWidth = (width - 12 - spacing * (crossAxisCount - 1)) / crossAxisCount;
                 return GridView.builder(
-                  scrollCacheExtent: ScrollCacheExtent.pixels(width > 680 ? 960 : 480),
+                  scrollCacheExtent: ScrollCacheExtent.pixels(width > 680 ? 480 : 320),
                   addAutomaticKeepAlives: false,
-                  addRepaintBoundaries: false,
+                  addRepaintBoundaries: true,
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
@@ -92,12 +92,19 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
       decoration: BoxDecoration(shape: BoxShape.circle, color: theme.colorScheme.primaryContainer),
       child: ClipOval(
         child: hasPic
-            ? Image.network(
-                pictureUrl,
+            ? CachedNetworkImage(
+                imageUrl: pictureUrl,
+                cacheKey: pictureUrl,
+                cacheManager: CustomImageCacheManager.instance,
+                httpHeaders: networkImageHeaders(pictureUrl),
                 width: 32,
                 height: 32,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
+                memCacheWidth: 64,
+                // maxWidthDiskCache: 128,
+                fadeInDuration: Duration.zero,
+                fadeOutDuration: Duration.zero,
+                errorWidget: (context, _, _) {
                   return Center(
                     child: Text(
                       firstChar,
@@ -147,8 +154,8 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(isFavorite ? 24 : 16),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 2.0, sigmaY: 2.0),
+            child: ColoredBox(
+              color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(isFavorite ? 24 : 16),
                 onTap: () {

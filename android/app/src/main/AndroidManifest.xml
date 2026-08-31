@@ -1,6 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:tools="http://schemas.android.com/tools" package="com.mystyle.purelive">
-  <uses-sdk tools:overrideLibrary="com.akashskypatel.ffmpeg_kit_extended_flutter" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -10,8 +9,10 @@
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
   <!-- Permissions options for the `storage` group -->
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    android:maxSdkVersion="29" />
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+    android:maxSdkVersion="32" />
   <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
   <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
   <!-- Internet access permissions. -->
@@ -33,18 +34,18 @@
   <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
   <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
   <application android:label="${appLabel}" android:name="${applicationName}"
-    android:banner="@drawable/banner" android:largeHeap="true" android:usesCleartextTraffic="true"
+    android:banner="@drawable/banner" android:usesCleartextTraffic="true"
     android:networkSecurityConfig="@xml/network_security_config"
     android:allowBackup="false"
     tools:replace="android:allowBackup"
-    android:requestLegacyExternalStorage="true" android:enableOnBackInvokedCallback="false"
+    android:requestLegacyExternalStorage="true" android:enableOnBackInvokedCallback="true"
     android:allowNativeHeapPointerTagging="false" android:icon="@mipmap/ic_launcher">
     <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask"
       android:theme="@style/LaunchTheme" android:clearTaskOnLaunch="true"
       android:excludeFromRecents="false"
       android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
       android:hardwareAccelerated="true" android:resizeableActivity="true"
-      android:supportsPictureInPicture="true" android:enableOnBackInvokedCallback="false"
+      android:supportsPictureInPicture="true" android:enableOnBackInvokedCallback="true"
       android:windowSoftInputMode="adjustResize">
       <meta-data android:name="io.flutter.embedding.android.NormalTheme"
         android:resource="@style/NormalTheme" />

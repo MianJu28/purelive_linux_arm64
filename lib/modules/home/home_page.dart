@@ -1,16 +1,21 @@
 import 'dart:io';
 import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:move_to_desktop/move_to_desktop.dart';
+import 'package:pure_live/routes/app_navigation.dart';
 import 'package:pure_live/common/consts/app_consts.dart';
 import 'package:pure_live/modules/areas/areas_page.dart';
 import 'package:pure_live/modules/home/mobile_view.dart';
 import 'package:pure_live/modules/home/tablet_view.dart';
+import 'package:pure_live/common/global/initialized.dart';
+import 'package:pure_live/player/models/player_engine.dart';
 import 'package:pure_live/modules/popular/popular_page.dart';
 import 'package:pure_live/modules/favorite/favorite_page.dart';
 import 'package:pure_live/modules/about/widgets/version_dialog.dart';
 import 'package:pure_live/recorder/pages/recorder/recorder_page.dart';
+import 'package:pure_live/common/services/settings/refresh_config_controller.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,9 +24,14 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin {
+class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   Timer? _debounceTimer;
+  Timer? _resumeRefreshTimer;
+  Timer? _updateCheckTimer;
   final FavoriteController favoriteController = Get.find<FavoriteController>();
+  late final VoidCallback _favoriteTabListener;
+  Worker? _savedMenuWorker;
+  DateTime? _backgroundedAt;
 
   int _selectedIndex = 0;
 
@@ -35,6 +45,7 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _syncInitialIndex();
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
@@ -47,34 +58,101 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
         );
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
-    });
 
-    addToOverlay();
-
-    favoriteController.tabBottomIndex.addListener(() {
-      if (mounted) {
-        setState(() => _selectedIndex = favoriteController.tabBottomIndex.value);
+      final initialRoom = AppInitializer().takeInitialRoom();
+      if (initialRoom != null && mounted) {
+        // MyApp prepares the global manager asynchronously while leaving the
+        // native decoder cold. Reusing that same initialization Future keeps a
+        // command-line room from racing a second manager into existence.
+        if (!GlobalPlayerService.instance.initialized) {
+          await GlobalPlayerService.instance.initialize(defaultEngine: PlayerEngine.mediaKit);
+        }
+        if (!mounted) return;
+        await AppNavigator.toLiveRoomDetail(liveRoom: initialRoom);
       }
     });
 
-    ever(SettingsService.to.app.savedMenuIds, (v) {
+    // Give the visible room snapshot first use of the network and build
+    // isolate. The update check is low-priority background work and previously
+    // competed with the cold-start room verification and image requests.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateCheckTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) unawaited(addToOverlay());
+      });
+    });
+
+    _favoriteTabListener = () {
       if (mounted) {
-        final List<String> value = List<String>.from(v as List);
-        if (value.isNotEmpty) {
-          final currentMenuId = HomeMenu.values[_selectedIndex].id;
-          if (!value.contains(currentMenuId)) {
-            final firstMenu = HomeMenu.fromId(value.first);
-            if (firstMenu != null) {
-              onDestinationSelected(firstMenu.index);
-            }
-          }
+        setState(() => _selectedIndex = favoriteController.tabBottomIndex.value);
+      }
+    };
+    favoriteController.tabBottomIndex.addListener(_favoriteTabListener);
+
+    _savedMenuWorker = ever(SettingsService.to.app.savedMenuIds, (v) {
+      if (!mounted) {
+        return;
+      }
+      List<String> value = List<String>.from(v as List);
+      final bool isTablet = Get.width > 680;
+      if (isTablet) {
+        value = value.where((id) => id != HomeMenu.record.id).toList();
+      }
+      if (value.isEmpty) {
+        setState(() {
+          _selectedIndex = -1;
+        });
+        favoriteController.tabBottomIndex.value = -1;
+        return;
+      }
+      final currentMenuId = _selectedIndex >= 0 && _selectedIndex < HomeMenu.values.length
+          ? HomeMenu.values[_selectedIndex].id
+          : null;
+      if (currentMenuId == null || !value.contains(currentMenuId)) {
+        final firstMenu = HomeMenu.fromId(value.first);
+        if (firstMenu != null) {
+          onDestinationSelected(firstMenu.index);
         }
       }
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _resumeRefreshTimer?.cancel();
+      _backgroundedAt ??= DateTime.now();
+      return;
+    }
+    if (state != AppLifecycleState.resumed) return;
+    final RefreshConfigController refreshConfigController = Get.find<RefreshConfigController>();
+    if (!refreshConfigController.refreshFavoriteOnResume.value) {
+      return;
+    }
+    final backgroundedAt = _backgroundedAt;
+    _backgroundedAt = null;
+    if (backgroundedAt == null || DateTime.now().difference(backgroundedAt) < const Duration(seconds: 15)) return;
+
+    if (_selectedIndex < 0 || _selectedIndex >= HomeMenu.values.length) return;
+    final menu = HomeMenu.values[_selectedIndex];
+    _resumeRefreshTimer?.cancel();
+    _updateCheckTimer?.cancel();
+    _resumeRefreshTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      if (menu == HomeMenu.popular && Get.isRegistered<PopularController>()) {
+        unawaited(Get.find<PopularController>().refreshCurrentData());
+      } else if (menu == HomeMenu.areas && Get.isRegistered<AreasController>()) {
+        unawaited(Get.find<AreasController>().refreshCurrentData());
+      }
+    });
+  }
+
   void _syncInitialIndex() {
-    final activeIds = SettingsService.to.app.savedMenuIds.v;
+    List<String> activeIds = SettingsService.to.app.savedMenuIds.v;
+    final bool isTablet = Get.width > 680;
+    if (isTablet) {
+      activeIds = activeIds.where((id) => id != HomeMenu.record.id).toList();
+    }
     if (activeIds.isNotEmpty) {
       final firstMenu = HomeMenu.fromId(activeIds.first);
       if (firstMenu != null) {
@@ -147,22 +225,30 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
 
           return Obx(() {
             final activeMenuIds = List<String>.from(SettingsService.to.app.savedMenuIds.v);
+            List<String> tabletActiveMenuIds = List.from(activeMenuIds);
             if (isTablet) {
-              activeMenuIds.remove(HomeMenu.record.id);
+              tabletActiveMenuIds.remove(HomeMenu.record.id);
             }
-            if (activeMenuIds.isEmpty) return const Scaffold();
 
             int adjustedIndex = _selectedIndex;
-            if (adjustedIndex >= HomeMenu.values.length ||
-                (isTablet && HomeMenu.values[adjustedIndex] == HomeMenu.record)) {
-              final fallbackMenu = HomeMenu.fromId(activeMenuIds.first);
-              if (fallbackMenu != null) {
-                adjustedIndex = fallbackMenu.index;
-              }
-            }
+            Widget currentWidget = const SizedBox.shrink();
 
-            final currentMenu = HomeMenu.values[adjustedIndex];
-            final currentWidget = _pageMap[currentMenu] ?? const SizedBox.shrink();
+            if (tabletActiveMenuIds.isNotEmpty) {
+              if (adjustedIndex < 0 ||
+                  adjustedIndex >= HomeMenu.values.length ||
+                  (isTablet && HomeMenu.values[adjustedIndex] == HomeMenu.record)) {
+                final fallbackMenu = HomeMenu.fromId(tabletActiveMenuIds.first);
+                if (fallbackMenu != null) {
+                  adjustedIndex = fallbackMenu.index;
+                }
+              }
+              if (adjustedIndex >= 0 && adjustedIndex < HomeMenu.values.length) {
+                final currentMenu = HomeMenu.values[adjustedIndex];
+                currentWidget = _pageMap[currentMenu] ?? const SizedBox.shrink();
+              }
+            } else {
+              adjustedIndex = -1;
+            }
 
             return !isTablet
                 ? HomeMobileView(
@@ -174,7 +260,8 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
                 : HomeTabletView(
                     body: currentWidget,
                     index: adjustedIndex,
-                    activeMenuIds: activeMenuIds,
+                    activeMenuIds: tabletActiveMenuIds,
+                    showRecord: activeMenuIds.contains(HomeMenu.record.id),
                     onDestinationSelected: onDestinationSelected,
                   );
           });
@@ -185,4 +272,15 @@ class _HomePageState extends State<HomePage> with AutomaticKeepAliveClientMixin 
 
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    favoriteController.tabBottomIndex.removeListener(_favoriteTabListener);
+    _savedMenuWorker?.dispose();
+    _debounceTimer?.cancel();
+    _resumeRefreshTimer?.cancel();
+    _updateCheckTimer?.cancel();
+    super.dispose();
+  }
 }

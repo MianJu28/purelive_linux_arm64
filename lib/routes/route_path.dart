@@ -24,6 +24,9 @@ class RoutePath {
   /// 播放页面
   static const kLivePlay = "/live_play";
 
+  /// 多画面同看页面
+  static const kMultiview = "/multiview";
+
   /// 搜索
   static const kSearch = "/search";
 
@@ -81,6 +84,8 @@ class RoutePath {
   static const kDouyinCookie = "/douyin_cookie";
 
   static const kTwitchCookie = "/twitch_cookie";
+
+  static const kYyCookie = "/yy_cookie";
 
   static const kSoop = "/soop";
 

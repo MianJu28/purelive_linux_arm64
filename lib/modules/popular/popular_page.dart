@@ -1,5 +1,3 @@
-import 'package:flutter/gestures.dart';
-
 import 'popular_grid_view.dart';
 
 import 'package:pure_live/common/index.dart';
@@ -14,29 +12,30 @@ class PopularPage extends GetView<PopularController> {
       builder: (context, constraint) {
         return Obx(() {
           bool showAction = Get.width <= 680;
-          final int menuCount = SettingsService.to.app.savedMenuIds.v.length;
-          final availableSitesList = Sites().availableSites();
 
-          if (availableSitesList.isEmpty) return const Scaffold();
+          final sites = controller.sites;
+
+          if (sites.isEmpty) {
+            return const Scaffold();
+          }
 
           return Scaffold(
             appBar: AppBar(
               centerTitle: true,
-              leading: (showAction || menuCount <= 1) ? const MenuButton() : null,
+              leading: showAction ? const MenuButton() : null,
               actions: showAction ? [CommonAppBarActions()] : null,
               title: TabBar(
+                key: const ValueKey('popular-platform-tabs'),
                 controller: controller.tabController,
                 isScrollable: true,
-                physics: const PureLiveScrollPhysics(),
-                dragStartBehavior: DragStartBehavior.down,
-                tabs: availableSitesList.map((e) => Tab(text: e.name)).toList(),
+                physics: const PureLiveBoundedScrollPhysics(),
+                tabs: sites.map((e) => Tab(text: e.name)).toList(),
               ),
             ),
             body: TabBarView(
               controller: controller.tabController,
-              physics: const PureLiveScrollPhysics(),
-              dragStartBehavior: DragStartBehavior.down,
-              children: availableSitesList.map((e) => PopularGridView(e.id)).toList(),
+              physics: const PureLiveBoundedScrollPhysics(),
+              children: sites.map((e) => PopularGridView(e.id)).toList(),
             ),
           );
         });

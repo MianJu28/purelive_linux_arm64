@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/file_utils.dart';
@@ -23,10 +24,7 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
 
   Future<void> _activateFont(FontModel model, {String? targetFileName}) async {
     if (isDanmakuSettings) {
-      await SettingsService.to.font.activateDanmakuFontFamily(model);
-      // 弹幕字体需先通过 FontLoader 注册对应字体族，否则渲染引擎找不到
-      // 该字体族会回退失败而显示方框。
-      FontDownloadManager.instance.loadFont(model.id, fileName: targetFileName ?? '');
+      await SettingsService.to.font.activateDanmakuFontFamily(model, targetFileName: targetFileName);
       Get.updateLocale(Get.locale ?? const Locale('zh', 'CN'));
     } else {
       await SettingsService.to.font.activateFontFamily(model, targetFileName: targetFileName);
@@ -36,12 +34,16 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
   Future<void> _setDefaultFont() async {
     if (isDanmakuSettings) {
       SettingsService.to.danmaku.danmakuFontFamilyName.v = 'Default';
+      SettingsService.to.font.danmakuFontFamilyFileName.v = '';
       await HivePrefUtil.setString('danmakuFontFamilyName', 'Default');
+      await HivePrefUtil.setString('danmakuFontFamilyFileName', '');
       ToastUtil.show(i18n('font_reset_default'));
       return;
     }
     SettingsService.to.font.fontFamilyName.v = 'Default';
+    SettingsService.to.font.fontFamilyFileName.v = '';
     await HivePrefUtil.setString('fontFamilyName', 'Default');
+    await HivePrefUtil.setString('fontFamilyFileName', '');
     Get.updateLocale(Get.locale ?? const Locale('zh', 'CN'));
     ToastUtil.show(i18n('font_reset_default'));
   }
@@ -58,6 +60,25 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
           isDanmakuSettings ? i18n("change_danmaku_font_family") : i18n("font_family_settings"),
           style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: TextButton.icon(
+              onPressed: () async {
+                final downloadDir = await AppPathManager().downloadDir;
+                FileUtils.openFileOrUrl(p.join(downloadDir.path, AppPathManager.fontDirectoryName));
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: theme.colorScheme.primary,
+              ),
+              icon: const Icon(Remix.folder_open_line, size: 18),
+              label: Text(i18n("recorder_open_folder"), style: AppTextStyles.t14.copyWith(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
       ),
       body: Obx(() {
         final fontModels = SettingsService.to.font.fontList;
@@ -254,7 +275,7 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
             ),
           ),
           title: Text(
-            PlatformUtils.isWindows ? "PingFang" : "System Default",
+            PlatformUtils.isWindows ? "Microsoft YaHei" : "System Default",
             style: isDefaultActive
                 ? AppTextStyles.t14Bold.copyWith(color: theme.colorScheme.primary)
                 : AppTextStyles.t14SemiBold,
@@ -302,8 +323,9 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
 
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                foregroundColor: theme.colorScheme.onPrimaryContainer,
+                elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
@@ -314,7 +336,10 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
                   await _showFontWeightSelector(context, fontModel);
                 }
               },
-              child: Text(i18n("apply"), style: AppTextStyles.t13Bold),
+              child: Text(
+                i18n("apply"),
+                style: AppTextStyles.t13Bold.copyWith(color: theme.colorScheme.onPrimaryContainer),
+              ),
             ),
           ],
         ),
@@ -343,8 +368,8 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
 
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
+              backgroundColor: theme.colorScheme.primaryContainer,
+              foregroundColor: theme.colorScheme.onPrimaryContainer,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
@@ -355,7 +380,10 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
                 await _showFontWeightSelector(context, fontModel);
               }
             },
-            child: Text(i18n("apply"), style: AppTextStyles.t13Bold),
+            child: Text(
+              i18n("apply"),
+              style: AppTextStyles.t13Bold.copyWith(color: theme.colorScheme.onPrimaryContainer),
+            ),
           ),
         ] else
           ElevatedButton.icon(
@@ -376,9 +404,12 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
               );
 
               if (success) {
-                await SettingsService.to.font.refreshFontDiskSizes();
-
-                await _activateFont(fontModel);
+                await SettingsService.to.font.refreshFontDiskSizes(force: true);
+                if (fontModel.files.length <= 1) {
+                  await _activateFont(fontModel);
+                } else if (context.mounted) {
+                  await _showFontWeightSelector(context, fontModel);
+                }
               } else {
                 ToastUtil.show(i18n("font_load_failed"));
               }
@@ -406,6 +437,7 @@ class FontFamilyManagerPage extends GetView<SettingsService> {
         }
       }
     }
+    downloadedFiles.sort((left, right) => left.path.compareTo(right.path));
 
     if (downloadedFiles.isEmpty) {
       ToastUtil.show(i18n('font_not_downloaded_or_corrupted'));

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pure_live/modules/live_play/danmaku_viewing_preset.dart';
+import 'package:pure_live/modules/live_play/widgets/danmaku/danmaku_viewing_preset.dart';
 
 void main() {
   test('each viewing preset only matches its actual rendered values', () {
@@ -11,6 +11,7 @@ void main() {
           bottom: preset.bottom,
           speed: preset.speed,
           fontSize: preset.fontSize,
+          fontWeight: preset.fontWeight,
           fontBorder: preset.fontBorder,
           opacity: preset.opacity,
           stroke: preset.stroke,
@@ -26,6 +27,7 @@ void main() {
           bottom: preset.bottom,
           speed: preset.speed,
           fontSize: preset.fontSize,
+          fontWeight: preset.fontWeight,
           fontBorder: preset.fontBorder,
           opacity: preset.opacity,
           stroke: preset.stroke,
@@ -46,6 +48,7 @@ void main() {
         bottom: preset.bottom,
         speed: preset.speed,
         fontSize: preset.fontSize,
+        fontWeight: preset.fontWeight,
         fontBorder: preset.fontBorder,
         opacity: preset.opacity,
         stroke: preset.stroke,

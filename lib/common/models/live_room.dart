@@ -6,6 +6,20 @@ enum AudienceMetricType { popularity, onlineViewers, totalViewers, followers, un
 
 enum AudienceOnlineAvailability { unsupported, roomRealtime, roomList }
 
+/// Comparable audience key used when rooms from different platform metric
+/// scales appear in one list.
+///
+/// In concurrent-viewer mode an explicit concurrent value must always rank
+/// ahead of a pending value, and a pending supported room must stay ahead of a
+/// heat/cumulative fallback. This prevents a multi-million popularity score
+/// from outranking a real audience of a few thousand people.
+class AudienceRankKey {
+  const AudienceRankKey({required this.metricPriority, required this.value});
+
+  final int metricPriority;
+  final int value;
+}
+
 class AudiencePlatformCapability {
   const AudiencePlatformCapability({
     required this.hasPopularity,
@@ -54,7 +68,7 @@ class LiveRoom {
       onlineAvailability: AudienceOnlineAvailability.roomList,
     ),
     'cc': AudiencePlatformCapability(
-      hasPopularity: false,
+      hasPopularity: true,
       hasTotalViewers: false,
       onlineAvailability: AudienceOnlineAvailability.roomList,
     ),
@@ -65,12 +79,20 @@ class LiveRoom {
       hasTotalViewers: false,
       onlineAvailability: AudienceOnlineAvailability.roomList,
     ),
-    // SOOP list/detail fields are named view_cnt/current_view_cnt and expose
-    // the current viewers rather than a separate platform heat score.
+    // SOOP lists expose total_view_cnt/view_cnt as PC + mobile concurrent
+    // viewers. current_view_cnt alone is PC-only and must not be displayed as
+    // the total audience; player metadata may omit the count altogether.
     'soop': AudiencePlatformCapability(
       hasPopularity: false,
       hasTotalViewers: false,
       onlineAvailability: AudienceOnlineAvailability.roomList,
+    ),
+    // YY's public `users` value follows the platform popularity scale. No
+    // separate concurrent audience field is exposed by the current web API.
+    'yy': AudiencePlatformCapability(
+      hasPopularity: true,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.unsupported,
     ),
   };
 
@@ -124,7 +146,7 @@ class LiveRoom {
   /// 是否录播
   bool? isRecord = false;
   // 直播状态
-  LiveStatus? liveStatus = LiveStatus.offline;
+  LiveStatus? liveStatus;
 
   /// EPG channel id
   String? epgId;
@@ -139,6 +161,9 @@ class LiveRoom {
   bool? isCatchUp; // 是否正在时移
   int? catchUpStart; // 时移开始时间戳
   int? catchUpEnd; // 时移结束时间戳
+
+  /// Local epoch-millisecond timestamp used by the viewing-history UI.
+  int? lastWatchedAt;
 
   // 添加未命名的默认构造函数
   LiveRoom({
@@ -157,7 +182,7 @@ class LiveRoom {
     this.totalViewers = '',
     this.followers = '0',
     this.platform,
-    this.liveStatus,
+    LiveStatus? liveStatus,
     this.data,
     this.danmakuData,
     this.isRecord = false,
@@ -171,8 +196,10 @@ class LiveRoom {
     this.isCatchUp = false,
     this.catchUpStart,
     this.catchUpEnd,
+    this.lastWatchedAt,
     List<String>? tagIds,
-  }) : tagIds = tagIds ?? [];
+  }) : liveStatus = liveStatus ?? _legacyStatusToLiveStatus(status: status, isRecord: isRecord),
+       tagIds = tagIds ?? [];
 
   LiveRoom.fromJson(Map<String, dynamic> json)
     : roomId = json['roomId'] ?? '',
@@ -194,7 +221,7 @@ class LiveRoom {
       followers = json['followers']?.toString() ?? '0',
       platform = json['platform'] ?? 'UNKNOWN',
       tagIds = List<String>.from(json['tagIds'] ?? []),
-      liveStatus = LiveStatus.values.firstWhere((e) => e.index == json['liveStatus'], orElse: () => LiveStatus.unknown),
+      liveStatus = _liveStatusFromJson(json),
       status = json['status'] ?? false,
       notice = json['notice'] ?? '',
       introduction = json['introduction'] ?? '',
@@ -205,10 +232,11 @@ class LiveRoom {
       catchUpUrl = json['catchUpUrl'],
       isCatchUp = json['isCatchUp'] ?? false,
       catchUpStart = json['catchUpStart'],
-      catchUpEnd = json['catchUpEnd'] {
+      catchUpEnd = json['catchUpEnd'],
+      lastWatchedAt = json['lastWatchedAt'] is num ? (json['lastWatchedAt'] as num).toInt() : null {
     // Earlier builds stored Huya's userCount/URI 8006 popularity in the
     // concurrent-viewer field. Current captures confirm both are popularity.
-    if (platform == 'huya' && _hasExplicitAudienceValue(onlineViewers)) {
+    if (normalizedPlatformId == 'huya' && _hasExplicitAudienceValue(onlineViewers)) {
       if (!_hasAudienceValue(popularity)) {
         popularity = onlineViewers;
       }
@@ -249,6 +277,7 @@ class LiveRoom {
     bool? isCatchUp,
     int? catchUpStart,
     int? catchUpEnd,
+    int? lastWatchedAt,
     List<String>? tagIds,
   }) {
     return LiveRoom(
@@ -281,19 +310,72 @@ class LiveRoom {
       isCatchUp: isCatchUp ?? this.isCatchUp,
       catchUpStart: catchUpStart ?? this.catchUpStart,
       catchUpEnd: catchUpEnd ?? this.catchUpEnd,
+      lastWatchedAt: lastWatchedAt ?? this.lastWatchedAt,
       tagIds: tagIds ?? this.tagIds,
     );
   }
 
-  @override
-  bool operator ==(covariant LiveRoom other) => platform == other.platform && roomId == other.roomId;
+  String get normalizedPlatformId => platform?.trim().toLowerCase() ?? '';
+
+  String get normalizedRoomId => roomId?.trim() ?? '';
+
+  /// Canonical room state used by presentation and playback decisions.
+  ///
+  /// The project historically carried the same fact in both [status] and
+  /// [liveStatus]. A number of adapters and persisted favourites only wrote
+  /// one of them, so sorting by `status` while painting the badge from
+  /// `liveStatus` could label the same room both live and offline. Keep the
+  /// legacy boolean readable for backup compatibility, but collapse every
+  /// consumer onto this single semantic value.
+  ///
+  /// New instances and legacy JSON without [liveStatus] derive the enum from
+  /// [status] in the constructor/deserializer. Once an enum is present it is
+  /// therefore authoritative: letting a stale boolean override an explicit
+  /// offline response is exactly how an ended room remained painted as live.
+  /// Recording/replay rooms are playable but are not classified as a current
+  /// live broadcast.
+  LiveStatus get effectiveLiveStatus {
+    if (isRecord == true || liveStatus == LiveStatus.replay) {
+      return LiveStatus.replay;
+    }
+    final canonical = liveStatus;
+    if (canonical != null) return canonical;
+    return _legacyStatusToLiveStatus(status: status, isRecord: isRecord) ?? LiveStatus.unknown;
+  }
+
+  bool get isLiveNow => effectiveLiveStatus == LiveStatus.live;
+
+  bool get isPlayableNow => effectiveLiveStatus == LiveStatus.live || effectiveLiveStatus == LiveStatus.replay;
+
+  bool get isExplicitlyOfflineNow =>
+      effectiveLiveStatus == LiveStatus.offline || effectiveLiveStatus == LiveStatus.banned;
+
+  bool get isLiveStatusPending => effectiveLiveStatus == LiveStatus.unknown;
+
+  /// Stable room identity used by favourites, tags and refresh merges.
+  /// Room numbers are only unique inside one platform.
+  String get identityKey => '$normalizedPlatformId:$normalizedRoomId';
+
+  bool hasSameIdentity(LiveRoom other) => identityKey == other.identityKey;
+
+  bool hasIdentity({required String platform, required String roomId}) {
+    return normalizedPlatformId == platform.trim().toLowerCase() && normalizedRoomId == roomId.trim();
+  }
+
+  LiveRoom normalizedIdentityCopy() {
+    if (platform == normalizedPlatformId && roomId == normalizedRoomId) return this;
+    return copyWith(platform: normalizedPlatformId, roomId: normalizedRoomId);
+  }
 
   @override
-  int get hashCode => Object.hash(platform, roomId);
+  bool operator ==(covariant LiveRoom other) => hasSameIdentity(other);
+
+  @override
+  int get hashCode => identityKey.hashCode;
 
   @override
   String toString() {
-    return 'LiveRoom{roomId: $roomId, userId: $userId, link: $link, title: $title, nick: $nick, avatar: $avatar, cover: $cover, area: $area, watching: $watching, followers: $followers, platform: $platform, tagIds: $tagIds, introduction: $introduction, notice: $notice, status: $status, data: $data, danmakuData: $danmakuData, isRecord: $isRecord, liveStatus: $liveStatus, catchUpUrl: $catchUpUrl, isCatchUp: $isCatchUp}';
+    return 'LiveRoom{roomId: $roomId, userId: $userId, link: $link, title: $title, nick: $nick, avatar: $avatar, cover: $cover, area: $area, watching: $watching, followers: $followers, platform: $platform, tagIds: $tagIds, introduction: $introduction, notice: $notice, status: $status, data: $data, danmakuData: $danmakuData, isRecord: $isRecord, liveStatus: $liveStatus, catchUpUrl: $catchUpUrl, isCatchUp: $isCatchUp, lastWatchedAt: $lastWatchedAt}';
   }
 
   double getSavedVolume() {
@@ -321,9 +403,11 @@ class LiveRoom {
       'followers': followers,
       'platform': platform,
       'tagIds': tagIds,
-      'liveStatus': liveStatus?.index ?? LiveStatus.offline.index,
+      'liveStatus': effectiveLiveStatus.index,
       'isRecord': isRecord,
-      'status': status,
+      // Persist the canonical state instead of carrying a contradictory legacy
+      // boolean into the next process or backup restore.
+      'status': isLiveNow,
       'notice': notice,
       'introduction': introduction,
       'epgId': epgId,
@@ -333,17 +417,40 @@ class LiveRoom {
       'isCatchUp': isCatchUp,
       'catchUpStart': catchUpStart,
       'catchUpEnd': catchUpEnd,
+      'lastWatchedAt': lastWatchedAt,
     };
+  }
+
+  static LiveStatus? _legacyStatusToLiveStatus({required bool? status, required bool? isRecord}) {
+    if (isRecord == true) return LiveStatus.replay;
+    if (status == true) return LiveStatus.live;
+    if (status == false) return LiveStatus.offline;
+    // A sparse merge object deliberately uses null to mean "not provided".
+    // Preserve that distinction; callers needing an explicit pending state pass
+    // LiveStatus.unknown and effectiveLiveStatus still normalizes null to it.
+    return null;
+  }
+
+  static LiveStatus _liveStatusFromJson(Map<String, dynamic> json) {
+    final raw = json['liveStatus'];
+    final index = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+    if (index != null && index >= 0 && index < LiveStatus.values.length) {
+      return LiveStatus.values[index];
+    }
+    return _legacyStatusToLiveStatus(
+          status: json['status'] is bool ? json['status'] as bool : null,
+          isRecord: json['isRecord'] is bool ? json['isRecord'] as bool : null,
+        ) ??
+        LiveStatus.unknown;
   }
 
   AudienceMetricType get effectiveAudienceMetricType {
     if (audienceMetricType != null && audienceMetricType != AudienceMetricType.unknown) {
       return audienceMetricType!;
     }
-    return switch (platform) {
-      'bilibili' || 'douyu' => AudienceMetricType.popularity,
+    return switch (normalizedPlatformId) {
+      'bilibili' || 'douyu' || 'huya' || 'cc' || 'yy' => AudienceMetricType.popularity,
       'kuaishou' || 'twitch' || 'soop' => AudienceMetricType.onlineViewers,
-      'huya' => AudienceMetricType.popularity,
       'douyin' => AudienceMetricType.totalViewers,
       _ => AudienceMetricType.unknown,
     };
@@ -364,7 +471,10 @@ class LiveRoom {
 
   String get effectiveOnlineViewers {
     if (_hasExplicitAudienceValue(onlineViewers)) return onlineViewers!.trim();
-    return effectiveAudienceMetricType == AudienceMetricType.onlineViewers && _hasExplicitAudienceValue(watching)
+    // `watching` defaults to the legacy sentinel "0". Treat only a positive
+    // legacy value as a populated concurrent count; an adapter that really
+    // reports zero writes it to [onlineViewers] explicitly and remains valid.
+    return effectiveAudienceMetricType == AudienceMetricType.onlineViewers && _hasAudienceValue(watching)
         ? (watching ?? '').trim()
         : '';
   }
@@ -407,20 +517,59 @@ class LiveRoom {
     return parseAudienceNumber(audienceValue(preferRealOnline: preferRealOnline, platformEnabled: platformEnabled));
   }
 
+  AudienceRankKey audienceRankKey({required bool preferRealOnline, required bool platformEnabled}) {
+    if (preferRealOnline && platformEnabled && supportsRealOnlineCount) {
+      return AudienceRankKey(
+        metricPriority: hasRealOnlineCount ? 3 : 2,
+        value: hasRealOnlineCount ? parseAudienceNumber(effectiveOnlineViewers) : 0,
+      );
+    }
+
+    final nativeValue = audienceValue(preferRealOnline: false, platformEnabled: false);
+    return AudienceRankKey(
+      metricPriority: _hasExplicitAudienceValue(nativeValue) ? 1 : 0,
+      value: parseAudienceNumber(nativeValue),
+    );
+  }
+
+  /// Sorts two rooms by the selected metric policy and then by stable room
+  /// identity. The deterministic tie-breaker prevents cards from shuffling on
+  /// every refresh when their audience values are equal or still pending.
+  static int compareAudienceRanking(
+    LiveRoom left,
+    LiveRoom right, {
+    required bool preferRealOnline,
+    required bool Function(String? platform) platformEnabled,
+  }) {
+    final leftKey = left.audienceRankKey(
+      preferRealOnline: preferRealOnline,
+      platformEnabled: platformEnabled(left.platform),
+    );
+    final rightKey = right.audienceRankKey(
+      preferRealOnline: preferRealOnline,
+      platformEnabled: platformEnabled(right.platform),
+    );
+    final metricOrder = rightKey.metricPriority.compareTo(leftKey.metricPriority);
+    if (metricOrder != 0) return metricOrder;
+    final valueOrder = rightKey.value.compareTo(leftKey.value);
+    if (valueOrder != 0) return valueOrder;
+    return left.identityKey.compareTo(right.identityKey);
+  }
+
   /// Keeps a reliable audience snapshot when a room-detail request or the
   /// first websocket heartbeat omits a metric. Bilibili can transiently return
   /// `1` for a busy room while its list API still has the current popularity;
   /// accepting that value makes the room header jump from hundreds of
   /// thousands to one. A later plausible heartbeat is still accepted.
   LiveRoom withAudienceFallbackFrom(LiveRoom fallback) {
-    if (roomId != fallback.roomId || platform != fallback.platform) return this;
+    if (!hasSameIdentity(fallback)) return this;
 
     final currentPopularity = effectivePopularity;
     final fallbackPopularity = fallback.effectivePopularity;
     final currentPopularityCount = parseAudienceNumber(currentPopularity);
     final fallbackPopularityCount = parseAudienceNumber(fallbackPopularity);
     final hasTransientBilibiliDrop =
-        platform == 'bilibili' &&
+        normalizedPlatformId == 'bilibili' &&
         fallbackPopularityCount >= 1000 &&
         currentPopularityCount <= 1 &&
         currentPopularityCount * 100 < fallbackPopularityCount;
@@ -446,15 +595,16 @@ class LiveRoom {
   static int parseAudienceNumber(String? value) {
     final text = value?.trim().toLowerCase() ?? '';
     if (text.isEmpty) return 0;
-    final match = RegExp(r'([0-9]+(?:\.[0-9]+)?)').firstMatch(text.replaceAll(',', ''));
+    final normalized = text.replaceAll(',', '').replaceAll('，', '');
+    final match = RegExp(r'([0-9]+(?:\.[0-9]+)?)\s*(亿|万|千|[kwm])?').firstMatch(normalized);
     final number = double.tryParse(match?.group(1) ?? '') ?? 0;
-    final multiplier = text.contains('亿')
-        ? 100000000
-        : (text.contains('万') || text.contains('w'))
-        ? 10000
-        : text.contains('k')
-        ? 1000
-        : 1;
+    final multiplier = switch (match?.group(2)) {
+      '亿' => 100000000,
+      '万' || 'w' => 10000,
+      '千' || 'k' => 1000,
+      'm' => 1000000,
+      _ => 1,
+    };
     return (number * multiplier).round();
   }
 
@@ -470,12 +620,83 @@ class LiveRoom {
 }
 
 extension LiveRoomExtension on LiveRoom {
-  /// 设置 离线状态 失败
+  /// Applies a fresh room-detail snapshot without discarding local metadata.
+  ///
+  /// Platform responses are intentionally sparse: an omitted live status,
+  /// title or audience field means "unknown in this response", not "offline"
+  /// or "erase the stored value". Tags belong to the local favourite and must
+  /// never be replaced by network data.
+  LiveRoom mergeFrom(LiveRoom incoming) {
+    if (!hasSameIdentity(incoming)) return this;
+
+    return copyWith(
+      roomId: incoming.normalizedRoomId,
+      platform: incoming.normalizedPlatformId,
+      userId: _preferValue(incoming.userId, userId),
+      link: _preferValue(incoming.link, link),
+      title: _preferValue(incoming.title, title),
+      nick: _preferValue(incoming.nick, nick),
+      avatar: _preferValue(incoming.avatar, avatar),
+      cover: _preferValue(incoming.cover, cover),
+      area: _preferValue(incoming.area, area),
+
+      watching: _preferValue(incoming.watching, watching),
+      audienceMetricType:
+          incoming.audienceMetricType != null && incoming.audienceMetricType != AudienceMetricType.unknown
+          ? incoming.audienceMetricType
+          : audienceMetricType,
+      popularity: _preferValue(incoming.popularity, popularity),
+      onlineViewers: _preferValue(incoming.onlineViewers, onlineViewers),
+      totalViewers: _preferValue(incoming.totalViewers, totalViewers),
+      followers: _preferValue(incoming.followers, followers),
+
+      tagIds: tagIds,
+
+      introduction: _preferValue(incoming.introduction, introduction),
+      notice: _preferValue(incoming.notice, notice),
+
+      status: incoming.status ?? status,
+      liveStatus: incoming.liveStatus ?? liveStatus,
+      isRecord: incoming.isRecord ?? isRecord,
+
+      data: incoming.data ?? data,
+      danmakuData: incoming.danmakuData ?? danmakuData,
+
+      epgId: _preferValue(incoming.epgId, epgId),
+      currentProgramme: _preferValue(incoming.currentProgramme, currentProgramme),
+      currentProgrammeDescription: _preferValue(incoming.currentProgrammeDescription, currentProgrammeDescription),
+
+      catchUpUrl: _preferValue(incoming.catchUpUrl, catchUpUrl),
+      isCatchUp: incoming.isCatchUp ?? isCatchUp,
+      catchUpStart: incoming.catchUpStart ?? catchUpStart,
+      catchUpEnd: incoming.catchUpEnd ?? catchUpEnd,
+
+      lastWatchedAt: incoming.lastWatchedAt ?? lastWatchedAt,
+    );
+  }
+
+  String? _preferValue(String? incoming, String? current) {
+    if (incoming == null || incoming.trim().isEmpty) {
+      return current;
+    }
+    return incoming;
+  }
+
   LiveRoom getLiveRoomWithError() {
-    var liveRoom = this;
-    liveRoom.liveStatus = LiveStatus.offline;
-    liveRoom.status = false;
-    liveRoom.isRecord = false;
-    return liveRoom;
+    return copyWith(liveStatus: LiveStatus.offline, status: false, isRecord: false);
+  }
+
+  LiveRoom fillFromDetail(LiveRoom? detail) {
+    if (detail == null) return this;
+
+    return copyWith(
+      area: _getValueIfEmpty(area, detail.area),
+      nick: _getValueIfEmpty(nick, detail.nick),
+      avatar: _getValueIfEmpty(avatar, detail.avatar),
+    );
+  }
+
+  String? _getValueIfEmpty(String? current, String? newValue) {
+    return (current == null || current.isEmpty) ? newValue : current;
   }
 }

@@ -5,13 +5,21 @@ import '../models/player_exception.dart';
 import '../models/player_error_type.dart';
 import 'package:pure_live/common/index.dart';
 import '../interface/unified_player_interface.dart';
+import 'package:pure_live/player/models/player_engine.dart';
 import 'package:better_player_plus/better_player_plus.dart';
+import 'package:pure_live/player/interface/video_player_accessor.dart';
 
-class BetterPlayerAdapter implements UnifiedPlayer {
+
+
+
+
+
+class BetterPlayerAdapter implements UnifiedPlayer, BetterPlayerAccessor {
   BetterPlayerController? _controller;
 
   bool _initialized = false;
   bool _disposed = false;
+  bool _isAudioOnly = false;
 
   void Function(BetterPlayerEvent)? _eventListener;
 
@@ -28,10 +36,10 @@ class BetterPlayerAdapter implements UnifiedPlayer {
   @override
   Future<void> init({bool audioOnly = false}) async {
     if (_initialized) return;
+    _isAudioOnly = audioOnly;
 
     BetterPlayerConfiguration betterPlayerConfiguration = BetterPlayerConfiguration(
       autoPlay: true,
-      fit: BoxFit.contain,
       handleLifecycle: false,
       fullScreenByDefault: false,
       autoDispose: false,
@@ -157,7 +165,8 @@ class BetterPlayerAdapter implements UnifiedPlayer {
   }
 
   @override
-  Widget getVideoWidget() {
+  Widget getVideoWidget(BoxFit boxfit) {
+    if (_isAudioOnly) return const SizedBox.shrink();
     return BetterPlayer(controller: _controller!);
   }
 
@@ -179,6 +188,12 @@ class BetterPlayerAdapter implements UnifiedPlayer {
     }
     await _controller?.pause();
     await _controller?.seekTo(Duration.zero);
+  }
+
+  @override
+  Future<void> setAudioOnly(bool audioOnly) async {
+    if (_disposed) return;
+    _isAudioOnly = audioOnly;
   }
 
   @override
@@ -235,4 +250,10 @@ class BetterPlayerAdapter implements UnifiedPlayer {
   Stream<int?> get width => _widthSubject.stream;
   @override
   Stream<int?> get height => _heightSubject.stream;
+
+  @override
+  BetterPlayerController get betterPlayerController => _controller!;
+
+  @override
+  PlayerEngine get engine => PlayerEngine.exo;
 }

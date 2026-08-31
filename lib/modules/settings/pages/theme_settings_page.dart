@@ -128,7 +128,8 @@ class ThemeSettingsPage extends GetView<SettingsService> {
               () => context.buildTile(
                 icon: Remix.font_color,
                 title: i18n("change_font_family"),
-                subtitle: "${i18n("current_font_prefix")}: ${SettingsService.to.font.fontFamilyName.v}",
+                subtitle:
+                    "${i18n("current_font_prefix")}: ${SettingsService.to.font.fontFamilyFileName.v.isNotEmpty ? SettingsService.to.font.fontFamilyFileName.v : SettingsService.to.font.fontFamilyName.v}",
                 onTap: () => Get.to(() => const FontFamilyManagerPage()),
               ),
             ),
@@ -268,10 +269,10 @@ class ThemeSettingsPage extends GetView<SettingsService> {
           children: [
             RadioGroup<String>(
               groupValue: SettingsService.to.theme.languageName.v,
-              onChanged: (String? value) {
+              onChanged: (String? value) async {
                 if (value != null) {
-                  SettingsService.to.theme.changeLanguage(value);
-                  Navigator.of(context).pop();
+                  await SettingsService.to.theme.changeLanguage(value, context);
+                  if (context.mounted) Navigator.of(context).pop();
                 }
               },
               child: Padding(
@@ -285,9 +286,9 @@ class ThemeSettingsPage extends GetView<SettingsService> {
                       children: [
                         Radio<String>(value: name, activeColor: Theme.of(context).colorScheme.primary),
                         GestureDetector(
-                          onTap: () {
-                            SettingsService.to.theme.changeLanguage(name);
-                            Navigator.of(context).pop();
+                          onTap: () async {
+                            await SettingsService.to.theme.changeLanguage(name, context);
+                            if (context.mounted) Navigator.of(context).pop();
                           },
                           child: Text(name, style: Theme.of(context).textTheme.bodyLarge),
                         ),
@@ -445,6 +446,6 @@ class ThemeSettingsPage extends GetView<SettingsService> {
           ),
         ),
       ),
-    );
+    ).whenComplete(textController.dispose);
   }
 }

@@ -6,6 +6,105 @@ import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/common/models/live_message.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
 
+/// The stream URLs returned for one requested quality together with the
+/// quality that the platform actually applied.
+///
+/// Some platforms advertise a quality in `accept_qn` but silently downgrade
+/// anonymous requests. Returning only the URLs made the UI commit the tapped
+/// label even though the media source was still a lower quality.
+///
+/// Adapters that can inspect the response should set [appliedQualityData]
+/// to the server's actual stable quality identifier.
+///
+/// The default implementation keeps the requested
+/// [LivePlayQuality.selectionId] for platforms whose URL response has no
+/// separate acknowledgement.
+class LivePlayUrlResolution {
+  const LivePlayUrlResolution({required this.urls, this.appliedQualityData});
+
+  final List<String> urls;
+  final Object? appliedQualityData;
+}
+
+/// Removes blank and duplicate lines while preserving platform priority.
+///
+/// Scheme validation remains adapter-specific because imported IPTV sources
+/// may legitimately use non-HTTP protocols.
+List<String> normalizeResolvedPlayUrls(Iterable<String> urls) {
+  final result = <String>[];
+  final seen = <String>{};
+
+  for (final rawUrl in urls) {
+    final url = rawUrl.trim();
+
+    if (url.isNotEmpty && seen.add(url)) {
+      result.add(url);
+    }
+  }
+
+  return List<String>.unmodifiable(result);
+}
+
+/// Optional capability for platforms whose play API reports the quality that
+/// was actually applied.
+///
+/// Use `resolvePlayUrlsRaw` intentionally here because `resolvePlayUrls` is
+/// the unified extension API exposed by [LiveSite].
+///
+/// Most adapters can continue using [LiveSite.getPlayUrls].
+/// Bilibili can implement this contract because guest requests may be
+/// downgraded even when a higher `qn` was requested.
+abstract interface class LivePlayUrlResolver {
+  Future<LivePlayUrlResolution> resolvePlayUrlsRaw({required LiveRoom detail, required LivePlayQuality quality});
+}
+
+/// Optional cursor contract for adapters that must make a separate network
+/// request for every CDN line.
+///
+/// The ordinary playback API intentionally resolves all lines for an on-screen
+/// selector. Recording needs a different latency contract: obtain only the one
+/// line used by the current FFmpeg attempt and request the next line only after
+/// failure. Implementations return an empty URL list when [lineIndex] is beyond
+/// the platform's advertised lines.
+abstract interface class LivePlayUrlCursorResolver {
+  Future<LivePlayUrlResolution> resolvePlayUrlAtRaw({
+    required LiveRoom detail,
+    required LivePlayQuality quality,
+    required int lineIndex,
+  });
+}
+
+/// Optional recovery contract for signed platforms whose room metadata and
+/// playback URLs have a shorter lifetime than the visible room session.
+///
+/// Implementations must reacquire every identity/token/room field needed for
+/// a new connection. Returning the same cached URL list defeats the purpose of
+/// this contract and can reopen an already-expired source indefinitely.
+abstract interface class LivePlayRecoveryResolver {
+  Future<LivePlayUrlResolution> resolvePlayUrlsForRecoveryRaw({
+    required LiveRoom detail,
+    required LivePlayQuality quality,
+  });
+}
+
+/// Optional lease metadata for short-lived signed playback URLs.
+///
+/// A player can refresh the token before this timestamp rather than waiting for
+/// the server to reject a later reconnect. Windows can use its first-frame
+/// gated replacement transaction for sources whose transport lease is shorter
+/// than the signed URL; other platforms may cache the lease for recovery.
+/// Returning `null` keeps ordinary long-lived sources on the error-driven path.
+abstract interface class LivePlayLeaseMetadata {
+  DateTime? getPlayUrlRefreshAt(String url, {DateTime? now});
+
+  /// The final instant at which a prefetched URL can start a new connection.
+  ///
+  /// This is deliberately separate from [getPlayUrlRefreshAt]. A source
+  /// prefetched shortly before the active connection fails remains usable until
+  /// this deadline, while an expired cache entry must be discarded.
+  DateTime? getPlayUrlInvalidAt(String url, {DateTime? now});
+}
+
 class LiveSite {
   String id = "";
   String name = "";
@@ -40,9 +139,12 @@ class LiveSite {
         cover: '',
         watching: '0',
         roomId: '',
-        status: false,
+        // The base implementation has no platform evidence. Treat it as
+        // pending/unknown instead of fabricating an authoritative offline
+        // response; concrete adapters must explicitly report offline/banned.
+        status: null,
         platform: platform,
-        liveStatus: LiveStatus.offline,
+        liveStatus: LiveStatus.unknown,
         title: '',
         link: '',
         avatar: '',
@@ -67,4 +169,83 @@ class LiveSite {
   Future<List<LiveSuperChatMessage>> getSuperChatMessage({required String roomId}) async {
     return Future.value([]);
   }
+}
+
+/// Unified playback URL resolution.
+///
+/// Capability-aware adapters can return the quality actually applied by
+/// the server through [LivePlayUrlResolver.resolvePlayUrlsRaw].
+///
+/// Other adapters continue using [LiveSite.getPlayUrls] and assume that
+/// the requested quality was applied.
+extension LiveSitePlayUrlResolution on LiveSite {
+  Future<LivePlayUrlResolution> resolvePlayUrls({required LiveRoom detail, required LivePlayQuality quality}) async {
+    final site = this;
+
+    if (site is LivePlayUrlResolver) {
+      final resolver = site as LivePlayUrlResolver;
+
+      final resolution = await resolver.resolvePlayUrlsRaw(detail: detail, quality: quality);
+
+      return LivePlayUrlResolution(
+        urls: normalizeResolvedPlayUrls(resolution.urls),
+        appliedQualityData: resolution.appliedQualityData,
+      );
+    }
+
+    return LivePlayUrlResolution(
+      urls: normalizeResolvedPlayUrls(await getPlayUrls(detail: detail, quality: quality)),
+      appliedQualityData: quality.selectionId,
+    );
+  }
+
+  Future<LivePlayUrlResolution> resolvePlayUrlsForRecovery({
+    required LiveRoom detail,
+    required LivePlayQuality quality,
+  }) async {
+    final site = this;
+    if (site is LivePlayRecoveryResolver) {
+      final resolution = await (site as LivePlayRecoveryResolver).resolvePlayUrlsForRecoveryRaw(
+        detail: detail,
+        quality: quality,
+      );
+      return LivePlayUrlResolution(
+        urls: normalizeResolvedPlayUrls(resolution.urls),
+        appliedQualityData: resolution.appliedQualityData,
+      );
+    }
+    return resolvePlayUrls(detail: detail, quality: quality);
+  }
+}
+
+/// Optional fast metadata path used by favourites/background verification.
+///
+/// Entering a room needs playback URLs, signing material and chat credentials;
+/// refreshing a card needs only status/title/cover/audience metadata.
+///
+/// Keeping this as a separate capability lets platforms skip those extra
+/// calls without changing the full room-entry contract for every site
+/// implementation.
+abstract interface class LiveSiteRoomRefresher {
+  Future<LiveRoom> getRoomDetailForRefresh({required String roomId, required String platform});
+}
+
+/// Strict, playback-complete room lookup used before a recording starts.
+///
+/// The ordinary [LiveSite.getRoomDetail] contract is UI-oriented. Several
+/// adapters deliberately turn transport/shape errors into an offline-looking
+/// fallback room so an already mounted player can keep its last metadata.
+/// That behaviour is useful for presentation, but it is unsafe for recording:
+/// one temporary metadata error was interpreted as an authoritative offline
+/// state and the recorder stopped before it ever asked for a stream URL.
+///
+/// [LiveSiteRoomRefresher] is not a substitute for this capability. Refresh
+/// implementations may intentionally omit signed playback descriptors to keep
+/// favourite-card refreshes cheap. Implementations of this interface must:
+///
+/// * propagate transport and response-shape failures;
+/// * return an explicit offline/banned room only when the platform said so;
+/// * retain every field required by [LiveSite.getPlayQualites].
+abstract interface class LiveSiteRecordRoomResolver {
+  Future<LiveRoom> getRoomDetailForRecording({required String roomId, required String platform});
 }

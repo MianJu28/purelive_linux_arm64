@@ -1,11 +1,23 @@
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/common/base/base_controller.dart';
+import 'package:pure_live/common/global/platform_utils.dart';
 
 class BasePageView<C extends BasePageScrollAndStateBone<T>, T> extends StatelessWidget {
   final C controller;
   final Widget Function(BuildContext context, List<T> list, ScrollController scrollController) contentBuilder;
   final bool enableRefresh;
   final bool enableLoadMore;
+
+  /// Lets a nested tab page own the mobile refresh indicator directly.
+  ///
+  /// A refresh wrapper outside a horizontal [PageView] does not reliably
+  /// receive overscroll notifications from its active vertical child.
+  final bool wrapMobileRefresh;
+
+  /// Keeps [contentBuilder] mounted after an empty snapshot has been
+  /// published. Tabbed pages use this so landing on one empty tab does not
+  /// dispose the surrounding TabBarView and strand the horizontal gesture.
+  final bool preserveContentWhenEmpty;
   final bool? showScrollToTopBtn;
   final bool showPageSizeSelector;
   final List<int> pageSizeOptions;
@@ -22,6 +34,8 @@ class BasePageView<C extends BasePageScrollAndStateBone<T>, T> extends Stateless
     required this.contentBuilder,
     this.enableRefresh = true,
     this.enableLoadMore = true,
+    this.wrapMobileRefresh = true,
+    this.preserveContentWhenEmpty = false,
     this.showScrollToTopBtn,
     this.showPageSizeSelector = false,
     this.pageSizeOptions = const [],
@@ -36,7 +50,7 @@ class BasePageView<C extends BasePageScrollAndStateBone<T>, T> extends Stateless
   Widget build(BuildContext context) {
     final bool showBtn = showScrollToTopBtn ?? true;
     final double currentWidth = context.width;
-    final bool isDesktop = currentWidth > 680;
+    final bool isDesktop = currentWidth > 680 && !PlatformUtils.isMobile;
 
     double bottomPadding = isDesktop ? (customDesktopBottomPadding ?? 70) : (customMobileBottomPadding ?? 20);
 
@@ -114,9 +128,8 @@ class BasePageView<C extends BasePageScrollAndStateBone<T>, T> extends Stateless
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraint) {
+                  controller.checkAndNotifyLayoutChange(isDesktop);
                   return Obx(() {
-                    controller.checkAndNotifyLayoutChange(isDesktop);
-
                     if (controller.list.isEmpty) {
                       if (controller.notLogin.value) {
                         final view = notLoginBuilder != null
@@ -144,11 +157,14 @@ class BasePageView<C extends BasePageScrollAndStateBone<T>, T> extends Stateless
                               );
                         return _buildScrollableStatus(isDesktop, constraint, controller, view);
                       }
-                      if (controller.pageEmpty.value) {
+                      if (controller.pageEmpty.value && !preserveContentWhenEmpty) {
                         final view = emptyBuilder != null
                             ? emptyBuilder!(context)
                             : AppStatusView(type: AppStatusType.empty, title: i18n('no_data'), subtitle: '');
                         return _buildScrollableStatus(isDesktop, constraint, controller, view);
+                      }
+                      if (preserveContentWhenEmpty && controller.totalCount.value != null) {
+                        return buildActualContent(context, isDesktop);
                       }
                       return AppStatusView(type: AppStatusType.loading, title: i18n('refresh_loading'), subtitle: '');
                     }
@@ -165,7 +181,7 @@ class BasePageView<C extends BasePageScrollAndStateBone<T>, T> extends Stateless
           left: 0,
           right: 0,
           child: Obx(() {
-            if (controller.list.isNotEmpty && controller.loadding.value && isDesktop) {
+            if (controller.list.isNotEmpty && controller.loadding.value) {
               return SizedBox(
                 height: 2.5,
                 child: LinearProgressIndicator(

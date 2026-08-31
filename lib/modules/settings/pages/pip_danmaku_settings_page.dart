@@ -1,9 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:pure_live/common/index.dart';
-import 'package:pure_live/common/widgets/count_button.dart';
+import 'package:pure_live/common/consts/app_consts.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
+import 'package:flex_color_picker/flex_color_picker.dart';
+import 'package:pure_live/common/widgets/count_button.dart';
 
 class PipDanmakuSettingsPage extends StatelessWidget {
   const PipDanmakuSettingsPage({super.key});
@@ -207,6 +208,20 @@ class PipDanmakuSettingsSection extends StatelessWidget {
               ),
               _slider(
                 theme,
+                title: i18n("font_weight"),
+                value: settings.pipDanmakuFontWeight.value.toDouble(),
+                min: 100,
+                max: 900,
+                stepSize: 100,
+                display: i18n(AppConsts.fontWeightLabels[settings.pipDanmakuFontWeight.value] ?? 'font_weight_normal'),
+                onChanged: (v) {
+                  settings.pipDanmakuFontWeight.value = v.round();
+                },
+                labelColor: labelColor,
+                digitColor: digitColor,
+              ),
+              _slider(
+                theme,
                 title: i18n('speed'),
                 value: settings.pipDanmakuSpeed.v,
                 min: 20,
@@ -262,6 +277,7 @@ class PipDanmakuSettingsSection extends StatelessWidget {
               _switch(
                 theme,
                 title: '${i18n('danmaku_fps')} · ${i18n('dynamic_follow_display')}',
+                subtitle: i18n('pip_danmaku_fps_policy_desc'),
                 value: settings.pipDanmakuAutoFps.v,
                 onChanged: (value) => settings.pipDanmakuAutoFps.v = value,
                 labelColor: labelColor,
@@ -282,7 +298,7 @@ class PipDanmakuSettingsSection extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: Text(
-                    '${settings.resolvedDanmakuFps(pip: true)} FPS',
+                    '${settings.resolvedDanmakuFps(pip: true, refreshRateMode: SettingsService.to.app.refreshRateMode)} FPS',
                     style: TextStyle(color: digitColor, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -303,6 +319,7 @@ class PipDanmakuSettingsSection extends StatelessWidget {
     required ValueChanged<double> onChanged,
     required Color labelColor,
     required Color digitColor,
+    double? stepSize,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -340,6 +357,7 @@ class PipDanmakuSettingsSection extends StatelessWidget {
               child: SfSlider(
                 min: min,
                 max: max,
+                stepSize: stepSize,
                 value: value,
                 activeColor: theme.colorScheme.primary,
                 inactiveColor: theme.colorScheme.primary.withValues(alpha: 0.15),
@@ -389,6 +407,7 @@ class PipDanmakuSettingsSection extends StatelessWidget {
   Widget _switch(
     ThemeData theme, {
     required String title,
+    String? subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
     required Color labelColor,
@@ -398,10 +417,16 @@ class PipDanmakuSettingsSection extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Flexible(
-            child: Text(
-              title,
-              style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: labelColor),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: labelColor),
+                ),
+                if (subtitle != null) ...[const SizedBox(height: 3), Text(subtitle, style: theme.textTheme.bodySmall)],
+              ],
             ),
           ),
           const SizedBox(width: 12),
@@ -504,12 +529,13 @@ class _PipDanmakuPreviewState extends State<PipDanmakuPreview> with SingleTicker
       final useOriginalColor = settings.pipDanmakuUseOriginalColor.v;
       final unifiedColor = Color(settings.pipDanmakuColor.v);
       final configuredFontSize = settings.pipDanmakuFontSize.v;
+      final fontWeight = settings.pipDanmakuFontWeight.v;
       final speed = settings.pipDanmakuSpeed.v;
       final opacity = enabled ? settings.pipDanmakuOpacity.v : 0.25;
       final area = settings.pipDanmakuArea.v;
       final maxVisibleCount = settings.pipDanmakuMaxVisibleCount.v;
       final emitInterval = settings.pipDanmakuEmitInterval.v;
-      final fps = settings.resolvedDanmakuFps(pip: true);
+      final fps = settings.resolvedDanmakuFps(pip: true, refreshRateMode: SettingsService.to.app.refreshRateMode);
       final colors = useOriginalColor
           ? const [Color(0xFFFFFFFF), Color(0xFF64B5F6), Color(0xFFFFD54F), Color(0xFF81C784)]
           : [unifiedColor];
@@ -541,7 +567,7 @@ class _PipDanmakuPreviewState extends State<PipDanmakuPreview> with SingleTicker
                         style: TextStyle(
                           color: colors[index % colors.length].withValues(alpha: opacity),
                           fontSize: fontSize,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight(fontWeight),
                           shadows: const [Shadow(color: Colors.black, blurRadius: 2, offset: Offset(0.5, 0.5))],
                         ),
                       ),
@@ -569,6 +595,7 @@ class _PipDanmakuPreviewState extends State<PipDanmakuPreview> with SingleTicker
                                   progress: quantizedProgress,
                                   painters: painters,
                                   fontSize: fontSize,
+                                  fontWeight: fontWeight,
                                   speed: speed,
                                   emitInterval: emitInterval,
                                 ),
@@ -604,6 +631,7 @@ class _PipDanmakuPreviewPainter extends CustomPainter {
     required this.progress,
     required this.painters,
     required this.fontSize,
+    required this.fontWeight,
     required this.speed,
     required this.emitInterval,
   });
@@ -611,6 +639,7 @@ class _PipDanmakuPreviewPainter extends CustomPainter {
   final double progress;
   final List<TextPainter> painters;
   final double fontSize;
+  final int fontWeight;
   final double speed;
   final double emitInterval;
 

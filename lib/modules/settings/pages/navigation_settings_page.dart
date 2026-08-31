@@ -18,6 +18,16 @@ class NavigationSettingsPage extends StatelessWidget {
         physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
+          context.buildGroupTitle(i18n("multiview_title")),
+          context.buildModernCard([
+            context.buildSwitchTile(
+              title: i18n("multiview_title"),
+              subtitle: "",
+              value: SettingsService.to.app.enableMultiView,
+              icon: Remix.layout_grid_line,
+            ),
+          ]),
+          const SizedBox(height: 16),
           _buildTipBanner(theme),
           const SizedBox(height: 16),
           context.buildGroupTitle(i18n("navigation_display_settings")),
@@ -97,7 +107,14 @@ class NavigationSettingsPage extends StatelessWidget {
                           Switch(
                             value: isVisible,
                             activeThumbColor: theme.colorScheme.primary,
-                            onChanged: (value) => SettingsService.to.app.toggleMenuVisibility(menu, value),
+                            onChanged: (value) {
+                              final savedMenus = SettingsService.to.app.savedMenuIds.v;
+                              if (!value && savedMenus.length <= 1) {
+                                ToastUtil.show(i18n("at_least_one_menu_required"));
+                                return;
+                              }
+                              SettingsService.to.app.toggleMenuVisibility(menu, value);
+                            },
                           ),
                           const SizedBox(width: 8),
                           ReorderableDragStartListener(

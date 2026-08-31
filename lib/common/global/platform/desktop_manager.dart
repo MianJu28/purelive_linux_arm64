@@ -10,11 +10,12 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pure_live/routes/app_navigation.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
+import 'package:pure_live/player/utils/window_helper.dart';
+import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/plugins/share_command_handler.dart';
 import 'package:pure_live/routes/route_observer_controller.dart';
 import 'package:pure_live/common/utils/share_command_handler.dart';
-import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/modules/live_play/controllers/player_state.dart';
 
 class DesktopManager {
@@ -128,8 +129,10 @@ class DesktopManager {
       } else if (Platform.isMacOS) {
         await trayManager.setIcon('assets/icons/app_icon.ico');
       }
-
-      await updateTray();
+      // The desktop window is created before EasyLocalization has loaded its
+      // delegate. Use a stable tooltip here and build the localized context
+      // menu after the first application frame.
+      await trayManager.setToolTip('PureLive');
     } catch (e) {
       debugPrint('系统托盘初始化失败: $e');
     }
@@ -139,7 +142,8 @@ class DesktopManager {
     if (!PlatformUtils.isDesktop) return;
 
     try {
-      await trayManager.setToolTip(i18n('app_name'));
+      final useChineseFallback = PlatformDispatcher.instance.locale.languageCode == 'zh';
+      await trayManager.setToolTip(i18nOr('app_name', useChineseFallback ? '纯粹直播' : 'PureLive'));
 
       final isVisible = await windowManager.isVisible();
 
@@ -147,10 +151,12 @@ class DesktopManager {
         items: [
           MenuItem(
             key: isVisible ? 'hide_window' : 'show_window',
-            label: isVisible ? i18n('hide_window') : i18n('show_window'),
+            label: isVisible
+                ? i18nOr('hide_window', useChineseFallback ? '隐藏窗口' : 'Hide Window')
+                : i18nOr('show_window', useChineseFallback ? '显示窗口' : 'Show Window'),
           ),
           MenuItem.separator(),
-          MenuItem(key: 'exit_app', label: i18n('exit_app')),
+          MenuItem(key: 'exit_app', label: i18nOr('exit_app', useChineseFallback ? '退出应用' : 'Exit')),
         ],
       );
 
@@ -158,6 +164,16 @@ class DesktopManager {
     } catch (e) {
       debugPrint('${i18n("tray_update_failed")}: $e');
     }
+  }
+
+  static Future<void> updateTrayWhenLocalized() async {
+    // The first frame can be scheduled while the asset delegate is still
+    // decoding JSON. Wait briefly so the first visible tray menu already uses
+    // the selected application language.
+    for (var attempt = 0; attempt < 40 && !i18nExists('app_name'); attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    await updateTray();
   }
 
   static Future<void> handleTrayMenuClick(MenuItem menuItem) async {
@@ -297,7 +313,7 @@ class CustomTitleBar extends StatelessWidget {
                                 Image.asset('assets/icons/icon.png', width: 16, height: 16),
                                 const SizedBox(width: 6),
                                 Text(
-                                  i18n('app_name'),
+                                  i18nOr('app_name', 'PureLive'),
                                   style: AppTextStyles.t13.copyWith(
                                     fontWeight: FontWeight.w600,
                                     color: iconColor,
@@ -660,6 +676,7 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
 
   @override
   void onWindowMoved() {
+    _scheduleWindowSizeUpdate();
     _sizeController.setTracking(false);
   }
 
@@ -717,7 +734,15 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
   void didChangeViewFocus(ViewFocusEvent event) {}
 
   @override
-  void didHaveMemoryPressure() {}
+  void didHaveMemoryPressure() {
+    // Android/iOS emit this callback before the process reaches a hard memory
+    // limit. Windows may also deliver it through the engine. Decoded images
+    // are reproducible resources, so release both pending and live entries;
+    // visible widgets resolve them again on demand.
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
+  }
 
   @override
   void handleCancelBackGesture() {}
@@ -735,9 +760,14 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
   void handleStatusBarTap() {}
 
   void _updateWindowSizeToController() {
-    windowManager.getSize().then((size) {
-      _sizeController.updateSize(size);
-    });
+    if (WindowHelper.instance.currentMode == WindowLayoutMode.pip) {
+      unawaited(
+        WindowHelper.instance.capturePiPGeometry(videoRatio: GlobalPlayerService.instance.player.rawVideoAspectRatio),
+      );
+      return;
+    }
+
+    windowManager.getSize().then(_sizeController.updateSize);
   }
 
   void _scheduleWindowSizeUpdate() {
@@ -761,6 +791,16 @@ class MyCustomScrollBehavior extends MaterialScrollBehavior {
     PointerDeviceKind.invertedStylus,
     PointerDeviceKind.trackpad,
     PointerDeviceKind.unknown,
-    PointerDeviceKind.mouse,
+
+    // Do not include mouse here.
+    // Enabling mouse drag makes left-button dragging participate in the
+    // Scrollable's drag gesture system. This conflicts with
+    // PureLiveScrollPhysics at the scroll boundaries and prevents the
+    // expected overscroll/bounce-back behavior on desktop.
+    //
+    // Mouse wheel scrolling is not affected by this setting because
+    // wheel events are handled separately from dragDevices.
+    //
+    // PointerDeviceKind.mouse,
   };
 }

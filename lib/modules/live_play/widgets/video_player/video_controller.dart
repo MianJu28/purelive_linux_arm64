@@ -2,10 +2,9 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:developer';
 
-import 'package:flutter/scheduler.dart';
-
 import 'video_controller_panel.dart';
 
+import 'package:flutter/scheduler.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flame_barrage/flame_barrage.dart';
@@ -23,7 +22,8 @@ import 'package:pure_live/modules/live_play/states/load_type.dart';
 import 'package:pure_live/core/iptv/local/database.dart' as database;
 import 'package:pure_live/modules/live_play/controllers/player_state.dart';
 import 'package:pure_live/modules/live_play/controllers/live_play_controller.dart';
-import 'package:pure_live/modules/live_play/widgets/danmaku_message_actions.dart';
+import 'package:pure_live/modules/live_play/widgets/danmaku/danmaku_message_actions.dart';
+import 'package:pure_live/modules/live_play/widgets/danmaku/danmaku_settings_binding.dart';
 
 typedef AudioOnlyCallback = Future<void> Function(bool value);
 
@@ -76,6 +76,7 @@ class DanmakuManager {
       dm.danmakuSpeed.v = migratedSpeed;
     }
     videoController.danmakuFontSize.value = dm.danmakuFontSize.v;
+    videoController.danmakuFontWeight.value = dm.danmakuFontWeight.v;
     videoController.danmakuFontBorder.value = dm.danmakuFontBorder.v;
     videoController.danmakuOpacity.value = dm.danmakuOpacity.v;
     videoController.enableDanmakuStroke.value = dm.enableDanmakuStroke.v;
@@ -91,6 +92,7 @@ class DanmakuManager {
       videoController.danmakuBottomArea,
       videoController.danmakuSpeed,
       videoController.danmakuFontSize,
+      videoController.danmakuFontWeight,
       videoController.danmakuFontBorder,
       videoController.danmakuOpacity,
       videoController.enableDanmakuStroke,
@@ -109,7 +111,15 @@ class DanmakuManager {
     workers.add(
       debounce<int>(_visualSettingsRevision, (_) => _persistVisualSettings(), time: const Duration(milliseconds: 160)),
     );
-    workers.add(everAll([dm.danmakuAutoFps, DisplayModeService.info], (_) => _scheduleConfigUpdate()));
+    var resolvedAutoFps = dm.resolvedDanmakuFps(refreshRateMode: SettingsService.to.app.refreshRateMode);
+    workers.add(
+      everAll([dm.danmakuAutoFps, DisplayModeService.info, SettingsService.to.app.refreshRateModeName], (_) {
+        final nextFps = dm.resolvedDanmakuFps(refreshRateMode: SettingsService.to.app.refreshRateMode);
+        if (nextFps == resolvedAutoFps) return;
+        resolvedAutoFps = nextFps;
+        _scheduleConfigUpdate();
+      }),
+    );
   }
 
   void _openMessageActions(LiveMessage message, {required bool fromLongPress}) {
@@ -143,6 +153,7 @@ class DanmakuManager {
     dm.danmakuBottomArea.v = videoController.danmakuBottomArea.value;
     dm.danmakuSpeed.v = videoController.danmakuSpeed.value;
     dm.danmakuFontSize.v = videoController.danmakuFontSize.value;
+    dm.danmakuFontWeight.v = videoController.danmakuFontWeight.value;
     dm.danmakuFontBorder.v = videoController.danmakuFontBorder.value.toDouble();
     dm.danmakuOpacity.v = videoController.danmakuOpacity.value;
     dm.enableDanmakuStroke.v = videoController.enableDanmakuStroke.value;
@@ -159,17 +170,37 @@ class DanmakuManager {
     if (!isPlaying && !msg.isLocal) return;
 
     final originalColor = Color.fromARGB(255, msg.color.r, msg.color.g, msg.color.b);
+    final localStyle = msg.isLocal ? msg.style : null;
     final settings = settingsService.danmaku;
     if (settings.enableDanmakuDisplay.v && !videoController.hideDanmaku.value) {
       controller.send(
         BarrageItem(
           content: msg.message,
+          type: switch (localStyle?.placement) {
+            LiveMessagePlacement.top => BarrageType.topFixed,
+            LiveMessagePlacement.bottom => BarrageType.bottomFixed,
+            _ => BarrageType.scroll,
+          },
           userId: msg.userId,
           userName: msg.userName,
           textColor: originalColor,
+          fontSize: localStyle?.fontSize,
+          fontWeight: localStyle == null ? null : FontWeight(localStyle.fontWeight),
+          fontStyle: localStyle?.italic == true ? FontStyle.italic : null,
+          fontFamily: localStyle?.fontFamily,
+          letterSpacing: localStyle?.letterSpacing,
+          opacity: localStyle?.opacity,
+          showStroke: localStyle?.showStroke,
+          strokeColor: localStyle == null ? null : Color(localStyle.strokeColor),
+          strokeWidth: localStyle?.strokeWidth,
+          showShadow: localStyle?.showShadow,
+          shadowColor: localStyle == null ? null : Color(localStyle.shadowColor),
+          shadowBlur: localStyle?.shadowBlur,
+          shadowOffset: localStyle == null ? null : Offset(localStyle.shadowOffset, localStyle.shadowOffset),
+          fixedDuration: localStyle == null ? null : Duration(milliseconds: localStyle.fixedDurationMs),
           // A single px/s value keeps portrait, landscape and desktop motion
           // consistent. Lane collision avoidance is handled by the engine.
-          baseSpeed: videoController.danmakuSpeed.value,
+          baseSpeed: localStyle?.baseSpeed ?? videoController.danmakuSpeed.value,
           onTapUp: settings.enableDanmakuTapInteraction.v ? () => _openMessageActions(msg, fromLongPress: false) : null,
           onLongTapDown: settings.enableDanmakuLongPressInteraction.v
               ? () => _openMessageActions(msg, fromLongPress: true)
@@ -179,8 +210,35 @@ class DanmakuManager {
     }
 
     if (settings.enablePipDanmaku.v && isCompactMode) {
-      final compactColor = settings.pipDanmakuUseOriginalColor.v ? originalColor : Color(settings.pipDanmakuColor.v);
-      pipController.send(BarrageItem(content: msg.message, textColor: compactColor));
+      final compactColor = msg.isLocal || settings.pipDanmakuUseOriginalColor.v
+          ? originalColor
+          : Color(settings.pipDanmakuColor.v);
+      pipController.send(
+        BarrageItem(
+          content: msg.message,
+          type: switch (localStyle?.placement) {
+            LiveMessagePlacement.top => BarrageType.topFixed,
+            LiveMessagePlacement.bottom => BarrageType.bottomFixed,
+            _ => BarrageType.scroll,
+          },
+          textColor: compactColor,
+          fontSize: localStyle?.fontSize,
+          fontWeight: localStyle == null ? null : FontWeight(localStyle.fontWeight),
+          fontStyle: localStyle?.italic == true ? FontStyle.italic : null,
+          fontFamily: localStyle?.fontFamily,
+          letterSpacing: localStyle?.letterSpacing,
+          opacity: localStyle?.opacity,
+          showStroke: localStyle?.showStroke,
+          strokeColor: localStyle == null ? null : Color(localStyle.strokeColor),
+          strokeWidth: localStyle?.strokeWidth,
+          showShadow: localStyle?.showShadow,
+          shadowColor: localStyle == null ? null : Color(localStyle.shadowColor),
+          shadowBlur: localStyle?.shadowBlur,
+          shadowOffset: localStyle == null ? null : Offset(localStyle.shadowOffset, localStyle.shadowOffset),
+          fixedDuration: localStyle == null ? null : Duration(milliseconds: localStyle.fixedDurationMs),
+          baseSpeed: localStyle?.baseSpeed,
+        ),
+      );
     }
   }
 
@@ -203,7 +261,7 @@ class DanmakuManager {
   }
 }
 
-class VideoController with ChangeNotifier {
+class VideoController with ChangeNotifier implements DanmakuSettingsBinding {
   // 常量定义
   static const _controllerHideDelay = Duration(seconds: 2);
   static const _fullscreenDelay = Duration(milliseconds: 1000);
@@ -221,8 +279,10 @@ class VideoController with ChangeNotifier {
   final String qualiteName;
   final int currentLineIndex;
   final int currentQuality;
-  final bool isAudioOnly;
+  final RxBool audioOnlyState;
+  bool get isAudioOnly => audioOnlyState.value;
   final AudioOnlyCallback? onAudioOnlyChanged;
+  final bool reuseCurrentSession;
 
   final Battery _battery;
   final SettingsService _settingsService;
@@ -232,30 +292,45 @@ class VideoController with ChangeNotifier {
 
   // 资源管理
   final List<StreamSubscription> _subscriptions = [];
-  final List<Timer> _timers = [];
 
   // 状态
   PlayerStatus _status = PlayerStatus.idle;
   PlayerStatus get status => _status;
+  bool _playerListenerBound = false;
+  String? _lastPlayerErrorSignature;
+  DateTime? _lastPlayerErrorAt;
   final isVertical = false.obs;
   final showController = true.obs;
   final showLocked = false.obs;
   final isMenuOpen = false.obs;
   final showVolume = false.obs;
+  final audioModeSwitching = false.obs;
   final batteryLevel = 100.obs;
   final currentVolume = 1.0.obs;
 
   // 弹幕相关
   final hideDanmaku = false.obs;
+  @override
   final noEmojiMode = false.obs;
+  @override
   final danmakuArea = 1.0.obs;
+  @override
   final danmakuTopArea = 0.0.obs;
+  @override
   final danmakuBottomArea = 0.0.obs;
+  @override
   final danmakuSpeed = 120.0.obs;
+  @override
   final danmakuFontSize = 16.0.obs;
+  @override
+  final danmakuFontWeight = FontWeight.w500.value.obs;
+  @override
   final danmakuFontBorder = 1.5.obs;
+  @override
   final danmakuOpacity = 1.0.obs;
+  @override
   final enableDanmakuStroke = true.obs;
+  @override
   final danmakuFps = 60.obs;
   final danmakuFontFamilyName = ''.obs;
 
@@ -284,7 +359,8 @@ class VideoController with ChangeNotifier {
     return _brightnessController;
   }
 
-  bool get supportWindowFull => Platform.isWindows || Platform.isLinux;
+  bool get supportWindowFull => Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  late final Future<void> initialization;
 
   // 暴露 livePlayController 的 getter
   LivePlayController get livePlayController => _livePlayController;
@@ -298,7 +374,8 @@ class VideoController with ChangeNotifier {
     required this.qualiteName,
     required this.currentLineIndex,
     required this.currentQuality,
-    required this.isAudioOnly,
+    required bool isAudioOnly,
+    this.reuseCurrentSession = false,
     this.allowScreenKeepOn = false,
     this.allowFullScreen = true,
     this.onAudioOnlyChanged,
@@ -308,8 +385,9 @@ class VideoController with ChangeNotifier {
     SettingsService? settingsService,
     DbService? dbService,
     LivePlayController? livePlayController,
-  }) : _battery = battery ?? Battery(),
-       _playerManager = playerManager ?? GlobalPlayerService.instance.playerManager,
+  }) : audioOnlyState = isAudioOnly.obs,
+       _battery = battery ?? Battery(),
+       _playerManager = playerManager ?? GlobalPlayerService.instance.player,
        _settingsService = settingsService ?? SettingsService.to,
        _dbService = dbService ?? Get.find<DbService>(),
        _livePlayController = livePlayController ?? Get.find<LivePlayController>() {
@@ -338,28 +416,46 @@ class VideoController with ChangeNotifier {
 
     _playerManager.attachVideoController(this);
 
-    unawaited(initVideoController());
+    initialization = initVideoController();
+    unawaited(initialization);
     initBattery();
   }
 
   // 播放器初始化
   Future<void> initVideoController() async {
     _setStatus(PlayerStatus.loading);
+    // Bind before opening the source. Native open/decode failures can arrive
+    // synchronously while PlayerManager.play is still awaiting the adapter;
+    // binding afterwards silently lost that only terminal event and then
+    // overwrote the page with a false `playing` state.
+    initPlayerListener();
 
     await _initVolumeController();
     if (_isDisposed) return;
 
-    await _playVideo();
+    if (reuseCurrentSession) {
+      if (_playerManager.currentPlayer == null || _playerManager.currentFloatRoom != room) {
+        throw PlayerException(message: 'Retained room session is no longer available', type: PlayerErrorType.lifecycle);
+      }
+      audioOnlyState.value = _playerManager.desiredAudioOnlyMode;
+    } else {
+      await _playVideo();
+    }
     if (_isDisposed) return;
 
-    initPlayerListener();
     _setupDefaultFullscreen();
 
     if (room.platform == Sites.iptvSite) {
       await loadFullChannelSchedule(room.epgId);
     }
 
-    _setStatus(PlayerStatus.playing);
+    if (_playerManager.hasError.value) {
+      _setStatus(PlayerStatus.error);
+    } else if (_playerManager.isPlayingNow) {
+      _setStatus(PlayerStatus.playing);
+    } else {
+      _setStatus(PlayerStatus.loading);
+    }
   }
 
   Future<void> _initVolumeController() async {
@@ -380,14 +476,44 @@ class VideoController with ChangeNotifier {
     await _playerManager.play(datasource, playUrs, headers, room: room, audioOnly: isAudioOnly);
   }
 
+  /// Rebinds the existing room controller to a freshly-created native player.
+  ///
+  /// The UI controller deliberately survives this operation. Recreating it on
+  /// every headphone tap used to give the replacement button a separate
+  /// transition lock while the previous native player was still shutting down,
+  /// so repeated audio/video taps could overlap and replace the video area with
+  /// Flutter's release-mode error widget.
+  Future<void> changeAudioOnlyMode(bool value) async {
+    if (_isDisposed || isAudioOnly == value) return;
+    final previous = isAudioOnly;
+    final enteringAudioMode = value && !previous;
+    if (enteringAudioMode) {
+      // Present the stable room-level audio UI before the Android native track
+      // command completes. mpv reports buffering while it drops the video
+      // decoder; leaving the old video presentation visible during that window
+      // looked like an endless spinner even though audio kept playing.
+      audioOnlyState.value = true;
+    }
+    try {
+      await _playerManager.setAudioOnlyMode(value);
+      // A newer request may have superseded this one while the native command
+      // was pending (for example, returning through the floating window).
+      if (!_isDisposed) audioOnlyState.value = _playerManager.isAudioOnlyMode;
+    } catch (_) {
+      if (!_isDisposed) audioOnlyState.value = previous;
+      rethrow;
+    }
+  }
+
   void _setupDefaultFullscreen() {
-    final timer = Timer(_fullscreenDelay, () {
+    _defaultFullscreenTimer?.cancel();
+    _defaultFullscreenTimer = Timer(_fullscreenDelay, () {
+      _defaultFullscreenTimer = null;
       if (_isDisposed) return;
       if (_settingsService.app.enableFullScreenDefault.v) {
         _enterFullscreenMode();
       }
     });
-    _addTimer(timer);
   }
 
   void _enterFullscreenMode() {
@@ -402,42 +528,76 @@ class VideoController with ChangeNotifier {
     _subscriptions.add(subscription);
   }
 
-  void _addTimer(Timer timer) {
-    _timers.add(timer);
-  }
-
   Future<void> _cancelAllSubscriptions() async {
     for (final sub in _subscriptions) {
       await sub.cancel();
     }
     _subscriptions.clear();
+    _playerListenerBound = false;
   }
 
   void _cancelAllTimers() {
-    for (final timer in _timers) {
-      timer.cancel();
-    }
-    _timers.clear();
+    _defaultFullscreenTimer?.cancel();
+    _controllerTransitionTimer?.cancel();
+    _hideVolumeTimer?.cancel();
+    _debounceTimer?.cancel();
+    showControllerTimer?.cancel();
+    _controllerHideDeadlineMs = null;
+    _defaultFullscreenTimer = null;
+    _controllerTransitionTimer = null;
+    _hideVolumeTimer = null;
+    _debounceTimer = null;
+    showControllerTimer = null;
   }
 
   bool get _isDisposed => _status == PlayerStatus.disposed;
 
   void _setStatus(PlayerStatus newStatus) {
+    if (_status == newStatus) return;
     _status = newStatus;
     notifyListeners();
   }
 
   // 播放器监听
   void initPlayerListener() {
+    if (_playerListenerBound || _isDisposed) return;
+    _playerListenerBound = true;
     final errorSub = _playerManager.onError.listen((error) {
       log('error: ${error.toString()}', name: 'initPlayerListener');
       _handlePlayerError(error);
     });
     _addSubscription(errorSub);
+    _addSubscription(
+      _playerManager.onPlaying.distinct().listen((playing) {
+        if (_isDisposed) return;
+        if (playing) {
+          _setStatus(PlayerStatus.playing);
+        } else if (_playerManager.hasError.value) {
+          _setStatus(PlayerStatus.error);
+        }
+      }),
+    );
+    _addSubscription(
+      _playerManager.onLoading.distinct().listen((loading) {
+        if (_isDisposed || _playerManager.hasError.value) return;
+        if (loading) _setStatus(PlayerStatus.loading);
+      }),
+    );
   }
 
   void _handlePlayerError(PlayerException error) {
+    if (_isDisposed) return;
     _setStatus(PlayerStatus.error);
+
+    final now = DateTime.now();
+    final signature = error.toString();
+    if (_lastPlayerErrorSignature == signature &&
+        _lastPlayerErrorAt != null &&
+        now.difference(_lastPlayerErrorAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastPlayerErrorSignature = signature;
+    _lastPlayerErrorAt = now;
 
     final errorMessage = switch (error.type) {
       PlayerErrorType.network => i18n("error_network"),
@@ -479,10 +639,10 @@ class VideoController with ChangeNotifier {
   void updateVolumn(double volume) {
     _hideVolumeTimer?.cancel();
     showVolume.value = true;
-    final timer = Timer(_volumeHideDelay, () {
-      showVolume.value = false;
+    _hideVolumeTimer = Timer(_volumeHideDelay, () {
+      _hideVolumeTimer = null;
+      if (!_isDisposed) showVolume.value = false;
     });
-    _addTimer(timer);
   }
 
   Future<double?> volume() async {
@@ -519,21 +679,34 @@ class VideoController with ChangeNotifier {
 
   // 控制器显示管理
   void enableController() {
-    showControllerTimer?.cancel();
+    if (_isDisposed) return;
     showController.value = true;
 
     if (!_isMouseOverController && !_isMouseOverPlayer) {
-      showControllerTimer = Timer(const Duration(seconds: 2), () {
-        if (!_isMouseOverController && !_isMouseOverPlayer) {
-          showController.value = false;
-        }
-      });
+      _controllerIdleClock.start();
+      _controllerHideDeadlineMs = _controllerIdleClock.elapsedMilliseconds + _controllerHideDelay.inMilliseconds;
+      showControllerTimer ??= Timer(_controllerHideDelay, _handleControllerHideDeadline);
     }
+  }
+
+  void _handleControllerHideDeadline() {
+    showControllerTimer = null;
+    if (_isDisposed || _isMouseOverController || _isMouseOverPlayer) return;
+    final deadline = _controllerHideDeadlineMs;
+    if (deadline == null) return;
+    final remainingMs = deadline - _controllerIdleClock.elapsedMilliseconds;
+    if (remainingMs > 0) {
+      showControllerTimer = Timer(Duration(milliseconds: remainingMs), _handleControllerHideDeadline);
+      return;
+    }
+    _controllerHideDeadlineMs = null;
+    showController.value = false;
   }
 
   void stopHideController() {
     showControllerTimer?.cancel();
     showControllerTimer = null;
+    _controllerHideDeadlineMs = null;
   }
 
   // 鼠标进入控制器区域
@@ -558,8 +731,10 @@ class VideoController with ChangeNotifier {
 
   void onMouseHoverPlayer() {
     _isMouseOverPlayer = false;
-    _isMouseOverPlayer = false;
-    enableController(); // 重新开始计时
+    // Pointer hover can fire hundreds of times per second on high polling-rate
+    // mice. Extend one monotonic deadline instead of cancelling and allocating
+    // a Timer for every event.
+    enableController();
   }
 
   // 鼠标离开播放器区域
@@ -580,22 +755,33 @@ class VideoController with ChangeNotifier {
 
   // 弹幕管理
   void updateDanmaku() {
+    final settings = SettingsService.to.danmaku;
+    final resolvedFps = settings.danmakuAutoFps.v
+        ? settings.resolvedDanmakuFps(refreshRateMode: SettingsService.to.app.refreshRateMode)
+        : danmakuFps.value.clamp(30, 240).toInt();
     danmakuController.updateConfig(
       BarrageConfig(
-        emitInterval: 0.016,
+        // Dispatching at 16 ms allowed up to 60 new paragraphs per second on
+        // busy rooms. A 50 ms admission interval plus the adaptive renderer
+        // cap bounds paragraph layout, paint pressure and heat.
+        emitInterval: 0.05,
         fontSize: danmakuFontSize.value,
         area: danmakuArea.value,
         topAreaDistance: danmakuTopArea.value,
         bottomAreaDistance: danmakuBottomArea.value,
         baseSpeed: danmakuSpeed.value,
         opacity: danmakuOpacity.value,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight(danmakuFontWeight.value),
         strokeWidth: danmakuFontBorder.value,
         showStroke: enableDanmakuStroke.value,
         noEmojiMode: noEmojiMode.value,
-        fps: SettingsService.to.danmaku.resolvedDanmakuFps(),
+        fps: resolvedFps,
+        maxVisibleCount: 48,
         maxPendingCount: 120,
         maxPendingAge: const Duration(seconds: 5),
+        barragePoolMaxSize: 72,
+        pictureCacheMaxSize: 96,
+        textCacheMaxSize: 320,
         trackHeight: (danmakuFontSize.value * 1.55).clamp(24.0, 64.0).toDouble(),
         emojiSize: (danmakuFontSize.value * 1.3).clamp(16.0, 48.0).toDouble(),
       ),
@@ -724,16 +910,26 @@ class VideoController with ChangeNotifier {
   }
 
   // 播放控制
-  bool _audioModeSwitching = false;
-
   Future<void> toggleAudioOnly() async {
-    if (_audioModeSwitching) return;
-    _audioModeSwitching = true;
-    clearListener();
+    if (audioModeSwitching.value) return;
+    audioModeSwitching.value = true;
     try {
+      // The controls can become visible while the room's native open Future is
+      // still finishing. Let that initial source/track selection settle first,
+      // otherwise its stale `audioOnly` argument can overwrite this tap.
+      final activeSession = _playerManager.hasActivePlaybackSession(room);
+      if (!activeSession) {
+        await initialization.timeout(_playerManager.audioModeSwitchTimeout);
+      }
+      if (_isDisposed) return;
       await onAudioOnlyChanged?.call(!isAudioOnly);
+    } catch (error, stackTrace) {
+      log('Audio mode action failed: $error', name: 'VideoController', error: error, stackTrace: stackTrace);
+      if (!_isDisposed) {
+        ToastUtil.show(i18n('error_lifecycle'));
+      }
     } finally {
-      _audioModeSwitching = false;
+      audioModeSwitching.value = false;
     }
   }
 
@@ -778,49 +974,91 @@ class VideoController with ChangeNotifier {
 
   void debounceListen(Function? func, [int delay = 1000]) {
     _debounceTimer?.cancel();
-    final timer = Timer(Duration(milliseconds: delay), () {
+    _debounceTimer = Timer(Duration(milliseconds: delay), () {
+      _debounceTimer = null;
       func?.call();
     });
-    _addTimer(timer);
   }
 
   // 全屏管理
-  void exitFullScreen() async {
-    WindowService().doExitFullScreen();
+  Future<void> exitFullScreen() async {
+    await WindowService().doExitFullScreen();
     GlobalPlayerState.to.isFullscreen.value = false;
   }
 
-  void toggleFullScreen() async {
+  bool _fullscreenTransitioning = false;
+
+  Future<void> toggleFullScreen() async {
+    if (_fullscreenTransitioning) return;
+    _fullscreenTransitioning = true;
     showLocked.value = false;
     stopHideController();
 
-    final timer = Timer(_controllerHideDelay, () {
+    _controllerTransitionTimer?.cancel();
+    _controllerTransitionTimer = Timer(_controllerHideDelay, () {
+      _controllerTransitionTimer = null;
       enableController();
     });
-    _addTimer(timer);
 
     GlobalPlayerState.to.isWindowFullscreen.value = false;
 
-    if (GlobalPlayerState.to.isFullscreen.value) {
-      _livePlayController.setNormalScreen();
-      WindowService().doExitFullScreen();
-      GlobalPlayerState.to.isFullscreen.value = false;
-    } else {
-      _livePlayController.setFullScreen();
-      enterFullScreen();
-      GlobalPlayerState.to.isFullscreen.value = true;
+    try {
+      if (GlobalPlayerState.to.isFullscreen.value) {
+        _livePlayController.setNormalScreen();
+        await exitFullScreen();
+      } else {
+        _livePlayController.setFullScreen();
+        await enterFullScreen();
+      }
+      enableController();
+    } finally {
+      _fullscreenTransitioning = false;
     }
-    enableController();
   }
 
-  void enterFullScreen() {
-    WindowService().doEnterFullScreen();
+  Future<void> enterFullScreen({bool forceLandscape = false}) async {
+    await WindowService().doEnterFullScreen();
     GlobalPlayerState.to.isFullscreen.value = true;
 
+    // Desktop full screen is already handled by window_manager above. Calling
+    // landScape there issued a second setFullScreen(true) while the first
+    // native transition was still running, producing inconsistent work-area
+    // bounds on Windows systems with a side taskbar.
+    if (Platform.isAndroid || Platform.isIOS) {
+      if (forceLandscape) {
+        await WindowService().landScape();
+      } else {
+        await applyFullscreenOrientationPolicy();
+      }
+    }
+  }
+
+  /// Explicit landscape-fullscreen action for a portrait live room.
+  ///
+  /// This is intentionally a one-shot presentation action rather than a
+  /// settings mutation: users keep their preferred automatic policy while the
+  /// visible room control can always request a conventional landscape view.
+  Future<void> enterLandscapeFullScreen() async {
+    if (_fullscreenTransitioning) return;
+    _fullscreenTransitioning = true;
+    showLocked.value = false;
+    stopHideController();
+    GlobalPlayerState.to.isWindowFullscreen.value = false;
+    try {
+      _livePlayController.setFullScreen();
+      await enterFullScreen(forceLandscape: true);
+      enableController();
+    } finally {
+      _fullscreenTransitioning = false;
+    }
+  }
+
+  Future<void> applyFullscreenOrientationPolicy() async {
+    if (_isDisposed || !GlobalPlayerState.to.isFullscreen.value || !(Platform.isAndroid || Platform.isIOS)) return;
     if (_playerManager.isVerticalVideo.value) {
-      WindowService().verticalScreen();
+      await WindowService().verticalScreen();
     } else {
-      WindowService().landScape();
+      await WindowService().landScape();
     }
   }
 
@@ -828,10 +1066,11 @@ class VideoController with ChangeNotifier {
     showLocked.value = false;
     stopHideController();
 
-    final timer = Timer(_controllerHideDelay, () {
+    _controllerTransitionTimer?.cancel();
+    _controllerTransitionTimer = Timer(_controllerHideDelay, () {
+      _controllerTransitionTimer = null;
       enableController();
     });
-    _addTimer(timer);
 
     if (GlobalPlayerState.to.isWindowFullscreen.value) {
       _livePlayController.setNormalScreen();
@@ -854,9 +1093,7 @@ class VideoController with ChangeNotifier {
     if (_resourcesDestroyed) return;
     _resourcesDestroyed = true;
 
-    if (PlatformHelper.supportsVolumeController) {
-      if (allowScreenKeepOn) await WakelockPlus.disable();
-    }
+    if (allowScreenKeepOn) await WakelockPlus.disable();
   }
 
   bool _resourcesDestroyed = false;
@@ -886,9 +1123,13 @@ class VideoController with ChangeNotifier {
 
   // 兼容性属性
   Timer? showControllerTimer;
+  final Stopwatch _controllerIdleClock = Stopwatch();
+  int? _controllerHideDeadlineMs;
   // 添加鼠标状态跟踪
   bool _isMouseOverController = false;
   bool _isMouseOverPlayer = false;
+  Timer? _defaultFullscreenTimer;
+  Timer? _controllerTransitionTimer;
   Timer? _debounceTimer;
   Timer? _hideVolumeTimer;
 }

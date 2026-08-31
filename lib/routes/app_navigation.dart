@@ -1,11 +1,8 @@
 import 'dart:io';
-import 'dart:developer';
+import 'dart:async';
 
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/utils.dart';
-import 'package:pure_live/player/utils/fullscreen.dart';
-import 'package:pure_live/common/global/platform_utils.dart';
-import 'package:pure_live/modules/live_play/controllers/live_play_controller.dart';
 
 /// APP页面跳转封装
 /// * 需要参数的页面都应使用此类
@@ -32,6 +29,17 @@ class AppNavigator {
         : liveRoom.copyWith(platform: platform, roomId: roomId);
     _openingLiveRoom = true;
     try {
+      final manager = GlobalPlayerService.instance.player;
+      if (manager.isAppFloatingActive) {
+        if (manager.currentFloatRoom == normalizedRoom) {
+          manager.prepareRoomSessionReentry(normalizedRoom);
+        } else {
+          manager.cancelRoomSessionReentry();
+        }
+        await manager.closeAppFloating();
+      } else {
+        manager.cancelRoomSessionReentry();
+      }
       await Get.toNamed(RoutePath.kLivePlay, arguments: normalizedRoom, parameters: {"site": platform});
     } finally {
       _openingLiveRoom = false;
@@ -51,6 +59,13 @@ class AppNavigator {
     await Get.offAndToNamed(RoutePath.kLivePlay, arguments: normalizedRoom, parameters: {"site": platform});
   }
 
+  /// 跳转至多画面同看页面。
+  ///
+  /// 房间分配由页面内交互完成，无需携带参数。
+  static Future<void> toMultiview() async {
+    await Get.toNamed(RoutePath.kMultiview);
+  }
+
   /// 跳转至哔哩哔哩登录
   static Future toBiliBiliLogin() async {
     var contents = [i18n("sms_login"), i18n("qrcode_login")];
@@ -63,57 +78,6 @@ class AppNavigator {
       }
     } else {
       await Get.toNamed(RoutePath.kBiliBiliQRLogin);
-    }
-  }
-}
-
-class BackButtonObserver extends RouteObserver<PageRoute<dynamic>> {
-  @override
-  void didPop(Route route, Route? previousRoute) {
-    super.didPop(route, previousRoute);
-    if (route.settings.name == RoutePath.kLivePlay) {
-      try {
-        final livePlayController = Get.find<LivePlayController>();
-        final state = livePlayController.state.value;
-
-        // 更新房间状态
-        livePlayController.updateRoom(success: false);
-
-        final manager = GlobalPlayerService.instance.playerManager;
-        if (SettingsService.to.player.floatPlay.v) {
-          livePlayController.prepareAppFloating();
-          Future.delayed(Duration(milliseconds: 200), () {
-            manager.showAppFloating();
-          });
-        } else {
-          // 清理播放器
-          final videoController = state.player.videoController;
-          if (videoController != null) {
-            videoController.clearListener();
-          }
-
-          // 检查是否音频模式
-          if (state.player.isCurrentRoomAudioOnly) {
-            manager.hardDispose();
-          } else {
-            manager.close();
-          }
-        }
-        if (PlatformUtils.isMobile) {
-          WindowService().doExitFullScreen();
-        }
-      } catch (e) {
-        log("BackButtonObserver Error: ${e.toString()}");
-      }
-    }
-  }
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    super.didPush(route, previousRoute);
-    if (route.settings.name == RoutePath.kLivePlay) {
-      final manager = GlobalPlayerService.instance.playerManager;
-      manager.closeAppFloating();
     }
   }
 }

@@ -3,11 +3,16 @@ import 'package:pure_live/common/consts/app_consts.dart';
 import 'package:pure_live/common/services/utils/backup_migration_util.dart';
 
 class FavoriteRoomController extends GetxController {
-  final RxList<String> shieldList = hiveStringList('shieldList', []);
-  final RxList<String> blockedDanmakuUsers = hiveStringList('blockedDanmakuUsers', []);
+  final RxList<String> shieldList = hiveStringList('shieldList', <String>[]);
+
+  final RxList<String> blockedDanmakuUsers = hiveStringList('blockedDanmakuUsers', <String>[]);
+
   final RxList<String> hotAreasList = hiveStringList('hotAreasList', AppConsts.supportSites);
+
   final RxInt siteCatalogMigration = hiveInt('siteCatalogMigration', 0);
+
   final RxString preferPlatform = hiveString('preferPlatform', Sites.bilibiliSite);
+
   final Rx<List<LiveRoom>> favoriteRooms = hiveObject(
     'favoriteRooms',
     <LiveRoom>[],
@@ -18,17 +23,6 @@ class FavoriteRoomController extends GetxController {
       return {'list': list.map((e) => e.toJson()).toList()};
     },
   );
-
-  @override
-  void onInit() {
-    super.onInit();
-    if (siteCatalogMigration.v < 2) {
-      for (final site in Sites.supportSites) {
-        if (!hotAreasList.contains(site.id)) hotAreasList.add(site.id);
-      }
-      siteCatalogMigration.v = 2;
-    }
-  }
 
   final Rx<List<LiveArea>> favoriteAreas = hiveObject(
     'favoriteAreas',
@@ -41,73 +35,302 @@ class FavoriteRoomController extends GetxController {
     },
   );
 
-  bool isFavorite(LiveRoom room) => favoriteRooms.v.any((e) => e.roomId == room.roomId);
-  bool isFavoriteArea(LiveArea area) => favoriteAreas.v.any((e) => e.areaId == area.areaId);
+  @override
+  void onInit() {
+    super.onInit();
+    _normalizeSiteCatalogIds();
+    _normalizeFavoriteRoomIdentities();
+    _migrateSiteCatalog();
+  }
+
+  void _migrateSiteCatalog() {
+    if (siteCatalogMigration.v >= 2) return;
+
+    final updated = List<String>.from(hotAreasList);
+
+    for (final site in Sites.supportSites) {
+      if (!updated.contains(site.id)) {
+        updated.add(site.id);
+      }
+    }
+
+    hotAreasList.assignAll(updated);
+    siteCatalogMigration.v = 2;
+  }
+
+  void _normalizeSiteCatalogIds() {
+    final supported = Sites.supportedSiteIds;
+    final seen = <String>{};
+    final normalized = <String>[];
+
+    for (final rawId in hotAreasList) {
+      final id = rawId.trim().toLowerCase();
+
+      if (supported.contains(id) && seen.add(id)) {
+        normalized.add(id);
+      }
+    }
+
+    if (!_sameStrings(hotAreasList, normalized)) {
+      hotAreasList.assignAll(normalized);
+    }
+
+    final preferred = preferPlatform.v.trim().toLowerCase();
+
+    preferPlatform.v = supported.contains(preferred) ? preferred : Sites.bilibiliSite;
+  }
+
+  bool _sameStrings(List<String> left, List<String> right) {
+    if (left.length != right.length) return false;
+
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool _isValidFavoriteRoom(LiveRoom room) {
+    final platform = room.normalizedPlatformId.trim();
+    final roomId = room.normalizedRoomId.trim().toLowerCase();
+
+    if (platform.isEmpty || roomId.isEmpty) {
+      return false;
+    }
+
+    switch (roomId) {
+      case '0':
+      case 'null':
+      case 'undefined':
+      case 'nan':
+      case 'none':
+        return false;
+    }
+
+    return true;
+  }
+
+  void _normalizeFavoriteRoomIdentities() {
+    final current = List<LiveRoom>.from(favoriteRooms.v);
+
+    if (current.isEmpty) return;
+
+    final normalized = <LiveRoom>[];
+    final identities = <String>{};
+    var changed = false;
+
+    for (final room in current) {
+      final next = room.normalizedIdentityCopy();
+
+      if (!identical(next, room)) {
+        changed = true;
+      }
+
+      if (!_isValidFavoriteRoom(next)) {
+        changed = true;
+        continue;
+      }
+
+      if (!identities.add(next.identityKey)) {
+        changed = true;
+        continue;
+      }
+
+      normalized.add(next);
+    }
+
+    if (changed) {
+      favoriteRooms.v = List<LiveRoom>.from(normalized);
+    }
+  }
+
+  void removeInvalidFavoriteRooms() {
+    final current = List<LiveRoom>.from(favoriteRooms.v);
+
+    if (current.isEmpty) return;
+
+    final validRooms = <LiveRoom>[];
+    final identities = <String>{};
+
+    for (final room in current) {
+      final normalized = room.normalizedIdentityCopy();
+
+      if (!_isValidFavoriteRoom(normalized)) {
+        continue;
+      }
+
+      if (!identities.add(normalized.identityKey)) {
+        continue;
+      }
+
+      validRooms.add(normalized);
+    }
+
+    if (_sameFavoriteRoomSnapshot(current, validRooms)) {
+      return;
+    }
+
+    favoriteRooms.v = List<LiveRoom>.from(validRooms);
+  }
+
+  bool _sameFavoriteRoomSnapshot(List<LiveRoom> left, List<LiveRoom> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+
+    for (var index = 0; index < left.length; index++) {
+      if (left[index].identityKey != right[index].identityKey) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool isFavorite(LiveRoom room) {
+    return favoriteRooms.v.any((candidate) => candidate.hasSameIdentity(room));
+  }
+
+  bool isFavoriteArea(LiveArea area) {
+    return favoriteAreas.v.any((e) => e.areaId == area.areaId);
+  }
 
   bool addRoom(LiveRoom room) {
-    if (isFavorite(room)) return false;
-    favoriteRooms.v.add(room);
-    favoriteRooms.refresh();
+    final normalized = room.normalizedIdentityCopy();
+
+    if (!_isValidFavoriteRoom(normalized)) {
+      return false;
+    }
+
+    if (isFavorite(normalized)) {
+      return false;
+    }
+
+    final updated = List<LiveRoom>.from(favoriteRooms.v);
+    updated.add(normalized);
+    favoriteRooms.v = updated;
+
     return true;
   }
 
   bool removeRoom(LiveRoom room) {
-    final res = favoriteRooms.v.remove(room);
-    favoriteRooms.refresh();
-    return res;
+    final index = favoriteRooms.v.indexWhere((candidate) => candidate.hasSameIdentity(room));
+
+    if (index < 0) return false;
+
+    final updated = List<LiveRoom>.from(favoriteRooms.v);
+    updated.removeAt(index);
+    favoriteRooms.v = updated;
+
+    return true;
   }
 
   bool updateRoom(LiveRoom room) {
-    final idx = favoriteRooms.v.indexWhere((e) => e.roomId == room.roomId);
-    if (idx == -1) return false;
-    favoriteRooms.v[idx] = room;
-    favoriteRooms.refresh();
+    final normalized = room.normalizedIdentityCopy();
+
+    if (!_isValidFavoriteRoom(normalized)) {
+      return false;
+    }
+
+    final index = favoriteRooms.v.indexWhere((candidate) => candidate.hasSameIdentity(normalized));
+
+    if (index < 0) return false;
+
+    final updated = List<LiveRoom>.from(favoriteRooms.v);
+    updated[index] = updated[index].mergeFrom(normalized);
+    favoriteRooms.v = updated;
+
     return true;
   }
 
   bool addArea(LiveArea area) {
     if (isFavoriteArea(area)) return false;
-    favoriteAreas.v.add(area);
-    favoriteAreas.refresh();
+
+    final updated = List<LiveArea>.from(favoriteAreas.v);
+    updated.add(area);
+    favoriteAreas.v = updated;
+
     return true;
   }
 
   bool removeArea(LiveArea area) {
-    final res = favoriteAreas.v.remove(area);
-    favoriteAreas.refresh();
-    return res;
+    final updated = List<LiveArea>.from(favoriteAreas.v);
+    final removed = updated.remove(area);
+
+    if (!removed) return false;
+
+    favoriteAreas.v = updated;
+
+    return true;
   }
 
-  void addShieldList(String value) => shieldList.v.add(value);
-  void removeShieldList(int idx) => shieldList.v.removeAt(idx);
+  void addShieldList(String value) {
+    final text = value.trim();
+
+    if (text.isEmpty || shieldList.contains(text)) return;
+
+    final updated = List<String>.from(shieldList);
+    updated.add(text);
+    shieldList.assignAll(updated);
+  }
+
+  void removeShieldList(int index) {
+    if (index < 0 || index >= shieldList.length) return;
+
+    final updated = List<String>.from(shieldList);
+    updated.removeAt(index);
+    shieldList.assignAll(updated);
+  }
+
   void addBlockedDanmakuUser(String value) {
     final user = value.trim();
-    if (user.isNotEmpty && !blockedDanmakuUsers.contains(user)) blockedDanmakuUsers.add(user);
+
+    if (user.isEmpty || blockedDanmakuUsers.contains(user)) {
+      return;
+    }
+
+    final updated = List<String>.from(blockedDanmakuUsers);
+    updated.add(user);
+    blockedDanmakuUsers.assignAll(updated);
   }
 
-  void removeBlockedDanmakuUser(int idx) => blockedDanmakuUsers.removeAt(idx);
+  void removeBlockedDanmakuUser(int index) {
+    if (index < 0 || index >= blockedDanmakuUsers.length) {
+      return;
+    }
+
+    final updated = List<String>.from(blockedDanmakuUsers);
+    updated.removeAt(index);
+    blockedDanmakuUsers.assignAll(updated);
+  }
 
   LiveRoom? getRoomById(String roomId, String platform) {
+    final identity = '${platform.trim().toLowerCase()}:${roomId.trim()}';
+
     for (final room in favoriteRooms.v) {
-      if (room.roomId == roomId && room.platform == platform) {
+      if (room.identityKey == identity) {
         return room;
       }
     }
+
     return null;
   }
 
   void changePreferPlatform(String name) {
-    final list = Sites.supportSites.map((e) => e.id).toList();
-    if (list.contains(name)) {
-      preferPlatform.v = name;
+    final normalized = name.trim().toLowerCase();
+
+    if (Sites.supportedSiteIds.contains(normalized)) {
+      preferPlatform.v = normalized;
     }
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'shieldList': shieldList.v,
-      'blockedDanmakuUsers': blockedDanmakuUsers.v,
-      'hotAreasList': hotAreasList.v,
+      'shieldList': List<String>.from(shieldList),
+      'blockedDanmakuUsers': List<String>.from(blockedDanmakuUsers),
+      'hotAreasList': List<String>.from(hotAreasList),
       'preferPlatform': preferPlatform.v,
       'favoriteRooms': favoriteRooms.v.map((e) => e.toJson()).toList(),
       'favoriteAreas': favoriteAreas.v.map((e) => e.toJson()).toList(),
@@ -115,29 +338,40 @@ class FavoriteRoomController extends GetxController {
   }
 
   void fromJson(Map<String, dynamic> json) {
-    shieldList.v = List<String>.from(json['shieldList'] ?? []);
-    blockedDanmakuUsers.v = List<String>.from(json['blockedDanmakuUsers'] ?? []);
+    shieldList.assignAll(List<String>.from(json['shieldList'] ?? const <String>[]));
 
-    hotAreasList.v = List<String>.from(json['hotAreasList'] ?? AppConsts.supportSites);
+    blockedDanmakuUsers.assignAll(List<String>.from(json['blockedDanmakuUsers'] ?? const <String>[]));
 
-    preferPlatform.v = json['preferPlatform'] ?? Sites.bilibiliSite;
+    hotAreasList.assignAll(List<String>.from(json['hotAreasList'] ?? AppConsts.supportSites));
 
-    favoriteRooms.v = BackupMigrationUtil.parseObjectList(json['favoriteRooms'], (m) => LiveRoom.fromJson(m));
+    final preferred = json['preferPlatform']?.toString();
 
-    favoriteAreas.v = BackupMigrationUtil.parseObjectList(json['favoriteAreas'], (m) => LiveArea.fromJson(m));
+    preferPlatform.v = preferred?.trim().toLowerCase() ?? Sites.bilibiliSite;
+
+    favoriteRooms.v = List<LiveRoom>.from(
+      BackupMigrationUtil.parseObjectList(json['favoriteRooms'], (m) => LiveRoom.fromJson(m)),
+    );
+
+    favoriteAreas.v = List<LiveArea>.from(
+      BackupMigrationUtil.parseObjectList(json['favoriteAreas'], (m) => LiveArea.fromJson(m)),
+    );
+
+    _normalizeSiteCatalogIds();
+    _normalizeFavoriteRoomIdentities();
   }
 
   static Map<String, dynamic> extractConfig(Map<String, dynamic>? rootConfig) {
     final favorite = rootConfig?['favorite'] as Map<String, dynamic>? ?? {};
+
     return {
-      'shieldList': List<String>.from(favorite['shieldList'] ?? []),
-      'blockedDanmakuUsers': List<String>.from(favorite['blockedDanmakuUsers'] ?? []),
+      'shieldList': List<String>.from(favorite['shieldList'] ?? const <String>[]),
+      'blockedDanmakuUsers': List<String>.from(favorite['blockedDanmakuUsers'] ?? const <String>[]),
       'hotAreasList': List<String>.from(favorite['hotAreasList'] ?? AppConsts.supportSites),
       'preferPlatform': favorite['preferPlatform'] ?? Sites.bilibiliSite,
       'favoriteRooms': BackupMigrationUtil.parseObjectList(
         favorite['favoriteRooms'],
         LiveRoom.fromJson,
-      ).map((e) => e.toJson()).toList(),
+      ).where(_isValidFavoriteRoomStatic).map((e) => e.toJson()).toList(),
       'favoriteAreas': BackupMigrationUtil.parseObjectList(
         favorite['favoriteAreas'],
         LiveArea.fromJson,
@@ -145,10 +379,36 @@ class FavoriteRoomController extends GetxController {
     };
   }
 
+  static bool _isValidFavoriteRoomStatic(LiveRoom room) {
+    final platform = room.normalizedPlatformId.trim();
+
+    final roomId = room.normalizedRoomId.trim().toLowerCase();
+
+    if (platform.isEmpty || roomId.isEmpty) {
+      return false;
+    }
+
+    switch (roomId) {
+      case '0':
+      case 'null':
+      case 'undefined':
+      case 'nan':
+      case 'none':
+        return false;
+    }
+
+    return true;
+  }
+
   static Map<String, dynamic> mergeConfig(Map<String, dynamic> rootConfig, Map<String, dynamic> updateFields) {
     final favorite = Map<String, dynamic>.from(rootConfig['favorite'] ?? {});
-    updateFields.forEach((k, v) => favorite[k] = v);
+
+    updateFields.forEach((key, value) {
+      favorite[key] = value;
+    });
+
     rootConfig['favorite'] = favorite;
+
     return rootConfig;
   }
 }

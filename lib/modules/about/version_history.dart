@@ -1,7 +1,11 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
+import 'package:pure_live/gen/env.g.dart';
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
+import 'package:pure_live/plugins/utils.dart';
+import 'package:pure_live/plugins/update.dart';
 import 'package:markdown_widget/widget/all.dart';
 import 'package:pure_live/plugins/race_http.dart';
 import 'package:markdown_widget/config/configs.dart';
@@ -9,6 +13,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:pure_live/core/common/http_client.dart';
 import 'package:pure_live/common/utils/githup_mirror.dart';
 import 'package:pure_live/common/models/release_model.dart';
+import 'package:pure_live/common/widgets/common_avatar.dart';
 
 class VersionHistoryPage extends StatefulWidget {
   const VersionHistoryPage({super.key});
@@ -42,30 +47,47 @@ class _VersionHistoryPageState extends State<VersionHistoryPage> with SingleTick
   Future<void> loadReleaseHistory({bool forceRefresh = false}) async {
     if (allReleased.isNotEmpty && !forceRefresh) return;
     if (historyLoading.value) return;
-
     try {
-      GitHubMirror mirror = GitHubMirror(owner: 'liuchuancong', repo: 'pure_live', branch: 'master');
       historyLoading.value = true;
       historyError.value = false;
+      final mirror = GitHubMirror(owner: 'liuchuancong', repo: 'pure_live', branch: 'master');
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final urls = mirror.mirrors('assets/releases.json').map((e) => '$e?ts=$timestamp').toList();
-      String? url = await RaceHttp.findFastestUrl(urls);
+      final sourceUrls = SettingsService.to.app.useGitHubOriginForUpdates.v
+          ? [mirror.rawUrl('assets/releases.json')]
+          : mirror.mirrors('assets/releases.json');
+      final urls = sourceUrls.map((e) => '$e?ts=$timestamp').toList();
+      final url = await RaceHttp.findFastestUrl(urls);
       if (url == null) {
-        throw Exception("无法获取版本历史");
+        throw Exception('无法获取版本历史');
       }
-      var result = await HttpClient.instance.getJson(
+      final result = await HttpClient.instance.getJson(
         url,
         header: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.51',
-          'Accept': 'application/json',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+              'AppleWebKit/537.36 (KHTML, like Gecko) '
+              'Chrome/151.0.0.0 Safari/537.36',
+          'Accept': 'application/json,text/plain,*/*',
+          'Cache-Control': 'no-cache, no-store, max-age=0',
+          'Pragma': 'no-cache',
         },
       );
-      final List rawList = result is String ? json.decode(result) : (result ?? []);
-
-      allReleased.value = rawList.map((e) => ReleaseModel.fromJson(e)).toList();
-      allReleased.value.sort((a, b) => b.date.compareTo(a.date));
-    } catch (e, s) {
-      debugPrintStack(stackTrace: s);
+      final decoded = result is String ? json.decode(result) : result;
+      final List<dynamic> releases;
+      if (decoded is List) {
+        releases = decoded;
+      } else if (decoded is Map && decoded['releases'] is List) {
+        releases = decoded['releases'] as List;
+      } else {
+        throw const FormatException('版本历史数据格式错误');
+      }
+      final releaseList = releases
+          .whereType<Map>()
+          .map((e) => ReleaseModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      releaseList.sort((a, b) => b.date.compareTo(a.date));
+      allReleased.value = releaseList;
+    } catch (e) {
       historyError.value = true;
     } finally {
       historyLoading.value = false;
@@ -277,17 +299,19 @@ class _VersionHistoryPageState extends State<VersionHistoryPage> with SingleTick
     Get.dialog(
       Dialog(
         clipBehavior: Clip.antiAlias,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         backgroundColor: theme.colorScheme.surfaceContainerHigh,
         child: Container(
-          padding: const EdgeInsets.all(24),
-          constraints: const BoxConstraints(maxWidth: 400, maxHeight: 520),
+          width: double.infinity,
+          padding: const EdgeInsets.all(15),
+          constraints: BoxConstraints(maxWidth: Get.width * .95, maxHeight: 520),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _VersionAuthorHeaderWidget(item: item),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -298,7 +322,6 @@ class _VersionHistoryPageState extends State<VersionHistoryPage> with SingleTick
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -363,30 +386,34 @@ class _DesktopChangelogDetailPanel extends StatelessWidget {
 }
 
 class _VersionAuthorHeaderWidget extends StatelessWidget {
-  final dynamic item;
+  final ReleaseModel item;
 
   const _VersionAuthorHeaderWidget({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final avatar = item.author.avatar.trim().isNotEmpty ? item.author.avatar.trim() : VersionUtil.defaultAvatar;
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: theme.colorScheme.surfaceContainerHighest,
-          backgroundImage: NetworkImage(item.author.avatar),
-        ),
+        CommonAvatar(avatarUrl: avatar, fallbackName: AppConfig.pureliveUpdateOwner, dense: true),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('v${item.version}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
               Text(
-                // 【Core Fix】: Localized published date text template wrapper
+                'v${item.version}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 2),
+              Text(
                 i18n("version_published_at", args: {"date": item.date}),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
@@ -396,8 +423,8 @@ class _VersionAuthorHeaderWidget extends StatelessWidget {
           style: IconButton.styleFrom(
             backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
           ),
-          onPressed: () => launchUrlString(item.github),
-          icon: const Icon(Remix.github_fill, size: 16),
+          onPressed: item.github.isEmpty ? null : () => launchUrlString(item.github),
+          icon: const Icon(Remix.link, size: 16),
         ),
       ],
     );
@@ -466,7 +493,7 @@ class _VersionChangelogAndFilesWidget extends StatelessWidget {
                           children: [
                             Text(
                               file.name,
-                              maxLines: 1,
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                             ),
@@ -489,7 +516,24 @@ class _VersionChangelogAndFilesWidget extends StatelessWidget {
                           backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.08),
                           foregroundColor: theme.colorScheme.primary,
                         ),
-                        onPressed: () => launchUrlString(file.url),
+                        onPressed: () async {
+                          Clipboard.setData(ClipboardData(text: file.url));
+                          ToastUtil.show(i18n("copied_to_clipboard"));
+                        },
+                        icon: const Icon(Remix.file_copy_2_fill, size: 16),
+                      ),
+                      SizedBox(width: 6),
+                      IconButton(
+                        style: IconButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.08),
+                          foregroundColor: theme.colorScheme.primary,
+                        ),
+                        onPressed: () async {
+                          bool? result = await Utils.showAlertDialog(i18n('open_download_confirm'), title: i18n('tip'));
+                          if (result) {
+                            downloadAndInstallApk(file.url, fileName: file.name);
+                          }
+                        },
                         icon: const Icon(Remix.download_2_line, size: 16),
                       ),
                     ],

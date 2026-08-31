@@ -2,7 +2,9 @@
 param(
     [Parameter(Mandatory = $true)] [string] $Tag,
     [string] $ArtifactDirectory,
+    [string] $Repository = 'liuchuancong/pure_live',
     [switch] $CreateTag,
+    [switch] $ReplaceExistingRelease,
     [switch] $AllowQaArtifacts
 )
 
@@ -32,7 +34,7 @@ try {
 
     $metadataPath = Join-Path $ArtifactDirectory 'BUILD_METADATA.json'
     if (-not (Test-Path -LiteralPath $metadataPath)) { throw 'BUILD_METADATA.json is missing.' }
-    $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+    $metadata = Get-Content -LiteralPath $metadataPath -Raw -Encoding utf8 | ConvertFrom-Json
     $headCommit = (git rev-parse HEAD).Trim()
     $releaseCommit = if ($metadata.release_commit) {
         $metadata.release_commit
@@ -56,30 +58,63 @@ try {
         $actual = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash
         if ($actual -ne $Matches[1]) { throw "Checksum mismatch: $($Matches[2])" }
     }
-    if ($CreateTag -and -not (git tag --list $Tag)) {
-        if ($PSCmdlet.ShouldProcess($Tag, 'Create and push tag')) {
-            git tag -a $Tag -m "Pure Live $Tag"
-            git push origin $Tag
+    $localTagExists = [bool](git tag --list $Tag)
+    $localTagCommit = if ($localTagExists) { (git rev-parse "$Tag^{commit}").Trim() } else { $null }
+    if ($localTagExists -and $localTagCommit -ne $headCommit -and -not $ReplaceExistingRelease) {
+        throw "Tag $Tag points to $localTagCommit instead of HEAD. Use -ReplaceExistingRelease only for an explicit corrected same-version release."
+    }
+    if ($CreateTag -or $ReplaceExistingRelease) {
+        if ($PSCmdlet.ShouldProcess($Tag, $(if ($ReplaceExistingRelease) { 'Move and push corrected tag' } else { 'Create and push tag' }))) {
+            if ($ReplaceExistingRelease) {
+                git tag -f -a $Tag -m "Pure Live $Tag corrected build $artifactVersion"
+                if ($LASTEXITCODE) { throw "Failed to move local tag $Tag." }
+                git push --force origin "refs/tags/$Tag"
+            } elseif (-not $localTagExists) {
+                git tag -a $Tag -m "Pure Live $Tag"
+                git push origin $Tag
+            }
+            if ($LASTEXITCODE) { throw "Failed to push tag $Tag." }
         }
     }
-    $releaseNotes = Get-Content -LiteralPath 'RELEASE_NOTES.md' -Raw
+    # Windows PowerShell 5.1 defaults Get-Content to the active ANSI code page.
+    # Reading UTF-8 Markdown without an explicit encoding corrupts Chinese text
+    # before gh uploads it, even though the temporary file itself is UTF-8.
+    $releaseNotes = Get-Content -LiteralPath 'RELEASE_NOTES.md' -Raw -Encoding utf8
     $releasePattern = '(?ms)^# Pure Live\s+' + [regex]::Escape($Tag) + '\s*$.*?(?=^---\s*$|\z)'
     $releaseMatch = [regex]::Match($releaseNotes, $releasePattern)
     if (-not $releaseMatch.Success) { throw "Release notes section was not found for $Tag." }
     $releaseNotesPath = Join-Path $env:TEMP "pure-live-$($Tag.TrimStart('v'))-release-notes-$PID.md"
-    Set-Content -LiteralPath $releaseNotesPath -Value $releaseMatch.Value.Trim() -Encoding utf8
+    [IO.File]::WriteAllText(
+        $releaseNotesPath,
+        $releaseMatch.Value.Trim(),
+        [Text.UTF8Encoding]::new($false)
+    )
 
     $files = Get-ChildItem $ArtifactDirectory -File | ForEach-Object FullName
     if ($PSCmdlet.ShouldProcess($Tag, 'Publish GitHub release from local artifacts')) {
-        $releaseList = gh release list --repo liuchuancong/pure_live --limit 100 --json tagName | ConvertFrom-Json
+        $releaseList = gh release list --repo $Repository --limit 100 --json tagName | ConvertFrom-Json
         if ($LASTEXITCODE) { throw 'Failed to query existing GitHub Releases.' }
         $releaseExists = @($releaseList).tagName -contains $Tag
         if ($releaseExists) {
-            gh release upload $Tag @files --clobber --repo liuchuancong/pure_live
+            if ($ReplaceExistingRelease) {
+                gh release edit $Tag --draft --repo $Repository
+                if ($LASTEXITCODE) { throw 'Failed to place the existing release in draft mode.' }
+                $oldAssets = gh release view $Tag --repo $Repository --json assets | ConvertFrom-Json
+                if ($LASTEXITCODE) { throw 'Failed to enumerate existing GitHub Release assets.' }
+                foreach ($asset in @($oldAssets.assets)) {
+                    gh release delete-asset $Tag $asset.name --yes --repo $Repository
+                    if ($LASTEXITCODE) { throw "Failed to remove obsolete Release asset: $($asset.name)" }
+                }
+            }
+            gh release upload $Tag @files --clobber --repo $Repository
             if ($LASTEXITCODE) { throw 'Failed to upload GitHub Release assets.' }
-            gh release edit $Tag --title "Pure Live $Tag" --notes-file $releaseNotesPath --repo liuchuancong/pure_live
+            if ($ReplaceExistingRelease) {
+                gh release edit $Tag --title "Pure Live $Tag" --notes-file $releaseNotesPath --draft=false --latest --repo $Repository
+            } else {
+                gh release edit $Tag --title "Pure Live $Tag" --notes-file $releaseNotesPath --repo $Repository
+            }
         } else {
-            gh release create $Tag @files --verify-tag --title "Pure Live $Tag" --notes-file $releaseNotesPath --repo liuchuancong/pure_live
+            gh release create $Tag @files --verify-tag --title "Pure Live $Tag" --notes-file $releaseNotesPath --repo $Repository
         }
         if ($LASTEXITCODE) { throw 'Failed to create or update the GitHub Release.' }
     }

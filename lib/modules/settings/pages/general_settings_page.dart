@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:stop_watch_timer/stop_watch_timer.dart';
-import 'package:pure_live/modules/settings/pages/audience_metric_settings_page.dart';
 
 class GeneralSettingsPage extends GetView<SettingsService> {
   const GeneralSettingsPage({super.key});
@@ -18,18 +17,20 @@ class GeneralSettingsPage extends GetView<SettingsService> {
         children: [
           context.buildGroupTitle(i18n("general")),
           context.buildModernCard([
-            if (Platform.isAndroid)
+            if (Platform.isAndroid || Platform.isWindows)
               Obx(() {
                 final info = DisplayModeService.info.value;
+                final mode = SettingsService.to.app.refreshRateMode;
                 final suffix = info == null
                     ? ''
                     : ' · ${info.currentRefreshRate.toStringAsFixed(0)} / ${info.maxRefreshRate.toStringAsFixed(0)} Hz';
-                return context.buildSwitchTile(
-                  title: i18n('high_refresh_rate'),
-                  subtitle: '${i18n('high_refresh_rate_subtitle')}$suffix',
-                  value: SettingsService.to.app.enableHighRefreshRate,
+                return context.buildTile(
+                  title: i18n('refresh_rate_mode'),
+                  subtitle: '${_refreshRateModeLabel(mode)} · ${_refreshRateModeDescription(mode)}$suffix',
                   icon: Remix.speed_up_line,
                   isLong: true,
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _showRefreshRateModeDialog(context),
                 );
               }),
             if (Platform.isWindows)
@@ -49,13 +50,13 @@ class GeneralSettingsPage extends GetView<SettingsService> {
                   onTap: () => DisplayModeService.refreshInfo(),
                 );
               }),
-            context.buildTile(
-              title: i18n('audience_metric_settings'),
-              subtitle: i18n('audience_metric_settings_desc'),
-              icon: Icons.groups_2_rounded,
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Get.to(() => const AudienceMetricSettingsPage()),
-            ),
+            if (Platform.isWindows)
+              context.buildSwitchTile(
+                title: i18n('open_new_window'),
+                subtitle: i18n("open_new_window_subtitle"),
+                value: SettingsService.to.app.enableNewWindowPlay,
+                icon: Icons.add_to_photos_outlined,
+              ),
             context.buildSwitchTile(
               title: i18n('splash_animation'),
               subtitle: i18n("splash_animation_subtitle"),
@@ -67,6 +68,13 @@ class GeneralSettingsPage extends GetView<SettingsService> {
               subtitle: "",
               value: SettingsService.to.app.enableAutoCheckUpdate,
               icon: Remix.refresh_line,
+            ),
+            context.buildSwitchTile(
+              title: i18n('use_github_origin_for_updates'),
+              subtitle: i18n('use_github_origin_for_updates_desc'),
+              value: SettingsService.to.app.useGitHubOriginForUpdates,
+              icon: Remix.github_line,
+              isLong: true,
             ),
             context.buildSwitchTile(
               title: i18n('enable_countdown_close'),
@@ -128,6 +136,85 @@ class GeneralSettingsPage extends GetView<SettingsService> {
             ],
           ]),
           const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  String _refreshRateModeLabel(AppRefreshRateMode mode) {
+    return switch (mode) {
+      AppRefreshRateMode.powerSaving => i18n('refresh_rate_power_saving'),
+      AppRefreshRateMode.balanced => i18n('refresh_rate_balanced'),
+      AppRefreshRateMode.performance => i18n('refresh_rate_performance'),
+    };
+  }
+
+  String _refreshRateModeDescription(AppRefreshRateMode mode) {
+    return switch (mode) {
+      AppRefreshRateMode.powerSaving => i18n('refresh_rate_power_saving_desc'),
+      AppRefreshRateMode.balanced => i18n('refresh_rate_balanced_desc'),
+      AppRefreshRateMode.performance => i18n('refresh_rate_performance_desc'),
+    };
+  }
+
+  String _refreshRateEnergyLabel(AppRefreshRateMode mode) {
+    return switch (mode) {
+      AppRefreshRateMode.powerSaving => i18n('refresh_rate_energy_low'),
+      AppRefreshRateMode.balanced => i18n('refresh_rate_energy_medium'),
+      AppRefreshRateMode.performance => i18n('refresh_rate_energy_high'),
+    };
+  }
+
+  void _showRefreshRateModeDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(i18n('refresh_rate_mode')),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+            child: Text(i18n('refresh_rate_mode_hint'), style: Theme.of(dialogContext).textTheme.bodySmall),
+          ),
+          Obx(
+            () => RadioGroup<AppRefreshRateMode>(
+              groupValue: SettingsService.to.app.refreshRateMode,
+              onChanged: (mode) {
+                if (mode == null) return;
+                SettingsService.to.app.setRefreshRateMode(mode);
+                Navigator.pop(dialogContext);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: AppRefreshRateMode.values
+                    .map(
+                      (mode) => RadioListTile<AppRefreshRateMode>(
+                        value: mode,
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(_refreshRateModeLabel(mode))),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Theme.of(dialogContext).colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _refreshRateEnergyLabel(mode),
+                                style: Theme.of(dialogContext).textTheme.labelSmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(_refreshRateModeDescription(mode)),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -242,7 +329,10 @@ class GeneralSettingsPage extends GetView<SettingsService> {
           ],
         );
       },
-    );
+    ).whenComplete(() {
+      widthController.dispose();
+      heightController.dispose();
+    });
   }
 
   void _showCountdownDurationDialog(BuildContext context) {
@@ -328,7 +418,7 @@ class GeneralSettingsPage extends GetView<SettingsService> {
           ],
         );
       },
-    );
+    ).whenComplete(inputController.dispose);
   }
 }
 

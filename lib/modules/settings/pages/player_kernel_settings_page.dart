@@ -63,6 +63,13 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
               subtitle: i18n("gpu_decode"),
               value: SettingsService.to.player.enableCodec,
             ),
+            if (PlatformUtils.isWindows)
+              context.buildSwitchTile(
+                icon: Remix.image_edit_line,
+                title: i18n('enable_rtx_vsr'),
+                subtitle: i18n('enable_rtx_vsr_subtitle'),
+                value: SettingsService.to.player.enableRtxVsr,
+              ),
             context.buildSwitchTile(
               icon: Remix.shut_down_line,
               title: i18n('force_destroy_player'),
@@ -225,7 +232,7 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
                 onChanged: (String? key) {
                   if (key != null && PlayerConsts.engines.containsKey(key)) {
                     SettingsService.to.player.videoPlayerKey.v = key;
-                    GlobalPlayerService.instance.playerManager.switchEngine(PlayerConsts.engines[key]!, isManual: true);
+                    GlobalPlayerService.instance.player.switchEngine(PlayerConsts.engines[key]!, isManual: true);
                     Navigator.of(context).pop();
                   }
                 },
@@ -240,7 +247,7 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
                       onTap: () {
                         if (PlayerConsts.engines.containsKey(itemKey)) {
                           SettingsService.to.player.videoPlayerKey.v = itemKey;
-                          GlobalPlayerService.instance.playerManager.switchEngine(
+                          GlobalPlayerService.instance.player.switchEngine(
                             PlayerConsts.engines[itemKey]!,
                             isManual: true,
                           );
@@ -309,6 +316,9 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n("confirm")))],
       ),
-    );
+    ).whenComplete(() {
+      hostController.dispose();
+      portController.dispose();
+    });
   }
 }

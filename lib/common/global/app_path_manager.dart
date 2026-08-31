@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:pure_live/common/utils/windows_multi_instance_launcher.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:win32_registry/win32_registry.dart';
 
@@ -26,7 +27,14 @@ class AppPathManager {
   static const String dirRecords = 'RECORDS';
   static const String dirEmojiCache = 'EMOJI_CACHE';
   static const String dirMigrationBackup = 'MIGRATION_BACKUP';
-  static const String fontCacheDir = 'fontsDir';
+
+  /// Canonical directory used by [FontDownloadManager] for downloaded fonts.
+  /// Keep this in one place so the manager page and downloader never drift to
+  /// different folders (the old `fontsDir` value broke multi-file font packs).
+  static const String fontDirectoryName = 'fonts';
+  // Compatibility alias retained for upstream call sites introduced in
+  // 5aa1a40a. Both names intentionally resolve to the same canonical folder.
+  static const String fontCacheDir = fontDirectoryName;
   static const String iptvCategoryFile = 'categories.json';
   static const String iptvHotFile = 'hot.m3u';
   static const String iptvHotRemoteFile = 'https://raw.githubusercontent.com/YueChan/Live/main/GNTV.m3u';
@@ -37,7 +45,10 @@ class AppPathManager {
   List<String> get legacyHiveFiles => List.unmodifiable(_legacyHiveFiles);
 
   Future<void> initialize({String instanceId = ''}) async {
-    final sanitizedInstanceId = instanceId.replaceAll(RegExp(r'[^a-zA-Z0-9_.-]'), '');
+    // Treat the command line as untrusted even if it normally comes from our
+    // launcher. A path segment such as `..` must never escape the portable
+    // AppData root.
+    final sanitizedInstanceId = WindowsMultiInstanceLauncher.sanitizeInstanceId(instanceId);
 
     final originalPathProvider = PathProviderPlatform.instance;
     final appDir = await getApplicationDocumentsDirectory();
@@ -71,11 +82,13 @@ class AppPathManager {
       await _recoverMissingPersistentData(legacyRoots);
       await _recoverLegacyPluginPreferences(supportDir);
 
-      // EXE/portable installations keep plugin support, cache and temporary
-      // state under {app}\AppData as well. This runs before cache_manager and
-      // player plugins initialize.
-      PathProviderPlatform.instance = WindowsPortablePathProvider(delegate: originalPathProvider, dataRoot: rootPath);
-      configureWindowsPortableSharedPreferences(rootPath);
+      // Portable/EXE builds keep plugin support, cache and temporary state
+      // beside the executable. MSIX already receives a writable package data
+      // root from the system path provider and must retain that provider.
+      if (!_isWindowsMsix) {
+        PathProviderPlatform.instance = WindowsPortablePathProvider(delegate: originalPathProvider, dataRoot: rootPath);
+        configureWindowsPortableSharedPreferences(rootPath);
+      }
     }
   }
 
@@ -349,6 +362,7 @@ class AppPathManager {
   Future<Directory> get iptvCacheDir => getDir(dirIptvCache);
   Future<Directory> get downloadDir => getDir(dirDownload);
   Future<Directory> get logsDir => getDir(dirLogs);
+  Future<Directory> get logFilesDir => getDir(p.join(dirLogs, 'log'));
   Future<Directory> get hiveDbDir => getDir(dirHiveDB);
   Future<Directory> get imageCacheDir => getDir(dirImageCache);
   Future<Directory> get recordsDir => getDir(dirRecords);
@@ -359,7 +373,26 @@ class AppPathManager {
 
   Future<String> getFontFamilyFolderPath(String id) async {
     final downloadDir = await getDir(dirDownload);
-    final basePath = p.join(downloadDir.path, fontCacheDir);
-    return p.join(basePath, id);
+    return fontFamilyFolderPath(downloadDir.path, id);
+  }
+
+  bool get _isWindowsMsix {
+    if (!Platform.isWindows) return false;
+    return isWindowsMsixExecutablePath(Platform.resolvedExecutable);
+  }
+
+  @visibleForTesting
+  static bool isWindowsMsixExecutablePath(String path) {
+    final normalized = path.replaceAll('/', r'\').toLowerCase();
+    return normalized.contains(r'\windowsapps\');
+  }
+
+  @visibleForTesting
+  static String fontFamilyFolderPath(String downloadPath, String id) {
+    return p.join(downloadPath, fontDirectoryName, id);
+  }
+
+  static String logFilesDirectoryPath(String logsRoot) {
+    return p.join(logsRoot, 'log');
   }
 }

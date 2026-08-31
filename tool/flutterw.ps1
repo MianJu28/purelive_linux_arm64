@@ -57,14 +57,89 @@ if ($FlutterArgs.Count -gt 0 -and $FlutterArgs[0] -eq 'dart') {
     $FlutterArgs = @($FlutterArgs | Select-Object -Skip 1)
 }
 if ($executable -eq $flutter -and $env:JAVA_HOME -and $FlutterArgs[0] -notin @('config', 'upgrade')) {
-    & $flutter config --jdk-dir=$env:JAVA_HOME *> $null
-    if ($LASTEXITCODE -ne 0) { throw 'Flutter JDK configuration failed.' }
+    # Windows PowerShell converts a native process' stderr into non-terminating
+    # ErrorRecord objects. With the wrapper-wide Stop preference, an ordinary
+    # Gradle warning would otherwise terminate the wrapper before its exit code
+    # can be inspected.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $nativePreferenceVariable = Get-Variable PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+    $previousNativeCommandPreference = if ($nativePreferenceVariable) {
+        $PSNativeCommandUseErrorActionPreference
+    } else {
+        $null
+    }
+    try {
+        $ErrorActionPreference = 'Continue'
+        if ($nativePreferenceVariable) { $PSNativeCommandUseErrorActionPreference = $false }
+        & $flutter config --jdk-dir=$env:JAVA_HOME *> $null
+        $configExitCode = $LASTEXITCODE
+    } finally {
+        if ($nativePreferenceVariable) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativeCommandPreference
+        }
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($configExitCode -ne 0) { throw 'Flutter JDK configuration failed.' }
 }
 
 $workDir = $repoRoot
+$shortPathReady = $false
+$flutterCommand = if ($FlutterArgs.Count -gt 0) { $FlutterArgs[0] } else { '' }
+$requiresBuildShortPath =
+    $repoRoot.Length -gt 80 -and
+    $executable -eq $flutter -and
+    $flutterCommand -in @('assemble', 'build', 'drive', 'install', 'run')
+$requiresTestSubstPath =
+    $repoRoot.Length -gt 80 -and
+    $executable -eq $flutter -and
+    $flutterCommand -eq 'test'
+
+if ($requiresBuildShortPath) {
+    # Keep the short project path on the same drive as the Pub cache. Kotlin's
+    # incremental compiler cannot relativize plugin sources when a SUBST drive
+    # (for example P:) and the default C: Pub cache are mixed, so it discards
+    # its cache and recompiles every Kotlin plugin. A stable junction preserves
+    # short paths without changing the drive root seen by the compiler.
+    try {
+        $normalizedRepoRoot = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\').ToLowerInvariant()
+        $sha256 = [Security.Cryptography.SHA256]::Create()
+        try {
+            $digest = $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalizedRepoRoot))
+        } finally {
+            $sha256.Dispose()
+        }
+        $repoHash = -join ($digest[0..5] | ForEach-Object { $_.ToString('x2') })
+        $junctionParent = Join-Path $env:LOCALAPPDATA 'Codex\workspaces'
+        $junctionPath = Join-Path $junctionParent "pure-live-$repoHash"
+        New-Item -ItemType Directory -Force -Path $junctionParent | Out-Null
+
+        if (Test-Path -LiteralPath $junctionPath) {
+            $junction = Get-Item -LiteralPath $junctionPath -Force
+            $junctionTarget = @($junction.Target) | Select-Object -First 1
+            if ($junctionTarget -and
+                [IO.Path]::GetFullPath($junctionTarget).TrimEnd('\').Equals(
+                    [IO.Path]::GetFullPath($repoRoot).TrimEnd('\'),
+                    [StringComparison]::OrdinalIgnoreCase)) {
+                $workDir = $junctionPath
+                $shortPathReady = $true
+            }
+        } else {
+            New-Item -ItemType Junction -Path $junctionPath -Target $repoRoot | Out-Null
+            $workDir = $junctionPath
+            $shortPathReady = $true
+        }
+    } catch {
+        # SUBST remains a compatibility fallback when junction creation is restricted.
+    }
+}
+
 $substDrive = $null
 $substMappingFile = Join-Path $repoRoot '.dart_tool\pure_live_subst_drive.txt'
-if ($repoRoot.Length -gt 80) {
+# Native Assets hooks receive Platform.packageConfig after Dart canonicalizes a
+# junction back to this repository's long physical path. Tests therefore use a
+# stable SUBST path; Android/Windows builds keep the same-drive junction so
+# Kotlin and the Pub cache retain their incremental-path contract.
+if ($requiresTestSubstPath -or ($requiresBuildShortPath -and -not $shortPathReady)) {
     $repoParent = Split-Path -Parent $repoRoot
     $repoLeaf = Split-Path -Leaf $repoRoot
     $savedDrive = if (Test-Path -LiteralPath $substMappingFile) {
@@ -99,10 +174,25 @@ if ($repoRoot.Length -gt 80) {
 
 Push-Location $workDir
 $flutterExitCode = 0
+$previousErrorActionPreference = $ErrorActionPreference
+$nativePreferenceVariable = Get-Variable PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+$previousNativeCommandPreference = if ($nativePreferenceVariable) {
+    $PSNativeCommandUseErrorActionPreference
+} else {
+    $null
+}
 try {
+    # Preserve native stderr in the caller's log and use the process exit code
+    # as the single source of truth for command success.
+    $ErrorActionPreference = 'Continue'
+    if ($nativePreferenceVariable) { $PSNativeCommandUseErrorActionPreference = $false }
     & $executable @FlutterArgs
     $flutterExitCode = $LASTEXITCODE
 } finally {
+    if ($nativePreferenceVariable) {
+        $PSNativeCommandUseErrorActionPreference = $previousNativeCommandPreference
+    }
+    $ErrorActionPreference = $previousErrorActionPreference
     Pop-Location
 }
 $global:LASTEXITCODE = $flutterExitCode

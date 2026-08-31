@@ -31,9 +31,26 @@
 
 > 纯粹直播（Pure Live）是一款开源的第三方多平台直播聚合播放器，使用 Flutter 构建，支持 Android、Android TV、Windows、Linux、macOS 和 iOS 等平台。
 
-- **最新稳定版**：`v2.1.4`
-- **当前开发版本**：`2.1.1+52`
-- **构建平台**：Android arm64、Windows x64、Linux x64、macOS Universal、iOS arm64 设备包
+> 本维护分支持续同步 [liuchuancong/pure_live](https://github.com/liuchuancong/pure_live)，并维护本机优先构建、正式签名、接口探测、Windows 数据迁移及高刷新率优化。
+
+## 维护分支说明（请先阅读）
+
+<!-- maintenance-readme-markers: maintenance-scope; android-first; windows-maintained; upstream-feature-routing; bugfix-release-default -->
+
+- 本仓库重点维护 **Android / Android TV 与 Windows**。当前日常使用 Android 更多，因此多数修复、功能整合和安装包会优先更新 Android；Windows 继续作为主要桌面维护目标。
+- Linux、macOS 和 iOS 保留源码及上游兼容性，但缺少持续使用的对应设备，列为社区验证范围，不承诺每轮构建、更新时效或运行结果。
+- 本分支更新频繁、历史定制较多，仍可能出现较多回归、接口时效和设备兼容问题。若更看重低频变更或原项目行为，可切换到[原项目](https://github.com/liuchuancong/pure_live)。
+- 本仓库 Issue 仅受理**可复现的维护型 Bug**。新增功能、产品方向和全新平台适配请提交到[原项目 Issue](https://github.com/liuchuancong/pure_live/issues/new/choose)。
+- 每个完成的 Bug 修复批次默认递增版本，优先构建 Android `arm64-v8a` 正式更新包，并同步源码、版本标签、安装包与校验文件到本仓库 GitHub Release；其他平台仍按本轮明确范围串行构建。
+- 每次同步上游、分析 Bug 和审查原项目 Issue 的来源判定、根因、兼容、验证与回滚流程见[维护范围与问题处置策略](MAINTENANCE_POLICY.md)及[上游同步审查策略](UPSTREAM_REVIEW_POLICY.md)。
+
+- **最新稳定版**：[v3.0.4](https://github.com/liuchuancong/pure_live/releases/tag/v3.0.4)
+- **当前 Android 构建版本**：`3.0.4+4092`
+
+本版本还会在启动、备份恢复和手动清理时剔除空平台、空房间号、`0/null/undefined/nan/none` 等无效关注记录，并按“平台 + 房间号”去重，避免损坏的历史收藏继续参与首页刷新。
+
+录制页的自动重连、轮询、缓存限制、最高画质和目录命名等开关现在直接绑定持久化配置；缓存限制改为实时读取，重新进入页面或升级后保持用户选择。
+Android 录制在创建任务和申请存储权限前检查目录：应用私有目录会提示选择可导出的目录且不会留下“未启动”幽灵任务；工作资料等任意数字用户空间均能正确识别，外部同名文件夹不会误判。
 
 ![Pure Live 界面预览](assets/images/banner.png)
 
@@ -51,6 +68,7 @@ Pure Live 聚合多个第三方直播平台，并支持自定义直播源：
 - **网易 CC 直播**
 - **Twitch**
 - **SOOP Live**
+- **YY Live**
 - **自定义 M3U / M3U8 直播源**
 
 支持按照平台、分区等条件进行筛选，也可以隐藏不关注的平台。
@@ -74,12 +92,40 @@ Pure Live 聚合多个第三方直播平台，并支持自定义直播源：
 | 文档 | 内容 |
 | --- | --- |
 | [文档索引](docs/README.md) | 开发、发布、依赖和功能文档入口 |
+| [维护范围与问题处置策略](MAINTENANCE_POLICY.md) | 平台支持边界、Issue 分流、Bug 来源判定、上游 Issue 优先级与完成标准 |
+| [上游同步审查策略](UPSTREAM_REVIEW_POLICY.md) | 三方差异、语义变更台账、冲突处置与合并门禁 |
 | [构建与发布](docs/BUILD_AND_RELEASE.md) | 本机质量门禁、签名、打包和 Release 流程 |
+| [Windows 数据与升级](docs/WINDOWS_DATA_AND_UPGRADE.md) | 安装目录存储、关注恢复、换盘迁移和回滚 |
+| [Windows MSIX 证书说明](docs/MSIX_INSTALL.md) | 自行构建 MSIX 时的证书指纹核对与安装步骤 |
 | [依赖与接口审计](docs/DEPENDENCY_AUDIT.md) | 固定工具链、升级约束和接口探测范围 |
 | [平台接口与兼容性](docs/PLATFORM_COMPATIBILITY.md) | 分区、搜索、弹幕和人数指标的当前能力 |
 | [高刷新率与性能验证](docs/PERFORMANCE.md) | Android 120 Hz 适配、渲染优化和真机帧统计 |
+| [v3.1.0 Android / Windows 验收矩阵](docs/ACCEPTANCE_MATRIX_3_1_0.md) | 快速回归顺序、全功能实机账本、平台/录制/性能矩阵与发布门禁 |
+| [2026-08-31 近期 Issue 审计](docs/ISSUE_AUDIT_2026_08_31.md) | #818 后台播放实机根因、最新 Issue 归因与 v3.1.0 处理范围 |
+| [v3.1.0 直播录制参考项目审计](docs/RECORDER_REFERENCE_AUDIT_3_1_0.md) | biliup / bililive-go 固定基线、协议韧性、录制状态机和平台引入门槛 |
 | [WebDAV 配置](docs/WEBDAV.md) | 通用配置字段、坚果云示例和故障排查 |
-| [MSIX 安装证书修复](docs/MXIS_OPEN.md) | Windows11 自定义 MSIX 证书不受信任安装解决方案 |
+| [v3.0.0 全平台稳定版](docs/STAGE_UPDATE_3_0_0.md) | 最新上游状态绑定、Android 录制恢复、依赖锁与全平台发布门禁 |
+| [v3.0.1 Android 竖屏直播适配](docs/STAGE_UPDATE_3_0_1.md) | 稳定源方向识别、普通页自适应、全屏策略、画中画比例和房间覆盖 |
+| [v3.0.2 Android 播放比例修复](docs/STAGE_UPDATE_3_0_2.md) | 普通横屏 16:9 边界、竖屏适配隔离、原生单层缩放与弹幕主题布局 |
+| [v3.0.3 Android 竖屏 Surface 修复](docs/STAGE_UPDATE_3_0_3.md) | 原生/应用层几何统一、切换时序和横屏直播记录自适应双列 |
+| [v3.0.4 Android 可信画面比例修复](docs/STAGE_UPDATE_3_0_4.md) | 移动端单一比例控制、异常元数据回退与历史记录数量/日期增强 |
+| [2026-08-25 上游 Issue 审计](docs/ISSUE_AUDIT_2026_08_25.md) | #793～#798、#791 录制根因及既有问题处理状态 |
+| [v2.9.7 Android update](docs/STAGE_UPDATE_2_9_7.md) | 全平台观看指标语义、热门排行、SOOP PC/移动端总在线与 40 项接口门禁 |
+| [v2.9.6 Android update](docs/STAGE_UPDATE_2_9_6.md) | 上游同步、抖音 Feed、Bilibili 热度排行与 40 项接口门禁 |
+| [v2.9.5 Android update](docs/STAGE_UPDATE_2_9_5.md) | 全平台画质切换契约、横屏自适应面板、观看指标与接口回归 |
+| [v2.9.4 全平台稳定版](docs/STAGE_UPDATE_2_9_4.md) | 上游多画面、录制目录保护、平台签名/快手兼容与全平台交付 |
+| [v2.9.5 上游 Issue 审计](docs/ISSUE_AUDIT_2026_08_24.md) | #778、#779、#780、#782、#783、#784, #785 的复现、根因与处理结果 |
+| [v2.9.3 Android 专项更新](docs/STAGE_UPDATE_2_9_3.md) | 横屏画质/线路内容驱动布局与小视口边界保护 |
+| [v2.9.2 Android 专项更新](docs/STAGE_UPDATE_2_9_2.md) | 横屏画质/线路、四宫格直播记录与左右分栏实时弹幕预览 |
+| [v2.9.1 Android 专项更新](docs/STAGE_UPDATE_2_9_1.md) | 横屏半屏内容面板、本地弹幕个性化与渲染缓存 |
+| [v2.1.5 阶段更新](docs/STAGE_UPDATE_2_1_5.md) | 本地弹幕同步、列表阅读、模板状态和 Windows 平滑滚动 |
+| [v2.1.6 Android 播放修复](docs/STAGE_UPDATE_2_1_6.md) | 音频/视频切换灰白画面与后台音频生命周期 |
+| [v2.2.0 阶段更新](docs/STAGE_UPDATE_2_2_0.md) | 播放恢复、音频模式、弹幕设置、Windows 多开与最终验证 |
+| [v2.3.0 稳定性更新](docs/STAGE_UPDATE_2_3_0.md) | PiP 返回弹幕恢复、启动刷新、横屏输入、长时间资源边界与验收状态 |
+| [v2.7.0 阶段稳定版](docs/STAGE_UPDATE_2_7_0.md) | 最新上游整合、热门页生命周期与全平台阶段发布 |
+| [v2.6.0 阶段稳定版](docs/STAGE_UPDATE_2_6_0.md) | 上游同步、近期 Issue、字体/SC/播放器与全平台阶段发布 |
+| [v2.5.0 阶段稳定版](docs/STAGE_UPDATE_2_5_0.md) | 首页有界并发、三档刷新率、Windows 视频纹理与依赖/上游审计 |
+| [近期 Issue 审计](docs/ISSUE_AUDIT_2026_08_23.md) | #769、#770、#771、#773 与 Windows 高 DPI 问题映射 |
 | [参与贡献](CONTRIBUTING.md) | 分支、提交、测试和 Pull Request 要求 |
 | [安全策略](SECURITY.md) | 私密漏洞报告和签名材料管理 |
 | [版本说明](RELEASE_NOTES.md) | 当前版本变更与历史记录 |
@@ -109,6 +155,13 @@ Android / Android TV 支持多个播放器：
 
 Windows、Linux、macOS 等桌面平台使用对应平台的播放器实现。
 
+### 🖥️ 多画面同看
+
+- 支持双画面、四画面和一大多小聚焦布局。
+- 每格独立播放、暂停、音量、清晰度和线路，只有聚焦画面出声。
+- 聚焦画面可接入平台弹幕；快速切换使用最新音频焦点，避免多个画面同时出声。
+- 移动端最多同时保留 4 路解码，桌面端最多 9 路，并可让小画面自动使用低清晰度以控制占用。
+
 ### 💬 弹幕系统
 
 提供完整的弹幕控制能力：
@@ -126,8 +179,10 @@ Windows、Linux、macOS 等桌面平台使用对应平台的播放器实现。
 - 刷新 FPS
 - 平台原始颜色
 - 统一弹幕颜色
-- 动态最高刷新率适配
+- 应用界面动态最高刷新率，弹幕渲染智能省电适配
 - 弹幕点击与长按操作
+- 字体粗细与观看模板联动
+- 精确重复和相似文本两级过滤
 
 弹幕系统采用房间会话隔离、平台消息 ID 去重以及过期队列淘汰机制，减少切换直播间后出现：
 
@@ -184,13 +239,13 @@ Android 支持根据设备显示模式动态适配刷新率：
 - 优化封面图片解码
 - 优化图片缓存
 - 优化弹幕重绘
-- 弹幕 FPS 可以跟随设备最高刷新率
+- 应用界面跟随设备最高刷新率；自动弹幕主画面 60 FPS、小窗 30 FPS，手动模式最高 240 FPS
 
 ---
 
 ## 🔍 搜索与直播互动
 
-支持跨平台直播搜索，并提供独立的平台分页状态。
+支持跨平台直播搜索，并提供独立的平台分页状态。平台选择栏可访问屏幕外项目，但首尾严格有界；“全部”搜索按平台完成顺序渐进显示，单个平台超时或失败不会挡住其他结果。
 
 搜索结果支持：
 
@@ -199,6 +254,8 @@ Android 支持根据设备显示模式动态适配刷新率：
 - 观众人数
 - 粉丝数量
 - 直播状态筛选
+- YY 等九个平台原生/本机搜索，快手保留网页搜索
+- Bilibili、斗鱼、虎牙、抖音、快手、网易 CC、Twitch、SOOP、YY 网页直播间识别
 
 同时提供本地互动系统。
 
@@ -266,6 +323,10 @@ Android 支持 ASMR 助眠模式。
 
 电视图标用于投屏。
 
+前台手动进入音频模式时保留同一播放器的视频解码热状态，切回画面通常可直接复用当前纹理；应用进入后台后立即停用视频轨以降低解码和电量开销，回到前台再静默预热。深度恢复期间显示低开销音频卡片和明确进度，不再以黑屏或整页转圈阻塞操作。
+
+当前各平台通常返回音视频复用直播流；关闭视频轨主要节省解码、GPU 与电量，并不等同于只下载音频。只有平台明确提供独立音频地址时，才可能同时实现网络流量显著下降和无等待画面恢复。
+
 ---
 
 ## ⏺️ 直播录制
@@ -273,6 +334,8 @@ Android 支持 ASMR 助眠模式。
 支持直播流实时录制。
 
 可以将直播保存到本地，在直播结束后进行回放。
+
+选择自定义位置时，程序只写入该位置下带所有权标记的 `PureLiveRecords` 专用子目录；“清空录制文件目录”和自动容量限制均只处理该目录，不会遍历删除所选父目录中的其他文件。
 
 支持配合：
 
@@ -334,15 +397,11 @@ Firebase 不是 Pure Live 使用的必要条件。
 
 ## 📥 下载
 
-前往 [GitHub Releases](https://github.com/liuchuancong/pure_live/releases/latest) 获取最新安装包。
+前往 [维护分支 GitHub Releases](https://github.com/liuchuancong/pure_live/releases/latest) 获取最新安装包，并使用同一 Release 的 `SHA256SUMS.txt` 校验完整性。
 
 ### Android
 
-正式 Release 提供以下三种 ABI：
-
-- `armeabi-v7a` — 32 位 ARM 设备
-- `arm64-v8a` — 64 位 ARM 设备
-- `x86_64` — 64 位 x86 设备
+当前 Android 正式包以 `arm64-v8a` 为主，适用于当前主流 64 位 ARM 手机和平板。更新页读取版本清单中的实际 ABI 列表，只展示对应 Release 实际发布的下载链接。
 
 Android 始终使用正式包名：
 
@@ -356,12 +415,6 @@ Android 始终使用正式包名：
 
 发布脚本会阻止调试签名进入正式 Release。
 
-如果设备支持 64 位 ARM，推荐优先使用：
-
-`arm64-v8a`
-
-三种 ABI 的 APK 会根据 Release 构建流程分别生成，用户可以根据设备架构选择对应安装包。
-
 ### Windows
 
 提供：
@@ -369,50 +422,54 @@ Android 始终使用正式包名：
 - Windows x64
 - 便携 ZIP
 - EXE 安装器
-- MSIX 安装包
 
-根据 Release 附件说明选择对应版本即可。
+EXE 安装向导支持选择其他磁盘，并把设置、关注、历史、IPTV、录制和缓存集中保存到安装目录 `AppData`。便携 ZIP 不包含运行时数据。
 
-如果安装自定义 MSIX 后提示证书不受信任，可以参考：
-
-[MSIX 安装证书修复](docs/MXIS_OPEN.md)
+自行构建 MSIX 时的证书配置见 [Windows MSIX 证书说明](docs/MSIX_INSTALL.md)。
 
 ### macOS
 
-支持：
-
-- Intel x64
-- Apple Silicon arm64
-- Universal
-
-macOS Universal 包可以同时运行在 Intel 和 Apple Silicon Mac 上。
+源码保留 Intel x64、Apple Silicon arm64 与 Universal 构建能力。本维护分支缺少持续使用的 macOS 设备，相关产物只在 Release 明确列出时成立，并标为社区验证。
 
 ### Linux
 
-提供 Linux x64 阶段构建。
-
-Linux 网页搜索会交给系统浏览器，原生搜索与播放继续在应用内完成。
+源码保留 Linux x64 构建能力。Linux 网页搜索会交给系统浏览器，原生搜索与播放继续在应用内完成；本维护分支缺少常规运行验证。
 
 ### iOS
 
-提供 iOS arm64 设备构建包。
+源码保留 iOS arm64 设备构建能力。相关 `.app`、签名和 IPA 状态以具体 Release 说明为准，本维护分支缺少持续使用的 iOS 设备。
 
-iOS 附件为设备 `.app` 编译归档。
+---
 
-签名和 IPA 封装需要在持有 Apple 开发者证书的环境中完成。
+## 🧪 本地构建与验证
+
+项目固定使用 Flutter `3.47.0` / Dart `3.13.0`、AGP `9.3.1`、Gradle `9.5.0` 与 Java 25 构建运行时，Android 应用和插件字节码目标保持 Java/Kotlin 17。资源档位、串行平台阶段和增量缓存规则见 [构建资源策略](BUILD_POLICY.md)。正式交付的完整质量门禁：
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\tool\local_ci.ps1 -Scope Full
+```
+
+安装包每次只构建本轮明确指定的一个平台与变体，例如 Android arm64 正式包：
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\tool\build_local_release.ps1 `
+  -Target AndroidArm64 -Configuration Release -FullRegression -RequireReleaseSigning
+```
+
+当前稳定版的源码基线、修复范围、验证证据、实际构建平台和产物校验见顶部版本条目及对应阶段文档；通用门禁和单平台串行发布流程见[构建与发布](docs/BUILD_AND_RELEASE.md)。
 
 ## 🤝 参与开发
 
-- **主开发者**：[@liuchuancong](https://github.com/liuchuancong)  
+- **主开发者**：[@liuchuancong](https://github.com/liuchuancong)
 - **协助开发者**：[@wzgrx](https://github.com/wzgrx/pure_live)
 - **协助开发者**：[@RebornQ](https://github.com/RebornQ)
 
-> 📌 **欢迎贡献**！  
-> - 如发现 License 使用不当，请提交 Issue 或 Pull Request  
-> - 如有新的想法或建议，欢迎贡献合作！
+> 📌 **欢迎贡献维护型修复、测试和文档**！
+> - 如发现 License 使用不当，请提交 Issue 或 Pull Request
+> - 本仓库 Issue 聚焦可复现 Bug；新增功能和产品建议统一提交到[原项目](https://github.com/liuchuancong/pure_live/issues/new/choose)
 
 ### 代码参考
-- [dart_simple_live](https://github.com/xiaoyaocz/dart_simple_live)  
+- [dart_simple_live](https://github.com/xiaoyaocz/dart_simple_live)
 - [pure_live (Jackiu1997)](https://github.com/Jackiu1997/pure_live)
 
 ---

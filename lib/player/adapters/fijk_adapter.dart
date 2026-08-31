@@ -1,13 +1,20 @@
 import 'dart:async';
+
 import 'package:rxdart/rxdart.dart';
+
 import '../models/player_state.dart';
 import '../models/player_exception.dart';
 import '../models/player_error_type.dart';
-import 'package:pure_live/common/index.dart';
-import '../interface/unified_player_interface.dart';
-import 'package:pure_live/player/utils/fijk_helper.dart';
 
-class FijkAdapter implements UnifiedPlayer {
+import 'package:pure_live/common/index.dart';
+
+import '../interface/unified_player_interface.dart';
+
+import 'package:pure_live/player/utils/fijk_helper.dart';
+import 'package:pure_live/player/models/player_engine.dart';
+import 'package:pure_live/player/interface/fijk_player_accessor.dart';
+
+class FijkAdapter implements UnifiedPlayer, FijkPlayerAccessor {
   late final FijkPlayer _player;
 
   bool _initialized = false;
@@ -65,7 +72,7 @@ class FijkAdapter implements UnifiedPlayer {
       if (value.size != null) {
         final w = value.size!.width.toInt();
         final h = value.size!.height.toInt();
-        if (_widthSubject.value != w) {
+        if (_widthSubject.value != w || _heightSubject.value != h) {
           _widthSubject.add(w);
           _heightSubject.add(h);
         }
@@ -150,7 +157,11 @@ class FijkAdapter implements UnifiedPlayer {
         await _player.reset();
       }
       await _setupProxy();
-      await FijkHelper.setFijkOption(_player, enableCodec: SettingsService.to.player.enableCodec.v, headers: headers);
+      await FijkHelper.setFijkOption(
+        _player,
+        enableHardwareCodec: SettingsService.to.player.enableCodec.v,
+        headers: headers,
+      );
 
       await _player.setDataSource(url, autoPlay: true);
       _stateSubject.add(PlayerState.ready);
@@ -170,13 +181,12 @@ class FijkAdapter implements UnifiedPlayer {
   }
 
   @override
-  Widget getVideoWidget() {
+  Widget getVideoWidget(BoxFit boxfit) {
     if (_isAudioOnly) {
       return const SizedBox.shrink();
     }
     return FijkView(
       player: _player,
-      fit: FijkFit.contain,
       fs: false,
       color: Colors.black,
       panelBuilder: (FijkPlayer fijkPlayer, FijkData fijkData, BuildContext context, Size viewSize, Rect texturePos) {
@@ -199,6 +209,13 @@ class FijkAdapter implements UnifiedPlayer {
     _playingSubject.add(false);
     _loadingSubject.add(false);
     _stateSubject.add(PlayerState.idle);
+  }
+
+  @override
+  Future<void> setAudioOnly(bool audioOnly) async {
+    if (_disposed || _isAudioOnly == audioOnly) return;
+    await _player.setOption(FijkOption.playerCategory, "disable-vid", audioOnly ? "1" : "0");
+    _isAudioOnly = audioOnly;
   }
 
   Future<void> applyAudioOnlySettings() async {
@@ -258,4 +275,10 @@ class FijkAdapter implements UnifiedPlayer {
   Stream<int?> get width => _widthSubject.stream;
   @override
   Stream<int?> get height => _heightSubject.stream;
+
+  @override
+  PlayerEngine get engine => PlayerEngine.fijk;
+
+  @override
+  FijkPlayer get fijkPlayer => _player;
 }

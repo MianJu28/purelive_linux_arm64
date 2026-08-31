@@ -2,9 +2,14 @@ import '../models/player_state.dart';
 import 'package:flutter/material.dart';
 import '../models/player_exception.dart';
 import 'package:pure_live/common/models/live_room.dart';
+import 'package:pure_live/player/models/player_engine.dart';
+
+
+
 
 abstract class UnifiedPlayer {
   Future<void> init({bool audioOnly = false});
+  PlayerEngine get engine;
 
   /// 设置数据源
   /// [url] 当前播放地址
@@ -27,6 +32,11 @@ abstract class UnifiedPlayer {
   // 不销毁播放器
   Future<void> softStop();
 
+  /// Enables or disables video decoding/rendering without replacing the
+  /// player or reopening the current live stream. Surface-backed adapters must
+  /// serialize this with their surface lifecycle.
+  Future<void> setAudioOnly(bool audioOnly);
+
   // 真正释放播放器
   Future<void> hardDispose();
 
@@ -35,7 +45,7 @@ abstract class UnifiedPlayer {
   /// 获取渲染组件
   /// [fitIndex] 对应 BoxFit 的索引
   /// [controls] 覆盖在视频上的 UI 控制层
-  Widget getVideoWidget();
+  Widget getVideoWidget(BoxFit boxfit);
 
   bool get isInitialized;
 

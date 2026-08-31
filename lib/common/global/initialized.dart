@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:developer';
 
 import 'app_path_manager.dart';
@@ -8,29 +9,51 @@ import 'package:pure_live/plugins/global.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:pure_live/plugins/cache_manager.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:screen_brightness/screen_brightness.dart';
 import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/common/global/initial_services.dart';
-import 'package:pure_live/common/services/utils/settings_upgrade_migration.dart';
+import 'package:pure_live/recorder/ffmpeg/ffmpeg_manager.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
 import 'package:pure_live/common/global/platform/mobile_manager.dart';
 import 'package:pure_live/common/global/platform/desktop_manager.dart';
+import 'package:pure_live/common/utils/windows_multi_instance_launcher.dart';
+import 'package:pure_live/common/services/utils/settings_upgrade_migration.dart';
+
+/// Keep decoded cover/avatar memory bounded independently from the encoded
+/// HTTP/disk cache. A 960x540 RGBA cover is roughly 2 MiB after decoding, so
+/// Flutter's default entry count can otherwise retain far more memory than a
+/// live-room grid needs.
+@visibleForTesting
+void configureDecodedImageCache({required bool desktop}) {
+  final cache = PaintingBinding.instance.imageCache;
+  cache.maximumSize = desktop ? 240 : 160;
+  cache.maximumSizeBytes = (desktop ? 72 : 48) * 1024 * 1024;
+}
 
 class AppInitializer {
   static final AppInitializer _instance = AppInitializer._internal();
   bool _isInitialized = false;
+  LiveRoom? _initialRoom;
 
   factory AppInitializer() => _instance;
   AppInitializer._internal();
 
   bool get isInitialized => _isInitialized;
 
+  /// Returns a command-line room once, after the home navigator is mounted.
+  LiveRoom? takeInitialRoom() {
+    final room = _initialRoom;
+    _initialRoom = null;
+    return room;
+  }
+
   Future<void> initialize(List<String> args) async {
     if (_isInitialized) return;
 
     WidgetsFlutterBinding.ensureInitialized();
-    final String instanceId = _getInstanceIdFromArgs(args);
+    configureDecodedImageCache(desktop: PlatformUtils.isDesktop);
+    final String instanceId = WindowsMultiInstanceLauncher.instanceIdFromArgs(args);
+    _initialRoom = WindowsMultiInstanceLauncher.roomFromArgs(args);
     await _initWindowsSingleInstance(args, instanceId);
 
     await AppPathManager().initialize(instanceId: instanceId);
@@ -59,17 +82,23 @@ class AppInitializer {
     // SettingsService was registered, then work on a later launch only because
     // the database/cache files had already been created.
     await InitialServices.init();
+    // Android FFmpegKit must begin native initialization during application
+    // startup. Deferring it until after the first frame reintroduced the
+    // upstream-recorded I/O failure on the first recording attempt. Keep this
+    // non-blocking; FFmpegService awaits the same idempotent future at use.
+    if (shouldStartRecorderPrewarmImmediately(mobile: PlatformUtils.isMobile)) _startFFmpegPrewarm();
     _initSmartDialog();
     initRefresh();
 
     if (PlatformUtils.isDesktop) {
       await DesktopManager.initialize();
-      if (Platform.isWindows) {
-        _initWindowsScreenBrightness();
-      }
     } else if (PlatformUtils.isMobile) {
       await MobileManager.initialize();
     }
+
+    // Desktop startup has a heavier window/plugin path and did not exhibit
+    // the Android first-use failure, so it retains an idle warm-up.
+    if (PlatformUtils.isDesktop) _scheduleDesktopFFmpegPrewarm();
 
     if (PlatformUtils.isDesktopNotMac && instanceId.isEmpty) {
       _setupLaunchAtStartupSafe();
@@ -78,14 +107,23 @@ class AppInitializer {
     _isInitialized = true;
   }
 
-  String _getInstanceIdFromArgs(List<String> args) {
-    for (final arg in args) {
-      if (arg.startsWith('--instance=')) {
-        final parts = arg.split('=');
-        return parts.length > 1 ? parts[1] : '';
-      }
-    }
-    return '';
+  void _startFFmpegPrewarm() {
+    unawaited(
+      FFmpegManager.to.initialize().catchError((Object error, StackTrace stackTrace) {
+        log('FFmpeg prewarm failed: $error', stackTrace: stackTrace);
+      }),
+    );
+  }
+
+  @visibleForTesting
+  static bool shouldStartRecorderPrewarmImmediately({required bool mobile}) => mobile;
+
+  void _scheduleDesktopFFmpegPrewarm() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Timer(const Duration(seconds: 2), () {
+        _startFFmpegPrewarm();
+      });
+    });
   }
 
   Future<void> _initWindowsSingleInstance(List<String> args, String instanceId) async {
@@ -96,12 +134,6 @@ class AppInitializer {
     } catch (e) {
       log('WindowsSingleInstance initialization failed: $e');
     }
-  }
-
-  void _initWindowsScreenBrightness() {
-    ScreenBrightness().setAutoReset(false).catchError((e) {
-      log('ScreenBrightness error: $e');
-    });
   }
 
   Future<void> _setupLaunchAtStartupSafe() async {

@@ -2,29 +2,20 @@ import 'package:pure_live/common/index.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class ReleaseAssetUrls {
-  const ReleaseAssetUrls({
-    required this.projectUrl,
-    required this.version,
-    required this.buildNumber,
-  });
+  const ReleaseAssetUrls({required this.projectUrl, required this.version, required this.buildNumber});
 
   final String projectUrl;
   final String version;
   final int buildNumber;
 
   String get releaseBase => '$projectUrl/releases/download/v$version';
-  String get androidArm64 =>
-      '$releaseBase/PureLive-$version-$buildNumber-arm64-v8a-release.apk';
-  String get androidArmeabiV7a =>
-      '$releaseBase/PureLive-$version-$buildNumber-armeabi-v7a-release.apk';
-  String get androidX8664 =>
-      '$releaseBase/PureLive-$version-$buildNumber-x86_64-release.apk';
-  String get windowsSetup =>
-      '$releaseBase/PureLive-$version-windows-x64-setup.exe';
-  String get windowsPortable =>
-      '$releaseBase/PureLive-$version-$buildNumber-windows-x64-portable.zip';
-  String get macosUniversal =>
-      '$releaseBase/PureLive-$version-$buildNumber-macos-universal.zip';
+  String get androidArm64 => '$releaseBase/PureLive-$version-$buildNumber-android-arm64-v8a-release.apk';
+  String get androidArmeabiV7a => '$releaseBase/PureLive-$version-$buildNumber-android-armeabi-v7a-release.apk';
+  String get androidX8664 => '$releaseBase/PureLive-$version-$buildNumber-android-x86_64-release.apk';
+  String get windowsSetup => '$releaseBase/PureLive-$version-$buildNumber-windows-x64-setup.exe';
+  String get windowsMsix => '$releaseBase/PureLive-$version-$buildNumber-windows-x64.msix';
+  String get windowsPortable => '$releaseBase/PureLive-$version-$buildNumber-windows-x64-portable.zip';
+  String get macosUniversal => '$releaseBase/PureLive-$version-$buildNumber-macos-universal.zip';
 }
 
 class VersionController extends GetxController {
@@ -34,18 +25,20 @@ class VersionController extends GetxController {
   // Android
   // =========================
 
-  final apkUrl = ''.obs;
-  final apkUrl2 = ''.obs;
-  final apkUrl3 = ''.obs;
+  final androidArmeabiV7aUrl = ''.obs;
+  final androidArm64Url = ''.obs;
+  final androidX8664Url = ''.obs;
+
   // =========================
   // Windows
   // =========================
-  final windowsUrl = ''.obs;
-  final windowsUrl2 = ''.obs;
+  final windowsSetupUrl = ''.obs;
+  final windowsMsixUrl = ''.obs;
+  final windowsPortableUrl = ''.obs;
+
   // =========================
   // macOS
   // =========================
-
   final macosUrl = ''.obs;
 
   late PackageInfo packageInfo;
@@ -89,23 +82,23 @@ class VersionController extends GetxController {
     // =====================================================
 
     final androidAbis = VersionUtil.latestAndroidAbis;
-    apkUrl.value = androidAbis.contains('armeabi-v7a')
-        ? assets.androidArmeabiV7a
-        : '';
-    apkUrl2.value = androidAbis.contains('arm64-v8a')
-        ? assets.androidArm64
-        : '';
-    apkUrl3.value = androidAbis.contains('x86_64') ? assets.androidX8664 : '';
+    androidArmeabiV7aUrl.value = androidAbis.contains('armeabi-v7a') ? assets.androidArmeabiV7a : '';
+    androidArm64Url.value = androidAbis.contains('arm64-v8a') ? assets.androidArm64 : '';
+    androidX8664Url.value = androidAbis.contains('x86_64') ? assets.androidX8664 : '';
 
     // =====================================================
     // Windows
     // =====================================================
 
-    windowsUrl.value = assets.windowsSetup;
-    windowsUrl2.value = assets.windowsPortable;
+    windowsSetupUrl.value = assets.windowsSetup;
+    // MSIX requires a matching publisher certificate. Only advertise it when
+    // the release feed explicitly confirms that the signed asset was uploaded.
+    windowsMsixUrl.value = VersionUtil.latestWindowsMsixAvailable ? assets.windowsMsix : '';
+    windowsPortableUrl.value = assets.windowsPortable;
+
     // =====================================================
     // macOS
-    // ========================= ===========================
+    // =====================================================
 
     macosUrl.value = assets.macosUniversal;
 

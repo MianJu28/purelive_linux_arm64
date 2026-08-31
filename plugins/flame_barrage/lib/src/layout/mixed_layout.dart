@@ -1,27 +1,82 @@
 import 'dart:ui' as ui;
+import 'dart:collection';
+import 'dart:math' as math;
 import 'package:flame_barrage/flame_barrage.dart';
 
+/// Keeps the outline readable on bright frames without turning opacity zero
+/// into a visible edge. A gamma curve is preferable to a hard alpha floor:
+/// the user's setting remains monotonic while low-opacity text retains enough
+/// contrast to separate its fill from the video.
+double resolveBarrageStrokeOpacity(double opacity) {
+  final normalized = opacity.clamp(0.0, 1.0).toDouble();
+  return math.sqrt(normalized);
+}
+
 class MixedLayout {
-  MixedLayout({required this.atlas, int maxTextCacheSize = 1000}) : _textCache = TextCache(maxSize: maxTextCacheSize);
+  MixedLayout({required this.atlas, int maxTextCacheSize = 1000})
+    : _maxLayoutCacheSize = maxTextCacheSize.clamp(1, 10000).toInt(),
+      _textCache = TextCache(maxSize: maxTextCacheSize);
 
   final EmojiAtlas atlas;
   TextCache _textCache;
-  final Map<int, LayoutResult> _cache = {};
+  final LinkedHashMap<int, LayoutResult> _cache = LinkedHashMap<int, LayoutResult>();
+  int _maxLayoutCacheSize;
   final List<LayoutSpan> _reusableSpans = [];
 
   int get cacheCount => _cache.length;
 
   void updateMaxTextCacheSize(int newSize) {
-    if (_textCache.maxSize == newSize) return;
-    final newCache = TextCache(maxSize: newSize);
-    _textCache.clear();
+    final normalizedSize = newSize.clamp(1, 10000).toInt();
+    if (_textCache.maxSize == normalizedSize && _maxLayoutCacheSize == normalizedSize) return;
+    _disposeCachedParagraphs();
+    final newCache = TextCache(maxSize: normalizedSize);
     _textCache = newCache;
-    _cache.clear();
+    _maxLayoutCacheSize = normalizedSize;
   }
 
   void clearCache() {
+    _disposeCachedParagraphs();
+  }
+
+  void _disposeCachedParagraphs() {
+    final paragraphs = HashSet<ui.Paragraph>.identity();
+    for (final result in _cache.values) {
+      _collectParagraphs(result, paragraphs);
+    }
+    paragraphs.addAll(_textCache.takeAll());
     _cache.clear();
-    _textCache.clear();
+    for (final paragraph in paragraphs) {
+      paragraph.dispose();
+    }
+  }
+
+  void _collectParagraphs(LayoutResult result, Set<ui.Paragraph> target) {
+    for (final span in result.spans) {
+      if (span is! TextLayoutSpan) continue;
+      target.add(span.paragraph);
+      final stroke = span.strokeParagraph;
+      if (stroke != null) target.add(stroke);
+    }
+  }
+
+  void _disposeParagraphsReleasedBy(LayoutResult result) {
+    final candidates = HashSet<ui.Paragraph>.identity();
+    _collectParagraphs(result, candidates);
+    if (candidates.isEmpty) return;
+
+    for (final retained in _cache.values) {
+      for (final span in retained.spans) {
+        if (span is! TextLayoutSpan) continue;
+        candidates.remove(span.paragraph);
+        final stroke = span.strokeParagraph;
+        if (stroke != null) candidates.remove(stroke);
+        if (candidates.isEmpty) return;
+      }
+    }
+    for (final paragraph in candidates) {
+      _textCache.removeParagraph(paragraph);
+      paragraph.dispose();
+    }
   }
 
   LayoutResult layout(List<Fragment> fragments, {required BarrageItem item, required BarrageConfig config}) {
@@ -29,11 +84,17 @@ class MixedLayout {
 
     final cached = _cache[combinedHash];
     if (cached != null) {
+      _cache.remove(combinedHash);
+      _cache[combinedHash] = cached;
       return cached;
     }
 
     final result = _layoutInternal(fragments, item, config, combinedHash);
     _cache[combinedHash] = result;
+    while (_cache.length > _maxLayoutCacheSize) {
+      final evicted = _cache.remove(_cache.keys.first);
+      if (evicted != null) _disposeParagraphsReleasedBy(evicted);
+    }
 
     return result;
   }
@@ -43,7 +104,12 @@ class MixedLayout {
     double currentX = 0.0;
     double maxHeight = 0.0;
 
-    final int colorValue = config.textColor.toARGB32();
+    final opacity = config.opacity.clamp(0.0, 1.0).toDouble();
+    final strokeOpacity = resolveBarrageStrokeOpacity(opacity);
+    final effectiveTextColor = config.textColor.withValues(alpha: config.textColor.a * opacity);
+    final effectiveStrokeColor = config.strokeColor.withValues(alpha: config.strokeColor.a * strokeOpacity);
+    final effectiveShadowColor = config.shadowColor.withValues(alpha: config.shadowColor.a * opacity);
+    final int colorValue = effectiveTextColor.toARGB32();
     final double fontSize = config.fontSize;
     final bool showStroke = config.showStroke;
     final List<BarrageEffectInterceptor> interceptors = config.effectInterceptors;
@@ -55,8 +121,12 @@ class MixedLayout {
 
       if (fragment is TextFragment) {
         final textCacheKey =
-            '${fragment.text}|${config.fontSize}|$colorValue|$showStroke|${config.fontWeight.toString()}';
-        final strokeCacheKey = '${fragment.text}|$fontSize|${config.strokeColor.toARGB32()}|$showStroke';
+            '${fragment.text}|${config.fontSize}|$colorValue|$showStroke|${config.fontWeight}|${config.fontStyle}|'
+            '${config.fontFamily}|${config.letterSpacing}|${config.showShadow}|${effectiveShadowColor.toARGB32()}|'
+            '${config.shadowBlur}|${config.shadowOffset.dx}|${config.shadowOffset.dy}';
+        final strokeCacheKey =
+            '${fragment.text}|$fontSize|${effectiveStrokeColor.toARGB32()}|${config.strokeWidth}|'
+            '${config.fontWeight}|${config.fontStyle}|${config.fontFamily}|${config.letterSpacing}';
 
         final paragraph = _buildParagraph(fragment.text, config, textCacheKey, isStroke: false);
         final strokeParagraph = config.showStroke
@@ -121,7 +191,15 @@ class MixedLayout {
         final player = animation != null ? SpriteAnimationPlayer(animation: animation) : null;
 
         _reusableSpans.add(
-          SpriteLayoutSpan(x: currentX, y: 0.0, width: finalWidth, height: finalHeight, sprite: sprite, player: player),
+          SpriteLayoutSpan(
+            x: currentX,
+            y: 0.0,
+            width: finalWidth,
+            height: finalHeight,
+            sprite: sprite,
+            player: player,
+            opacity: opacity,
+          ),
         );
         currentX += finalWidth;
       } else if (fragment is EmojiFragment) {
@@ -136,7 +214,9 @@ class MixedLayout {
 
         if (height > maxHeight) maxHeight = height;
 
-        _reusableSpans.add(EmojiLayoutSpan(x: currentX, y: 0.0, width: width, height: height, image: image));
+        _reusableSpans.add(
+          EmojiLayoutSpan(x: currentX, y: 0.0, width: width, height: height, image: image, opacity: opacity),
+        );
         currentX += width;
       }
     }
@@ -170,6 +250,7 @@ class MixedLayout {
           height: span.height,
           sprite: span.sprite,
           player: span.player,
+          opacity: span.opacity,
         );
       } else {
         final emojiSpan = span as EmojiLayoutSpan;
@@ -179,6 +260,7 @@ class MixedLayout {
           width: emojiSpan.width,
           height: emojiSpan.height,
           image: emojiSpan.image,
+          opacity: emojiSpan.opacity,
         );
       }
     });
@@ -201,7 +283,9 @@ class MixedLayout {
       final strokePaint = ui.Paint()
         ..style = ui.PaintingStyle.stroke
         ..strokeWidth = config.strokeWidth
-        ..color = config.strokeColor
+        ..color = config.strokeColor.withValues(
+          alpha: config.strokeColor.a * resolveBarrageStrokeOpacity(config.opacity),
+        )
         ..isAntiAlias = true;
 
       builder.pushStyle(
@@ -209,12 +293,14 @@ class MixedLayout {
           foreground: strokePaint,
           fontSize: config.fontSize,
           fontWeight: config.fontWeight,
+          fontStyle: config.fontStyle,
           fontFamily: config.fontFamily,
+          letterSpacing: config.letterSpacing,
         ),
       );
     } else {
       final textPaint = ui.Paint()
-        ..color = config.textColor
+        ..color = config.textColor.withValues(alpha: config.textColor.a * config.opacity.clamp(0.0, 1.0).toDouble())
         ..isAntiAlias = true;
 
       builder.pushStyle(
@@ -222,7 +308,20 @@ class MixedLayout {
           foreground: textPaint,
           fontSize: config.fontSize,
           fontWeight: config.fontWeight,
+          fontStyle: config.fontStyle,
           fontFamily: config.fontFamily,
+          letterSpacing: config.letterSpacing,
+          shadows: config.showShadow
+              ? <ui.Shadow>[
+                  ui.Shadow(
+                    color: config.shadowColor.withValues(
+                      alpha: config.shadowColor.a * config.opacity.clamp(0.0, 1.0).toDouble(),
+                    ),
+                    blurRadius: config.shadowBlur,
+                    offset: config.shadowOffset,
+                  ),
+                ]
+              : null,
         ),
       );
     }
@@ -241,11 +340,20 @@ class MixedLayout {
     int hash = 17;
     hash = 37 * hash + config.fontSize.hashCode;
     hash = 37 * hash + config.fontWeight.hashCode;
+    hash = 37 * hash + config.fontStyle.hashCode;
+    hash = 37 * hash + config.letterSpacing.hashCode;
     hash = 37 * hash + config.textColor.toARGB32().hashCode;
+    hash = 37 * hash + config.opacity.hashCode;
     hash = 37 * hash + config.emojiSize.hashCode;
+    hash = 37 * hash + config.noEmojiMode.hashCode;
     hash = 37 * hash + priority.hashCode;
     hash = 37 * hash + config.showStroke.hashCode;
     hash = 37 * hash + config.strokeColor.toARGB32().hashCode;
+    hash = 37 * hash + config.strokeWidth.hashCode;
+    hash = 37 * hash + config.showShadow.hashCode;
+    hash = 37 * hash + config.shadowColor.toARGB32().hashCode;
+    hash = 37 * hash + config.shadowBlur.hashCode;
+    hash = 37 * hash + config.shadowOffset.hashCode;
     hash = 37 * hash + config.fontFamily.hashCode;
 
     final len = fragments.length;
