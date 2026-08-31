@@ -76,10 +76,6 @@ jobs:
           "$HOME/flutter/bin/flutter" --version
 
       - name: 更新Flutter packages
-        # 注意：auto_orientation_v2 在 pubspec.yaml 中被锁定为 <2.4.1，
-        # 该版本范围不含 Linux 平台声明，Flutter 不会为其生成 Linux 原生
-        # target（2.4.1+ 声明了 native pluginClass 但无 Linux 原生实现，
-        # 会触发 "No target auto_orientation_v2_plugin" 的 CMake 错误）。
         run: flutter pub get
 
       - name: 生成 FFmpeg 占位包（Linux arm64 无预编译 FFmpeg）
@@ -100,33 +96,18 @@ jobs:
       - name: 构建 Linux (arm64)
         # 显式指定 CC/CXX 指向 clang-17，确保 Flutter 构建使用能识别
         # -Wno-deprecated-literal-operator 等 GCC 兼容选项的编译器。
-        # 启用 native-assets：让 dart_quickjs 的 hook/build.dart 在 arm64 上
-        # 编译 libdart_quickjs.so（斗鱼/抖音签名依赖它）。不启用则该 .so 不会
-        # 生成，运行时 FFI 加载失败，导致斗鱼/抖音无法播放。
+        # 说明：本项目不再依赖原生资产（native-assets）。
+        # 早期版本曾依赖 dart_quickjs（斗鱼/抖音签名的 FFI 库 libdart_quickjs.so），
+        # 需 flutter config --enable-native-assets 并在构建后手动拷贝该 .so；
+        # 同步上游后 dart_quickjs 已被移除——斗鱼签名改用纯 Dart 的
+        # DouyuUtils.sign，抖音走内置本地插件 flv_lzc，故不再需要 native-assets。
         env:
           CC: /usr/bin/clang-17
           CXX: /usr/bin/clang++-17
         run: |
           which clang clang++
           clang --version | head -1
-          # 启用 native-assets，让 dart_quickjs 的 hook/build.dart 编译 libdart_quickjs.so
-          flutter config --enable-native-assets
           flutter build linux --release
-
-      - name: 手动安装 libdart_quickjs.so 到 bundle
-        # Flutter Linux 的 native-assets 打包链路（InstallCodeAssets + CMake
-        # migration）在本项目上未生效（native_assets 目录未生成、CMakeLists
-        # 无 NATIVE_ASSETS_DIR），导致编译出的 libdart_quickjs.so 未进 bundle。
-        # 但 .so 已由 hooks_runner 编译成功，这里手动把它拷贝到 bundle/lib/，
-        # 运行期 @ffi.DefaultAsset 会从 bundle 的 lib/ 相对路径加载。
-        run: |
-          SO=$(find .dart_tool/hooks_runner -name "libdart_quickjs.so" | head -1)
-          if [ -n "$SO" ]; then
-            cp -v "$SO" build/linux/arm64/release/bundle/lib/libdart_quickjs.so
-          else
-            echo "错误: 未找到编译出的 libdart_quickjs.so"
-            exit 1
-          fi
 
       - name: 打包 deb
         run: bash linux/packaging/deb/build_deb.sh arm64
