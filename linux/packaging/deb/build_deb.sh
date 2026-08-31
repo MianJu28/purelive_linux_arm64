@@ -132,7 +132,6 @@ Version: ${DEB_VERSION}
 Section: x11
 Priority: optional
 Architecture: ${DEB_ARCH}
-Depends: fonts-noto-cjk
 Installed-Size: ${INSTALLED_SIZE}
 Maintainer: PureLive <purelive@example.com>
 Description: ${APP_DISPLAY_NAME}

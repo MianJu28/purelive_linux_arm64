@@ -47,6 +47,10 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(${TARGET} PRIVATE -Wno-unknown-warning-option)
   endif()
+  # clang/gcc 下部分系统库 API（如 libayatana-appindicator 的
+  # app_indicator_new）被标记为 deprecated，开启 -Werror 会直接中断构建。
+  # 仅将该类 deprecated 警告降级为非错误，保留其余警告的严格性。
+  target_compile_options(${TARGET} PRIVATE -Wno-error=deprecated-declarations)
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()
