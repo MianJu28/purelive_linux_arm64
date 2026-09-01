@@ -479,8 +479,18 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
       if (PlatformUtils.isAndroid && !audioOnly) {
         _isAudioOnly = false;
-      } else {
+      } else if (audioOnly || _isAudioOnly) {
+        // 仅在进入音频模式、或从音频模式恢复视频时才改动 vid。
+        //
+        // 不能无条件以 force 调用 _applyAudioOnly：非 Android 分支会执行
+        // setVideoTrack(VideoTrack.auto())，即向 mpv 重写 vid=auto。而 open()
+        // 对直播流是异步的，返回时 demuxer 往往还没解析出轨道列表，此时重写
+        // vid 会让 mpv 按“当前无可用视频轨道”决策，视频输出不再恢复，表现为
+        // 有声音、无画面（黑屏）。vid=auto 本就是默认值，正常播放时重写毫无
+        // 收益。多画面播放从不触碰 vid，渲染正常，行为应与之一致。
         await _applyAudioOnly(audioOnly, force: true);
+      } else {
+        _isAudioOnly = false;
       }
       if (_superResolutionMode != SuperResolutionMode.off) {
         await _configureSuperResolution();
