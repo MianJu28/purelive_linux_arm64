@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -16,228 +14,355 @@ import 'package:pure_live/modules/settings/pages/super_resolution_settings_page.
 class PlayerKernelSettingsPage extends GetView<SettingsService> {
   const PlayerKernelSettingsPage({super.key});
 
+  SettingsService get settings => SettingsService.to;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
-      appBar: AppBar(title: Text(i18n("player_kernel_settings"))),
+      appBar: AppBar(title: Text(i18n('player_kernel_settings'))),
       body: ListView(
         physics: const PureLiveScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
-          context.buildGroupTitle(i18n("core_kernel_settings")),
-          context.buildModernCard([
-            Obx(() {
-              String activeKey = SettingsService.to.player.videoPlayerKey.v;
-              String activeI18nKey = PlayerConsts.names[activeKey] ?? PlayerConsts.names[PlayerConsts.defaultKey]!;
-
-              return context.buildTile(
-                icon: Remix.toggle_line,
-                title: i18n("kernel_switch"),
-                subtitle: i18n("kernel_switch_subtitle"),
-                onTap: showVideoSetDialog,
-                trailing: Text(
-                  i18n(activeI18nKey),
-                  style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w600),
-                ),
-              );
-            }),
-            Obx(() {
-              String activeKey = SettingsService.to.player.videoPlayerKey.v;
-              if (PlayerConsts.engines[activeKey] == PlayerEngine.exo) {
-                return const SizedBox.shrink();
-              }
-
-              return context.buildTile(
-                icon: Remix.global_line,
-                title: i18n("network_proxy"),
-                subtitle: i18n("network_proxy_subtitle"),
-                onTap: showProxySettingsDialog,
-                trailing: Text(
-                  SettingsService.to.proxy.enableProxy.v ? i18n("enabled") : i18n("disabled"),
-                  style: AppTextStyles.t13.copyWith(
-                    color: SettingsService.to.proxy.enableProxy.v ? theme.colorScheme.primary : theme.hintColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              );
-            }),
-            context.buildSwitchTile(
-              icon: Remix.speed_up_line,
-              title: i18n('enable_codec'),
-              subtitle: i18n("gpu_decode"),
-              value: SettingsService.to.player.enableCodec,
-            ),
-            if (PlatformUtils.isWindows)
-              context.buildSwitchTile(
-                icon: Remix.image_edit_line,
-                title: i18n('enable_rtx_vsr'),
-                subtitle: i18n('enable_rtx_vsr_subtitle'),
-                value: SettingsService.to.player.enableRtxVsr,
-              ),
-            context.buildSwitchTile(
-              icon: Remix.shut_down_line,
-              title: i18n('force_destroy_player'),
-              subtitle: i18n('force_destroy_player_subtitle'),
-              value: SettingsService.to.player.useHardStopOnExit,
-            ),
-          ]),
+          _buildCoreSettings(context),
           Obx(() {
-            String activeKey = SettingsService.to.player.videoPlayerKey.v;
+            final activeKey = settings.player.videoPlayerKey.v;
+
             if (PlayerConsts.engines[activeKey] != PlayerEngine.mediaKit) {
               return const SizedBox.shrink();
             }
+
             return _buildMpvSettings(context);
           }),
-          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _buildMpvSettings(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildCoreSettings(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(padding: EdgeInsets.only(left: 16, right: 16, bottom: 0, top: 12), child: Divider()),
-        if (Platform.isAndroid)
+        context.buildGroupTitle(i18n('core_kernel_settings')),
+        context.buildModernCard([
+          _buildPlayerKernelTile(context),
+          _buildProxyTile(context),
           context.buildSwitchTile(
-            icon: Remix.shield_check_line,
-            title: i18n('compat_mode'),
-            subtitle: i18n('compat_mode_subtitle'),
-            value: SettingsService.to.player.playerCompatMode,
+            icon: Remix.speed_up_line,
+            title: i18n('enable_codec'),
+            subtitle: i18n('gpu_decode'),
+            value: settings.player.enableCodec,
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 5, 12, 4),
-          child: Row(
-            children: [
-              Icon(Remix.equalizer_line, size: 18, color: theme.colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                i18n("mpv_advanced_settings"),
-                style: AppTextStyles.t16Bold.copyWith(color: theme.colorScheme.primary),
-              ),
-            ],
+          context.buildSwitchTile(
+            icon: Remix.shut_down_line,
+            title: i18n('force_destroy_player'),
+            subtitle: i18n('force_destroy_player_subtitle'),
+            value: settings.player.useHardStopOnExit,
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildPlayerKernelTile(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Obx(() {
+      final activeKey = settings.player.videoPlayerKey.v;
+
+      final i18nKey = PlayerConsts.names[activeKey] ?? PlayerConsts.names[PlayerConsts.defaultKey] ?? '';
+
+      return context.buildTile(
+        icon: Remix.toggle_line,
+        title: i18n('kernel_switch'),
+        subtitle: i18n('kernel_switch_subtitle'),
+        onTap: showVideoSetDialog,
+        trailing: Text(
+          i18n(i18nKey),
+          style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w600),
+        ),
+      );
+    });
+  }
+
+  Widget _buildProxyTile(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Obx(() {
+      final activeKey = settings.player.videoPlayerKey.v;
+
+      if (PlayerConsts.engines[activeKey] == PlayerEngine.exo) {
+        return const SizedBox.shrink();
+      }
+
+      final enabled = settings.proxy.enableProxy.v;
+
+      return context.buildTile(
+        icon: Remix.global_line,
+        title: i18n('network_proxy'),
+        subtitle: i18n('network_proxy_subtitle'),
+        onTap: showProxySettingsDialog,
+        trailing: Text(
+          enabled ? i18n('enabled') : i18n('disabled'),
+          style: AppTextStyles.t13.copyWith(
+            color: enabled ? theme.colorScheme.primary : theme.hintColor,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 4,
-                  children: [
-                    Text(
-                      i18n("mpv_warning_text"),
-                      style: AppTextStyles.t12.copyWith(color: theme.hintColor.withValues(alpha: 0.65)),
-                    ),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(4),
-                      onTap: () => launchUrlString("https://mpv.io"),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        child: Text(
-                          i18n("mpv_official_docs"),
-                          style: AppTextStyles.t12.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w600,
-                            decoration: TextDecoration.underline,
+      );
+    });
+  }
+
+  Widget _buildMpvSettings(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        const Divider(),
+        const SizedBox(height: 4),
+        _buildAdvancedSection(context),
+        _buildOutputSection(context),
+        _buildVideoSection(context),
+        _buildAudioSection(context),
+        _buildPerformanceSection(context),
+      ],
+    );
+  }
+
+  Widget _buildOutputSection(BuildContext context) {
+    return Obx(() {
+      final customOutput = settings.player.customPlayerOutput.v;
+      final compatMode = PlatformUtils.isAndroid && settings.player.playerCompatMode.v;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, icon: Remix.settings_4_line, title: i18n('output_settings')),
+          context.buildModernCard([
+            context.buildSwitchTile(
+              icon: Remix.settings_5_line,
+              title: i18n('custom_output'),
+              subtitle: i18n('custom_output_subtitle'),
+              value: settings.player.customPlayerOutput,
+            ),
+            if (PlatformUtils.isAndroid)
+              context.buildSwitchTile(
+                icon: Remix.shield_check_line,
+                title: i18n('compat_mode'),
+                subtitle: compatMode ? i18n('compat_mode_enabled_subtitle') : i18n('compat_mode_subtitle'),
+                value: settings.player.playerCompatMode,
+                enabled: customOutput,
+              ),
+            if (PlatformUtils.isWindows)
+              context.buildSwitchTile(
+                icon: Remix.sparkling_2_line,
+                title: i18n('enable_rtx_vsr'),
+                subtitle: i18n('enable_rtx_vsr_subtitle'),
+                value: settings.player.enableRtxVsr,
+                enabled: customOutput,
+              ),
+          ]),
+        ],
+      );
+    });
+  }
+
+  Widget _buildVideoSection(BuildContext context) {
+    return Obx(() {
+      final customOutput = settings.player.customPlayerOutput.v;
+
+      final compatMode = PlatformUtils.isAndroid && settings.player.playerCompatMode.v;
+
+      final rtxVsr = PlatformUtils.isWindows && settings.player.enableRtxVsr.v;
+
+      final videoSettingsEnabled = customOutput && !compatMode;
+
+      final superResolutionEnabled = videoSettingsEnabled && !rtxVsr;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, icon: Remix.movie_2_line, title: i18n('video_settings')),
+          context.buildModernCard([
+            _buildSuperResolutionTile(context, enabled: superResolutionEnabled, rtxVsr: rtxVsr),
+            _buildHardwareDecoderTile(context, enabled: videoSettingsEnabled),
+            if (PlatformUtils.isAndroid) _buildRendererTile(context, enabled: videoSettingsEnabled),
+          ]),
+        ],
+      );
+    });
+  }
+
+  Widget _buildSuperResolutionTile(BuildContext context, {required bool enabled, required bool rtxVsr}) {
+    return Obx(() {
+      final value = settings.player.defaultSuperResolutionMode.v;
+
+      final mode = SuperResolutionMode.fromStorageValue(value);
+
+      final isZh = Get.locale?.languageCode == 'zh';
+
+      return context.buildTile(
+        icon: Remix.sparkling_2_line,
+        title: i18n('super_resolution'),
+        subtitle: rtxVsr
+            ? i18n('disabled_by_rtx_vsr')
+            : isZh
+            ? mode.nameZh
+            : mode.nameEn,
+        trailing: const Icon(Remix.arrow_right_s_line),
+        enabled: enabled,
+        onTap: enabled ? () => Get.to(() => const SuperResolutionSettingsPage()) : null,
+      );
+    });
+  }
+
+  Widget _buildHardwareDecoderTile(BuildContext context, {required bool enabled}) {
+    return Obx(() {
+      return context.buildTile(
+        icon: Remix.cpu_line,
+        title: i18n('hardware_decoder'),
+        subtitle: _getHardwareDecoderName(),
+        trailing: const Icon(Remix.arrow_right_s_line),
+        enabled: enabled,
+        onTap: enabled ? () => Get.to(() => const DecoderSettingsPage()) : null,
+      );
+    });
+  }
+
+  Widget _buildRendererTile(BuildContext context, {required bool enabled}) {
+    return Obx(() {
+      return context.buildTile(
+        icon: Remix.tv_line,
+        title: i18n('video_output_driver'),
+        subtitle: _getRendererName(),
+        trailing: const Icon(Remix.arrow_right_s_line),
+        enabled: enabled,
+        onTap: enabled ? () => Get.to(() => const RendererSettingsPage()) : null,
+      );
+    });
+  }
+
+  Widget _buildAudioSection(BuildContext context) {
+    return Obx(() {
+      final customOutput = settings.player.customPlayerOutput.v;
+
+      final compatMode = PlatformUtils.isAndroid && settings.player.playerCompatMode.v;
+
+      final enabled = customOutput && !compatMode;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, icon: Remix.volume_up_line, title: i18n('audio_settings')),
+          context.buildModernCard([
+            if (PlatformUtils.isAndroid)
+              context.buildSwitchTile(
+                icon: Remix.equalizer_2_line,
+                title: i18n('low_latency_audio'),
+                subtitle: i18n('low_latency_audio_subtitle'),
+                value: settings.player.androidEnableOpenSLES,
+                enabled: enabled,
+              ),
+            context.buildTile(
+              icon: Remix.volume_up_line,
+              title: i18n('audio_output_driver'),
+              subtitle: _getAudioOutputDriverName(),
+              trailing: const Icon(Remix.arrow_right_s_line),
+              enabled: enabled,
+              onTap: enabled ? () => Get.to(() => const AudioOutputSettingsPage()) : null,
+            ),
+          ]),
+        ],
+      );
+    });
+  }
+
+  Widget _buildPerformanceSection(BuildContext context) {
+    return Obx(() {
+      final metered = MeteredNetworkService.to.isMetered;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, icon: Remix.speed_up_line, title: i18n('performance_settings')),
+          context.buildModernCard([
+            context.buildSwitchTile(
+              icon: Remix.database_2_line,
+              title: i18n('low_memory_mode'),
+              subtitle: metered ? i18n('low_memory_mode_metered') : i18n('low_memory_mode_subtitle'),
+              value: settings.player.lowMemoryMode,
+              enabled: !metered,
+            ),
+          ]),
+        ],
+      );
+    });
+  }
+
+  Widget _buildAdvancedSection(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(context, icon: Remix.equalizer_line, title: i18n('mpv_advanced_settings')),
+        context.buildModernCard([
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 12, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      runSpacing: 2,
+                      children: [
+                        Text(
+                          i18n('mpv_warning_text'),
+                          style: AppTextStyles.t12.copyWith(color: theme.hintColor.withValues(alpha: 0.65)),
+                        ),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () => launchUrlString('https://mpv.io'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Text(
+                              i18n('mpv_official_docs'),
+                              style: AppTextStyles.t12.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => SettingsService.to.player.resetMpvPlayerSettings(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Remix.refresh_line, size: 14, color: Colors.red),
-                      const SizedBox(width: 4),
-                      Text(
-                        i18n("reset"),
-                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
-                      ),
-                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        context.buildModernCard([
-          context.buildSwitchTile(
-            icon: Icons.memory_rounded,
-            title: i18n("custom_output_hwdec"),
-            value: SettingsService.to.player.customPlayerOutput,
-          ),
-          context.buildSwitchTile(
-            title: i18n('low_memory_mode'),
-            subtitle: MeteredNetworkService.to.isMetered
-                ? i18n('low_memory_mode_metered')
-                : i18n('low_memory_mode_subtitle'),
-            value: SettingsService.to.player.lowMemoryMode,
-            icon: Remix.database_2_line,
-            enabled: !MeteredNetworkService.to.isMetered,
-          ),
-          if (Platform.isAndroid)
-            context.buildSwitchTile(
-              title: i18n('low_latency_audio'),
-              subtitle: i18n('low_latency_audio_subtitle'),
-              value: SettingsService.to.player.androidEnableOpenSLES,
-              icon: Remix.equalizer_2_line,
-            ),
-          Obx(() {
-            final value = SettingsService.to.player.defaultSuperResolutionMode.v;
-
-            final mode = SuperResolutionMode.fromStorageValue(value);
-            final bool isZh = Get.locale?.languageCode == 'zh';
-
-            return context.buildTile(
-              icon: Remix.sparkling_2_line,
-              title: i18n('super_resolution'),
-              subtitle: isZh ? mode.nameZh : mode.nameEn,
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Get.to(() => const SuperResolutionSettingsPage()),
-            );
-          }),
-
-          Obx(
-            () => context.buildTile(
-              icon: Remix.cpu_line,
-              title: i18n("hardware_decoder"),
-              subtitle: _getHardwareDecoderName(context),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Get.to(() => const DecoderSettingsPage()),
-            ),
-          ),
-          if (Platform.isAndroid)
-            Obx(
-              () => context.buildTile(
-                icon: Icons.tv_rounded,
-                title: i18n("video_output_driver"),
-                subtitle: _getRendererName(context),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Get.to(() => const RendererSettingsPage()),
-              ),
-            ),
-          Obx(
-            () => context.buildTile(
-              icon: Remix.volume_up_line,
-              title: i18n("audio_output_driver"),
-              subtitle: _getAudioOutputDriverName(context),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Get.to(() => const AudioOutputSettingsPage()),
+                const SizedBox(width: 8),
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => settings.player.resetMpvPlayerSettings(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Remix.refresh_line, size: 15, color: Colors.red),
+                        const SizedBox(width: 4),
+                        Text(
+                          i18n('reset'),
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ]),
@@ -245,87 +370,103 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
     );
   }
 
-  String _getAudioOutputDriverName(BuildContext context) {
-    final key = SettingsService.to.player.audioOutputDriver.v;
+  Widget _buildSectionTitle(BuildContext context, {required IconData icon, required String title}) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 18, 12, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(title, style: AppTextStyles.t16Bold.copyWith(color: theme.colorScheme.primary)),
+        ],
+      ),
+    );
+  }
+
+  String _getAudioOutputDriverName() {
+    final key = settings.player.audioOutputDriver.v;
 
     final item = PlayerConsts.audioOutputDriversList.firstWhere(
       (item) => item['key'] == key,
       orElse: () => PlayerConsts.audioOutputDriversList.first,
     );
 
-    final bool isZh = Get.locale?.languageCode == 'zh';
+    final isZh = Get.locale?.languageCode == 'zh';
+
     return isZh ? item['nameZh']! : item['nameEn']!;
   }
 
-  String _getRendererName(BuildContext context) {
-    final key = SettingsService.to.player.videoOutputDriver.v;
+  String _getRendererName() {
+    final key = settings.player.videoOutputDriver.v;
 
     final item = PlayerConsts.androidVideoRenderersList.firstWhere(
       (item) => item['key'] == key,
       orElse: () => PlayerConsts.androidVideoRenderersList.first,
     );
-    final bool isZh = Get.locale?.languageCode == 'zh';
+
+    final isZh = Get.locale?.languageCode == 'zh';
+
     return isZh ? item['nameZh']! : item['nameEn']!;
   }
 
-  String _getHardwareDecoderName(BuildContext context) {
-    final key = SettingsService.to.player.videoHardwareDecoder.v;
+  String _getHardwareDecoderName() {
+    final key = settings.player.videoHardwareDecoder.v;
 
     final item = PlayerConsts.hardwareDecodersList.firstWhere(
       (item) => item['key'] == key,
       orElse: () => PlayerConsts.hardwareDecodersList.first,
     );
-    final bool isZh = Get.locale?.languageCode == 'zh';
+
+    final isZh = Get.locale?.languageCode == 'zh';
+
     return isZh ? item['nameZh']! : item['nameEn']!;
   }
 
-  // 播放器选择弹窗
   void showVideoSetDialog() {
-    List<String> playerList = PlatformUtils.isMobile
-        ? PlayerConsts.names.values.toList()
-        : [PlayerConsts.names['mpv']!];
+    final playerEntries = PlayerConsts.engines.entries
+        .where((entry) => PlatformUtils.isMobile || entry.value == PlayerEngine.mediaKit)
+        .where((entry) => PlayerConsts.names.containsKey(entry.key))
+        .toList();
+
+    if (playerEntries.isEmpty) {
+      return;
+    }
 
     showDialog(
       context: Get.context!,
-      builder: (BuildContext context) {
+      builder: (context) {
         return SimpleDialog(
-          title: Text(i18n("change_player")),
+          title: Text(i18n('change_player')),
           children: [
             Obx(() {
-              String activeKey = SettingsService.to.player.videoPlayerKey.v;
-              String activeI18nKey = PlayerConsts.names[activeKey] ?? playerList.first;
-
-              if (!playerList.contains(activeI18nKey)) {
-                activeKey = PlayerConsts.getKeyByI18nKey(playerList.first);
-              }
+              final activeKey = settings.player.videoPlayerKey.v;
 
               return RadioGroup<String>(
                 groupValue: activeKey,
-                onChanged: (String? key) {
-                  if (key != null && PlayerConsts.engines.containsKey(key)) {
-                    SettingsService.to.player.videoPlayerKey.v = key;
-                    GlobalPlayerService.instance.player.switchEngine(PlayerConsts.engines[key]!, isManual: true);
-                    Navigator.of(context).pop();
+                onChanged: (key) {
+                  if (key == null) {
+                    return;
                   }
+
+                  _switchPlayer(key, context);
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: playerList.map<Widget>((i18nKey) {
-                    final String itemKey = PlayerConsts.getKeyByI18nKey(i18nKey);
+                  children: playerEntries.map((entry) {
+                    final key = entry.key;
+                    final i18nKey = PlayerConsts.names[key];
+
+                    if (i18nKey == null) {
+                      return const SizedBox.shrink();
+                    }
+
                     return ListTile(
-                      leading: Radio<String>(value: itemKey, activeColor: Theme.of(context).colorScheme.primary),
+                      leading: Radio<String>(value: key, activeColor: Theme.of(context).colorScheme.primary),
                       title: Text(i18n(i18nKey), style: AppTextStyles.t15),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                      onTap: () {
-                        if (PlayerConsts.engines.containsKey(itemKey)) {
-                          SettingsService.to.player.videoPlayerKey.v = itemKey;
-                          GlobalPlayerService.instance.player.switchEngine(
-                            PlayerConsts.engines[itemKey]!,
-                            isManual: true,
-                          );
-                          Navigator.of(context).pop();
-                        }
-                      },
+                      onTap: () => _switchPlayer(key, context),
                     );
                   }).toList(),
                 ),
@@ -337,57 +478,76 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
     );
   }
 
-  // 代理设置弹窗（替换为统一SwitchTile）
+  void _switchPlayer(String key, BuildContext context) {
+    final engine = PlayerConsts.engines[key];
+
+    if (engine == null) {
+      return;
+    }
+
+    settings.player.videoPlayerKey.v = key;
+
+    GlobalPlayerService.instance.player.switchEngine(engine, isManual: true);
+
+    Navigator.of(context).pop();
+  }
+
   void showProxySettingsDialog() {
-    final hostController = TextEditingController(text: SettingsService.to.proxy.proxyHost.v);
-    final portController = TextEditingController(text: SettingsService.to.proxy.proxyPort.v.toString());
+    final hostController = TextEditingController(text: settings.proxy.proxyHost.v);
+
+    final portController = TextEditingController(text: settings.proxy.proxyPort.v.toString());
 
     showDialog(
       context: Get.context!,
-      builder: (context) => AlertDialog(
-        title: Text(i18n("proxy_settings")),
-        content: Obx(
-          () => SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                context.buildSwitchTile(
-                  icon: Remix.shield_keyhole_line,
-                  title: i18n("enable_player_proxy"),
-                  value: SettingsService.to.proxy.enableProxy,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: hostController,
-                  enabled: SettingsService.to.proxy.enableProxy.v,
-                  decoration: InputDecoration(
-                    labelText: i18n("proxy_host"),
-                    prefixIcon: const Icon(Remix.global_line, size: 20),
-                    border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      builder: (context) {
+        return AlertDialog(
+          title: Text(i18n('proxy_settings')),
+          content: Obx(
+            () => SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  context.buildSwitchTile(
+                    icon: Remix.shield_keyhole_line,
+                    title: i18n('enable_player_proxy'),
+                    value: settings.proxy.enableProxy,
                   ),
-                  onChanged: (value) => SettingsService.to.proxy.proxyHost.v = value,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: portController,
-                  enabled: SettingsService.to.proxy.enableProxy.v,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: i18n("proxy_port"),
-                    prefixIcon: const Icon(Remix.links_line, size: 20),
-                    border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: hostController,
+                    enabled: settings.proxy.enableProxy.v,
+                    decoration: InputDecoration(
+                      labelText: i18n('proxy_host'),
+                      prefixIcon: const Icon(Remix.global_line, size: 20),
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                    ),
+                    onChanged: (value) => settings.proxy.proxyHost.v = value,
                   ),
-                  onChanged: (value) {
-                    int? port = int.tryParse(value);
-                    if (port != null) SettingsService.to.proxy.proxyPort.v = port;
-                  },
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: portController,
+                    enabled: settings.proxy.enableProxy.v,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: i18n('proxy_port'),
+                      prefixIcon: const Icon(Remix.links_line, size: 20),
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                    ),
+                    onChanged: (value) {
+                      final port = int.tryParse(value);
+
+                      if (port != null && port >= 1 && port <= 65535) {
+                        settings.proxy.proxyPort.v = port;
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n("confirm")))],
-      ),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n('confirm')))],
+        );
+      },
     ).whenComplete(() {
       hostController.dispose();
       portController.dispose();
