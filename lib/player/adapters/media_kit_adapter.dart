@@ -27,6 +27,118 @@ import 'package:pure_live/player/interface/media_kit_player_accessor.dart';
   return size == null ? null : (width: size.width, height: size.height);
 }
 
+/// The host platform as seen by the mpv output configuration.
+///
+/// It exists so the configuration logic can be resolved without `dart:io`,
+/// which keeps the per-platform branches unit-testable.
+@visibleForTesting
+enum PlayerHostPlatform { android, windows, linux, macOS, iOS, other }
+
+@visibleForTesting
+PlayerHostPlatform resolvePlayerHostPlatform() {
+  if (PlatformUtils.isAndroid) return PlayerHostPlatform.android;
+
+  if (PlatformUtils.isWindows) return PlayerHostPlatform.windows;
+
+  if (PlatformUtils.isLinux) return PlayerHostPlatform.linux;
+
+  if (PlatformUtils.isMacOS) return PlayerHostPlatform.macOS;
+
+  if (PlatformUtils.isIOS) return PlayerHostPlatform.iOS;
+
+  return PlayerHostPlatform.other;
+}
+
+/// Resolves the mpv `--vo` value to hand to [VideoControllerConfiguration].
+///
+/// Returns `null` for every platform except Android, which makes media_kit
+/// keep its platform default. On Windows, GNU/Linux, macOS and iOS media_kit
+/// renders through the `libmpv` render context into a Flutter texture; any
+/// other `vo` makes mpv create its own output window and detaches it from
+/// that render context, so `VideoOutputManager` never publishes a texture.
+/// The observable symptom is audio playing with a permanently black picture.
+///
+/// The stored [configuredDriver] comes from
+/// [PlayerConsts.androidVideoRenderersList] (`auto`, `gpu`, `gpu-next`,
+/// `mediacodec_embed`), which is Android-only vocabulary. Forwarding it on
+/// the desktop therefore always breaks rendering. Multiview cells never set
+/// `vo` and are consequently unaffected.
+@visibleForTesting
+String? resolveVideoOutputDriver({
+  required bool android,
+  required String configuredDriver,
+  required int androidSdkInt,
+}) {
+  if (!android) {
+    return null;
+  }
+
+  if (configuredDriver.isEmpty || configuredDriver == 'auto') {
+    return androidSdkInt >= 34 ? 'gpu-next' : 'gpu';
+  }
+
+  return configuredDriver;
+}
+
+/// Builds the [VideoControllerConfiguration] for one host platform.
+///
+/// Kept free of `dart:io` and settings I/O so every branch is unit-testable.
+@visibleForTesting
+VideoControllerConfiguration resolveVideoControllerConfiguration({
+  required PlayerHostPlatform platform,
+  required bool customPlayerOutput,
+  required bool playerCompatMode,
+  required String videoOutputDriver,
+  required String videoHardwareDecoder,
+  required bool enableRtxVsr,
+  required bool enableCodec,
+  required int androidSdkInt,
+}) {
+  if (!customPlayerOutput) {
+    return VideoControllerConfiguration(enableHardwareAcceleration: enableCodec);
+  }
+
+  if (platform == PlayerHostPlatform.android && playerCompatMode) {
+    return const VideoControllerConfiguration(
+      vo: 'mediacodec_embed',
+      hwdec: 'mediacodec',
+      enableHardwareAcceleration: true,
+      enableAndroidSurfaceProducer: false,
+      androidAttachSurfaceAfterVideoParameters: false,
+    );
+  }
+
+  // `vo` is Android-only. Windows / GNU/Linux / macOS / iOS render through
+  // media_kit's `libmpv` render context, so they must keep the platform
+  // default (null). Overriding it with the stored Android renderer detaches
+  // mpv from that context and leaves a black picture with sound.
+  final vo = resolveVideoOutputDriver(
+    android: platform == PlayerHostPlatform.android,
+    configuredDriver: videoOutputDriver,
+    androidSdkInt: androidSdkInt,
+  );
+
+  final String? hwdec;
+  switch (platform) {
+    case PlayerHostPlatform.android:
+    case PlayerHostPlatform.linux:
+    case PlayerHostPlatform.iOS:
+      hwdec = videoHardwareDecoder.isEmpty ? 'auto' : videoHardwareDecoder;
+    case PlayerHostPlatform.windows:
+      hwdec = enableRtxVsr ? 'd3d11va' : (videoHardwareDecoder.isEmpty ? 'auto' : videoHardwareDecoder);
+    case PlayerHostPlatform.macOS:
+      hwdec = 'no';
+    case PlayerHostPlatform.other:
+      hwdec = null;
+  }
+
+  return VideoControllerConfiguration(
+    vo: vo,
+    hwdec: hwdec,
+    enableHardwareAcceleration: platform == PlayerHostPlatform.macOS ? false : enableCodec,
+  );
+}
+
 class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
   MediaKitAdapter() {
     _audioModeTransitions = LatestAsyncValueQueue<bool>(_applyAudioOnly);
@@ -305,57 +417,37 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
   Future<VideoControllerConfiguration> _buildVideoControllerConfiguration() async {
     final settings = SettingsService.to.player;
+    final platform = resolvePlayerHostPlatform();
     final customOutput = settings.customPlayerOutput.v;
-    if (!customOutput) {
+    final compatMode = platform == PlayerHostPlatform.android && settings.playerCompatMode.v;
+
+    // Both early exits below disable the shader pipeline, so mirror that side
+    // effect here and keep the resolver itself pure.
+    if (!customOutput || compatMode) {
       _superResolutionMode = SuperResolutionMode.off;
-
-      return VideoControllerConfiguration(enableHardwareAcceleration: settings.enableCodec.v);
-    }
-    if (PlatformUtils.isAndroid && settings.playerCompatMode.v) {
-      _superResolutionMode = SuperResolutionMode.off;
-
-      return const VideoControllerConfiguration(
-        vo: 'mediacodec_embed',
-        hwdec: 'mediacodec',
-        enableHardwareAcceleration: true,
-        enableAndroidSurfaceProducer: false,
-        androidAttachSurfaceAfterVideoParameters: false,
-      );
     }
 
-    String? vo;
-    String? hwdec;
-    if (PlatformUtils.isAndroid) {
-      final renderer = settings.videoOutputDriver.v;
+    // Only the automatic Android selection needs a device lookup; every other
+    // combination resolves from settings alone.
+    int androidSdkInt = 0;
+    if (platform == PlayerHostPlatform.android && customOutput && !compatMode) {
+      final driver = settings.videoOutputDriver.v;
 
-      if (renderer.isEmpty || renderer == 'auto') {
-        final androidInfo = await DeviceInfoPlugin().androidInfo;
-        vo = androidInfo.version.sdkInt >= 34 ? 'gpu-next' : 'gpu';
-      } else {
-        vo = renderer;
+      if (driver.isEmpty || driver == 'auto') {
+        androidSdkInt = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
       }
-      hwdec = settings.videoHardwareDecoder.v.isEmpty ? 'auto' : settings.videoHardwareDecoder.v;
-    } else if (PlatformUtils.isWindows) {
-      vo = settings.videoOutputDriver.v;
-      if (settings.enableRtxVsr.v) {
-        hwdec = 'd3d11va';
-      } else {
-        hwdec = settings.videoHardwareDecoder.v.isEmpty ? 'auto' : settings.videoHardwareDecoder.v;
-      }
-    } else if (PlatformUtils.isLinux) {
-      vo = settings.videoOutputDriver.v;
-      hwdec = settings.videoHardwareDecoder.v.isEmpty ? 'auto' : settings.videoHardwareDecoder.v;
-    } else if (PlatformUtils.isMacOS) {
-      vo = settings.videoOutputDriver.v;
-      hwdec = 'no';
-    } else if (PlatformUtils.isIOS) {
-      vo = settings.videoOutputDriver.v;
-      hwdec = settings.videoHardwareDecoder.v.isEmpty ? 'auto' : settings.videoHardwareDecoder.v;
     }
 
-    final enableHardwareAcceleration = PlatformUtils.isMacOS ? false : settings.enableCodec.v;
-
-    return VideoControllerConfiguration(vo: vo, hwdec: hwdec, enableHardwareAcceleration: enableHardwareAcceleration);
+    return resolveVideoControllerConfiguration(
+      platform: platform,
+      customPlayerOutput: customOutput,
+      playerCompatMode: settings.playerCompatMode.v,
+      videoOutputDriver: settings.videoOutputDriver.v,
+      videoHardwareDecoder: settings.videoHardwareDecoder.v,
+      enableRtxVsr: settings.enableRtxVsr.v,
+      enableCodec: settings.enableCodec.v,
+      androidSdkInt: androidSdkInt,
+    );
   }
 
   @override
@@ -400,7 +492,18 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
         }
       }
 
-      _controller = VideoController(_player, configuration: await _buildVideoControllerConfiguration());
+      final configuration = await _buildVideoControllerConfiguration();
+
+      // Diagnosing "sound without a picture" starts from the effective mpv
+      // output configuration. `null` means media_kit keeps its platform
+      // default, which is what the texture-based hosts require.
+      Log.i(
+        'MediaKitAdapter: VideoController vo=${configuration.vo ?? '<platform default>'} '
+        'hwdec=${configuration.hwdec ?? '<platform default>'} '
+        'hardwareAcceleration=${configuration.enableHardwareAcceleration}',
+      );
+
+      _controller = VideoController(_player, configuration: configuration);
 
       await _bindListeners();
 
