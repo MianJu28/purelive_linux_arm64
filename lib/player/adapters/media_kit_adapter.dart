@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'dart:async';
 
 import 'package:rxdart/rxdart.dart';
@@ -14,6 +16,7 @@ import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/player/models/player_exception.dart';
 import 'package:pure_live/player/models/player_error_type.dart';
 import 'package:pure_live/player/utils/live_buffer_policy.dart';
+import 'package:pure_live/player/utils/video_output_size_policy.dart';
 import 'package:pure_live/player/shaders/shader_asset_service.dart';
 import 'package:pure_live/player/models/player_super_resolution.dart';
 import 'package:pure_live/common/utils/latest_async_value_queue.dart';
@@ -505,6 +508,12 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
       _controller = VideoController(_player, configuration: configuration);
 
+      // Pin an initial size before the first frame so the desktop render loop
+      // never falls into the per-frame mpv property query. The source size is
+      // still unknown here, so the policy falls back to its 1080p estimate and
+      // the video-params listener refines it once metadata arrives.
+      await _syncNativeOutputSize();
+
       await _bindListeners();
 
       if (_superResolutionMode != SuperResolutionMode.off) {
@@ -626,6 +635,57 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     }
   }
 
+  /// Pins the native output texture to a fixed size on the desktop renderers.
+  ///
+  /// Without a configured size, `video_output_notify_render` resolves the
+  /// texture size on every single frame through
+  /// `video_output_get_width`/`video_output_get_height`, and each of those
+  /// performs a full synchronous `video-out-params` property fetch from mpv
+  /// (node allocation, key walk and free) on the GL thread — twice per frame.
+  /// A pinned size takes the cached fast path in `video_output_get_width`
+  /// instead. It also stops a 4K source from being decoded into a
+  /// full-resolution texture the viewport never needs.
+  ///
+  /// Multiview cells pin their size when their [VideoController] is created;
+  /// the single-room player passed null, which is why it rendered at a lower
+  /// frame rate than multiview.
+  Future<void> _syncNativeOutputSize() async {
+    if (_disposed || !PlatformUtils.isDesktop) {
+      return;
+    }
+
+    final view = PlatformDispatcher.instance.views.firstOrNull;
+
+    final pixelRatio = view?.devicePixelRatio ?? 0.0;
+
+    final physicalSize = view?.physicalSize;
+
+    if (physicalSize == null || !pixelRatio.isFinite || pixelRatio <= 0) {
+      return;
+    }
+
+    final size = calculateVideoOutputSize(
+      logicalViewport: physicalSize / pixelRatio,
+      devicePixelRatio: pixelRatio,
+      sourceWidth: _widthSubject.value,
+      sourceHeight: _heightSubject.value,
+    );
+
+    if (size.isEmpty) {
+      return;
+    }
+
+    try {
+      await _controller.setSize(width: size.width.round(), height: size.height.round());
+    } catch (error, stackTrace) {
+      // A torn-down player during an in-flight resize must not surface as a
+      // playback failure.
+      Log.w('MediaKitAdapter: native output resize failed: $error');
+
+      Log.d(stackTrace.toString());
+    }
+  }
+
   Future<void> _bindListeners() async {
     if (_listenerBound) {
       return;
@@ -686,6 +746,10 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
         _widthSubject.add(size?.width);
 
         _heightSubject.add(size?.height);
+
+        // The real source dimensions are known only now, so the pinned output
+        // size can be refined beyond the conservative start-up estimate.
+        unawaited(_syncNativeOutputSize());
       },
       onError: (e, s) {
         Log.e(e, s);
