@@ -693,37 +693,44 @@ class DanmakuViewer extends StatelessWidget {
         PortraitDanmakuMode.reduced => controller.danmakuArea.value.clamp(0.0, 0.50).toDouble(),
         _ => controller.danmakuArea.value,
       };
-      return FlameBarrageWidget(
-        controller: controller.danmakuController,
-        // Video gestures own the full surface and forward only hits on actual
-        // barrage bounds, so volume/brightness/double-tap remain responsive.
-        enablePointerEvents: false,
-        config: BarrageConfig(
-          emitInterval: 0.05,
-          fontSize: controller.danmakuFontSize.value,
-          topAreaDistance: controller.danmakuTopArea.value,
-          area: effectiveArea,
-          bottomAreaDistance: controller.danmakuBottomArea.value,
-          baseSpeed: controller.danmakuSpeed.value,
-          opacity: controller.danmakuOpacity.value,
-          fontWeight: FontWeight(controller.danmakuFontWeight.value),
-          strokeWidth: controller.danmakuFontBorder.value,
-          showStroke: controller.enableDanmakuStroke.value,
-          noEmojiMode: controller.noEmojiMode.value,
-          fps: settings.danmakuAutoFps.v
-              ? settings.resolvedDanmakuFps(refreshRateMode: SettingsService.to.app.refreshRateMode)
-              : controller.danmakuFps.value.clamp(30, 240).toInt(),
-          maxVisibleCount: 48,
-          maxPendingCount: 120,
-          maxPendingAge: const Duration(seconds: 5),
-          fontFamily: _validDanmakuFontFamily(controller.danmakuFontFamilyName.value),
-          trackHeight: (controller.danmakuFontSize.value * 1.55).clamp(24.0, 64.0).toDouble(),
-          emojiSize: (controller.danmakuFontSize.value * 1.3).clamp(16.0, 48.0).toDouble(),
-          pictureCacheMaxSize: 96,
-          barragePoolMaxSize: 72,
-          textCacheMaxSize: 320,
+      // Isolate the per-frame barrage repaint; the floating-window overlay
+      // (CompactDanmakuOverlay) already does this. Without a boundary every
+      // animation tick walks up to the player's RepaintBoundary and re-paints
+      // the whole video layer — texture, status cards and the control bar
+      // included — which steals raster time from the video itself.
+      return RepaintBoundary(
+        child: FlameBarrageWidget(
+          controller: controller.danmakuController,
+          // Video gestures own the full surface and forward only hits on actual
+          // barrage bounds, so volume/brightness/double-tap remain responsive.
+          enablePointerEvents: false,
+          config: BarrageConfig(
+            emitInterval: 0.05,
+            fontSize: controller.danmakuFontSize.value,
+            topAreaDistance: controller.danmakuTopArea.value,
+            area: effectiveArea,
+            bottomAreaDistance: controller.danmakuBottomArea.value,
+            baseSpeed: controller.danmakuSpeed.value,
+            opacity: controller.danmakuOpacity.value,
+            fontWeight: FontWeight(controller.danmakuFontWeight.value),
+            strokeWidth: controller.danmakuFontBorder.value,
+            showStroke: controller.enableDanmakuStroke.value,
+            noEmojiMode: controller.noEmojiMode.value,
+            fps: settings.danmakuAutoFps.v
+                ? settings.resolvedDanmakuFps(refreshRateMode: SettingsService.to.app.refreshRateMode)
+                : controller.danmakuFps.value.clamp(30, 240).toInt(),
+            maxVisibleCount: 48,
+            maxPendingCount: 120,
+            maxPendingAge: const Duration(seconds: 5),
+            fontFamily: _validDanmakuFontFamily(controller.danmakuFontFamilyName.value),
+            trackHeight: (controller.danmakuFontSize.value * 1.55).clamp(24.0, 64.0).toDouble(),
+            emojiSize: (controller.danmakuFontSize.value * 1.3).clamp(16.0, 48.0).toDouble(),
+            pictureCacheMaxSize: 96,
+            barragePoolMaxSize: 72,
+            textCacheMaxSize: 320,
+          ),
+          emojiAtlas: EmojiAtlas.instance,
         ),
-        emojiAtlas: EmojiAtlas.instance,
       );
     });
   }

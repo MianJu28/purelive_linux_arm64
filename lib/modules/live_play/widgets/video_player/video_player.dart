@@ -119,7 +119,14 @@ class StableVideoLayer extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Offstage(offstage: !visible, child: video),
+        // Offstage alone only skips painting; tickers keep firing. Muting them
+        // stops the barrage renderer and control animations from burning
+        // frames while audio-only mode keeps the surface mounted for a fast
+        // visual restore.
+        TickerMode(
+          enabled: visible,
+          child: Offstage(offstage: !visible, child: video),
+        ),
         if (!visible) placeholder,
       ],
     );
