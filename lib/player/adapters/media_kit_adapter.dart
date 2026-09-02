@@ -215,6 +215,19 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
     await native.setProperty('hwdec-software-fallback', '1');
 
+    // Software-decoding relief. Both options are no-ops while hardware
+    // decoding is active and only kick in when the CPU falls behind, which
+    // runtime diagnostics (hwdec-current=no) confirmed on arm64 desktops:
+    //
+    // - vd-lavc-fast enables FFmpeg's fast decode path (~10-30% faster at a
+    //   negligible quality cost).
+    // - framedrop=decoder+vo drops non-reference frames at the decoder before
+    //   they eat CPU time, so a 60fps source the CPU cannot sustain plays at
+    //   a steady lower rate instead of stuttering and drifting out of sync.
+    await native.setProperty('vd-lavc-fast', 'yes');
+
+    await native.setProperty('framedrop', 'decoder+vo');
+
     await native.setProperty('volume-max', '100');
   }
 
@@ -691,7 +704,7 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       return;
     }
 
-    final size = calculateVideoOutputSize(
+    var size = calculateVideoOutputSize(
       logicalViewport: logicalViewport,
       devicePixelRatio: pixelRatio,
       sourceWidth: _widthSubject.value,
@@ -700,6 +713,14 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
     if (size.isEmpty) {
       return;
+    }
+
+    // Low-memory mode opts the host into an HD texture ceiling: software
+    // decoding (confirmed via hwdec-current=no diagnostics) plus a software
+    // GL rasterizer pay for every pixel on the CPU, and 1440p+ textures
+    // collapse the frame rate. Normal hosts keep full resolution.
+    if (SettingsService.to.player.lowMemoryMode.v) {
+      size = clampVideoOutputToHd(size);
     }
 
     final width = size.width.round();
