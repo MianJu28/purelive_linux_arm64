@@ -26,7 +26,7 @@ class PlayerSettingsController extends GetxController {
 
   final RxBool customPlayerOutput = hiveBool('customPlayerOutput', false);
 
-  final RxString videoOutputDriver = hiveString('videoOutputDriver', 'gpu');
+  final RxString videoOutputDriver = hiveString('videoOutputDriver', 'auto');
 
   final RxString audioOutputDriver = hiveString('audioOutputDriver', 'auto');
 
@@ -112,7 +112,7 @@ class PlayerSettingsController extends GetxController {
   // Video fit
   // ---------------------------------------------------------------------------
 
-  List<BoxFit> get videoFitArray => AppConsts().videoFitType.map((e) => e['attr'] as BoxFit).toList();
+  List<BoxFit> get videoFitArray => AppConsts.videoFitType.map((e) => e['attr'] as BoxFit).toList();
 
   // ---------------------------------------------------------------------------
   // Resolution
@@ -138,7 +138,7 @@ class PlayerSettingsController extends GetxController {
     enableCodec.v = true;
     playerCompatMode.v = false;
     customPlayerOutput.v = false;
-    videoOutputDriver.v = 'gpu';
+    videoOutputDriver.v = 'auto';
     audioOutputDriver.v = 'auto';
     videoHardwareDecoder.v = 'auto';
     enableRtxVsr.v = false;
@@ -202,7 +202,7 @@ class PlayerSettingsController extends GetxController {
 
     customPlayerOutput.v = json['customPlayerOutput'] ?? false;
 
-    videoOutputDriver.v = json['videoOutputDriver'] ?? 'gpu';
+    videoOutputDriver.v = json['videoOutputDriver'] ?? 'auto';
 
     audioOutputDriver.v = json['audioOutputDriver'] ?? 'auto';
 
@@ -269,7 +269,7 @@ class PlayerSettingsController extends GetxController {
 
       'customPlayerOutput': player['customPlayerOutput'] ?? false,
 
-      'videoOutputDriver': player['videoOutputDriver'] ?? 'gpu',
+      'videoOutputDriver': player['videoOutputDriver'] ?? 'auto',
 
       'audioOutputDriver': player['audioOutputDriver'] ?? 'auto',
 

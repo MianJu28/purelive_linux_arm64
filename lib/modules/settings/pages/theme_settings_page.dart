@@ -6,6 +6,8 @@ import 'package:pure_live/modules/settings/pages/page_settings.dart';
 import 'package:pure_live/modules/settings/pages/font_settings_page.dart';
 import 'package:pure_live/modules/settings/pages/font_family_manager_page.dart';
 import 'package:pure_live/modules/settings/pages/loading_style_settings_page.dart';
+import 'package:pure_live/modules/settings/pages/room_card_settings/room_card_settings_page.dart';
+import 'package:pure_live/modules/settings/pages/room_card_settings/room_card_config_controller.dart';
 
 class ThemeSettingsPage extends GetView<SettingsService> {
   const ThemeSettingsPage({super.key});
@@ -82,6 +84,17 @@ class ThemeSettingsPage extends GetView<SettingsService> {
             ),
           ]),
           const SizedBox(height: 20),
+          context.buildGroupTitle(i18n("room_card_settings")),
+          context.buildModernCard([
+            context.buildTile(
+              icon: Remix.layout_grid_line,
+              title: i18n("room_card_settings"),
+              subtitle: i18n("room_card_settings_subtitle"),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Get.to(() => const RoomCardSettingsPage()),
+            ),
+          ]),
+          const SizedBox(height: 20),
           context.buildGroupTitle(i18n("grid_spacing_settings")),
           context.buildModernCard([
             context.buildTile(
@@ -95,6 +108,20 @@ class ThemeSettingsPage extends GetView<SettingsService> {
               title: i18n("main_axis_spacing"),
               subtitle: i18n("main_axis_spacing_subtitle"),
               onTap: showMainAxisSpacingDialog,
+            ),
+            Obx(
+              () => context.buildSliderTile(
+                context,
+                icon: Remix.text_spacing,
+                title: i18n("room_card_height_threshold"),
+                value: RoomCardConfigController.to.cardHeightThreshold.value,
+                min: -100.0,
+                max: 100.0,
+                displayValue: RoomCardConfigController.to.cardHeightThreshold.value.toStringAsFixed(0),
+                onChanged: (val) {
+                  RoomCardConfigController.to.cardHeightThreshold.value = val;
+                },
+              ),
             ),
           ]),
           if (Get.width > 680) ...[

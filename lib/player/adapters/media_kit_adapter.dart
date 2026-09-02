@@ -15,7 +15,7 @@ import 'package:pure_live/player/models/player_engine.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/player/models/player_exception.dart';
 import 'package:pure_live/player/models/player_error_type.dart';
-import 'package:pure_live/player/utils/live_buffer_policy.dart';
+import 'package:pure_live/player/utils/playback_cache_policy.dart';
 import 'package:pure_live/player/utils/video_output_size_policy.dart';
 import 'package:pure_live/player/shaders/shader_asset_service.dart';
 import 'package:pure_live/player/models/player_super_resolution.dart';
@@ -161,6 +161,8 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
   late final LatestAsyncValueQueue<bool> _audioModeTransitions;
 
+  late final PlaybackCachePolicy _cachePolicy;
+
   final _stateSubject = BehaviorSubject<PlayerState>.seeded(PlayerState.idle);
 
   final _playingSubject = BehaviorSubject<bool>.seeded(false);
@@ -200,12 +202,6 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     // analysis pass.  This reduces the black-screen interval before the
     // first decoded frame while retaining enough data for codec detection.
     await native.setProperty('demuxer-lavf-analyzeduration', '2');
-
-    await native.setProperty('demuxer-max-bytes', LiveBufferPolicy.forwardBytes.toString());
-
-    await native.setProperty('demuxer-max-back-bytes', LiveBufferPolicy.backBytes.toString());
-
-    await native.setProperty('demuxer-readahead-secs', LiveBufferPolicy.readaheadSeconds.toString());
 
     await native.setProperty('network-timeout', '15');
 
@@ -251,7 +247,7 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       return;
     }
 
-    await native.setProperty('hwdec', 'no');
+    await native.setProperty('hwdec', settings.videoHardwareDecoder.v);
   }
 
   static Future<void> _configureLinuxCustomOutput(NativePlayer native) async {
@@ -470,7 +466,7 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       _stateSubject.add(PlayerState.initializing);
 
       MediaKit.ensureInitialized();
-
+      _cachePolicy = PlaybackCachePolicy(isLocalPlayback: () => false, currentPlayer: () => _player);
       final settings = SettingsService.to.player;
 
       _player = Player(configuration: const PlayerConfiguration(osc: false));
@@ -479,7 +475,8 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
         final native = _player.platform as NativePlayer;
 
         await applyNativeLiveProperties(native);
-
+        _cachePolicy.startWatching();
+        await _cachePolicy.apply();
         if (settings.customPlayerOutput.v) {
           if (PlatformUtils.isAndroid) {
             if (!settings.playerCompatMode.v) {
@@ -1017,19 +1014,11 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
   }
 
   Future<void> setPrefetchSuspended(bool suspended) async {
-    if (!PlatformUtils.isAndroid || _disposed) {
+    if (_disposed) {
       return;
     }
 
-    if (_player.platform is! NativePlayer) {
-      return;
-    }
-
-    final native = _player.platform as NativePlayer;
-
-    await native.setProperty('cache-secs', suspended ? '0' : '36000');
-
-    await native.setProperty('demuxer-readahead-secs', suspended ? '0' : LiveBufferPolicy.readaheadSeconds.toString());
+    _cachePolicy.setPrefetchSuspended(suspended);
   }
 
   @override

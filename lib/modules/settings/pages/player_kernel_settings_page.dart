@@ -53,11 +53,23 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
             subtitle: i18n('gpu_decode'),
             value: settings.player.enableCodec,
           ),
+        ]),
+        const SizedBox(height: 10),
+        context.buildGroupTitle(i18n('player_lifecycle_settings')),
+        context.buildModernCard([
           context.buildSwitchTile(
             icon: Remix.shut_down_line,
             title: i18n('force_destroy_player'),
             subtitle: i18n('force_destroy_player_subtitle'),
             value: settings.player.useHardStopOnExit,
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 8, 12, 12),
+            child: Text(
+              i18n('player_dispose_notice_desc'),
+              style: AppTextStyles.t12.copyWith(color: Theme.of(context).hintColor),
+            ),
           ),
         ]),
       ],
@@ -77,6 +89,7 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
         title: i18n('kernel_switch'),
         subtitle: i18n('kernel_switch_subtitle'),
         onTap: showVideoSetDialog,
+        enabled: PlatformUtils.isMobile,
         trailing: Text(
           i18n(i18nKey),
           style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.w600),
@@ -120,6 +133,7 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
         const SizedBox(height: 20),
         const Divider(),
         const SizedBox(height: 4),
+
         _buildAdvancedSection(context),
         _buildOutputSection(context),
         _buildVideoSection(context),
@@ -137,7 +151,8 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle(context, icon: Remix.settings_4_line, title: i18n('output_settings')),
+          const SizedBox(height: 10),
+          context.buildGroupTitle(i18n('output_settings')),
           context.buildModernCard([
             context.buildSwitchTile(
               icon: Remix.settings_5_line,
@@ -182,11 +197,12 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle(context, icon: Remix.movie_2_line, title: i18n('video_settings')),
+          const SizedBox(height: 10),
+          context.buildGroupTitle(i18n('video_settings')),
           context.buildModernCard([
             _buildSuperResolutionTile(context, enabled: superResolutionEnabled, rtxVsr: rtxVsr),
             _buildHardwareDecoderTile(context, enabled: videoSettingsEnabled),
-            if (PlatformUtils.isAndroid) _buildRendererTile(context, enabled: videoSettingsEnabled),
+            _buildRendererTile(context, enabled: videoSettingsEnabled),
           ]),
         ],
       );
@@ -253,7 +269,8 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle(context, icon: Remix.volume_up_line, title: i18n('audio_settings')),
+          const SizedBox(height: 10),
+          context.buildGroupTitle(i18n('audio_settings')),
           context.buildModernCard([
             if (PlatformUtils.isAndroid)
               context.buildSwitchTile(
@@ -284,7 +301,8 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle(context, icon: Remix.speed_up_line, title: i18n('performance_settings')),
+          const SizedBox(height: 10),
+          context.buildGroupTitle(i18n('performance_settings')),
           context.buildModernCard([
             context.buildSwitchTile(
               icon: Remix.database_2_line,
@@ -305,7 +323,7 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(context, icon: Remix.equalizer_line, title: i18n('mpv_advanced_settings')),
+        context.buildGroupTitle(i18n('mpv_advanced_settings')),
         context.buildModernCard([
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 12, 12),
@@ -370,21 +388,6 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, {required IconData icon, required String title}) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 18, 12, 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(title, style: AppTextStyles.t16Bold.copyWith(color: theme.colorScheme.primary)),
-        ],
-      ),
-    );
-  }
-
   String _getAudioOutputDriverName() {
     final key = settings.player.audioOutputDriver.v;
 
@@ -401,9 +404,9 @@ class PlayerKernelSettingsPage extends GetView<SettingsService> {
   String _getRendererName() {
     final key = settings.player.videoOutputDriver.v;
 
-    final item = PlayerConsts.androidVideoRenderersList.firstWhere(
+    final item = PlayerConsts.videoRenderersList.firstWhere(
       (item) => item['key'] == key,
-      orElse: () => PlayerConsts.androidVideoRenderersList.first,
+      orElse: () => PlayerConsts.videoRenderersList.first,
     );
 
     final isZh = Get.locale?.languageCode == 'zh';

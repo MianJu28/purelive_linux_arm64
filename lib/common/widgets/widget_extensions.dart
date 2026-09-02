@@ -166,7 +166,10 @@ extension AppLayoutFactory on BuildContext {
         secondary: icon != null
             ? Icon(icon, color: enabled ? (iconColor ?? theme.colorScheme.primary) : theme.disabledColor, size: 22)
             : null,
-        title: Text(title, style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600)),
+        title: Text(
+          title,
+          style: AppTextStyles.t15.copyWith(color: enabled ? null : theme.disabledColor, fontWeight: FontWeight.w600),
+        ),
         subtitle: subtitle != null && subtitle.isNotEmpty
             ? Padding(
                 padding: const EdgeInsets.only(top: 2),
@@ -412,6 +415,7 @@ extension AppLayoutFactory on BuildContext {
     required double max,
     required String displayValue,
     required ValueChanged<double> onChanged,
+    double? step,
   }) {
     final theme = Theme.of(context);
     return Padding(
@@ -457,6 +461,7 @@ extension AppLayoutFactory on BuildContext {
                     child: SfSlider(
                       min: min,
                       max: max,
+                      stepSize: step,
                       value: value,
                       activeColor: theme.colorScheme.primary,
                       inactiveColor: theme.colorScheme.primary.withValues(alpha: 0.15),
