@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pure_live/player/models/player_super_resolution.dart';
 import 'package:pure_live/common/services/settings/player_settings_controller.dart';
 
 void main() {
@@ -70,6 +71,40 @@ void main() {
       expect(config['portraitFullscreenPolicy'], 'followSource');
       expect(config['portraitDanmakuMode'], 'followGlobal');
       expect(config['portraitRoomOverrides'], <String, String>{'bilibili:1': 'portrait'});
+    });
+  });
+
+  group('super resolution default', () {
+    test('the shipped default storage value resolves to off', () {
+      // The default must never attach the Anime4K shader chain to mpv.
+      expect(SuperResolutionMode.fromStorageValue(1), SuperResolutionMode.off);
+    });
+
+    test('restoring a backup keeps the fill mode and super resolution apart', () {
+      // Regression: both preferences used to share the `videoFitIndex` storage
+      // key, so picking a fill mode silently enabled super resolution.
+      final config = PlayerSettingsController.extractConfig({
+        'player': <String, dynamic>{'videoFitIndex': 3},
+      });
+
+      expect(config['videoFitIndex'], 3);
+      expect(config['defaultSuperResolutionMode'], 1);
+      expect(
+        SuperResolutionMode.fromStorageValue(config['defaultSuperResolutionMode'] as int),
+        SuperResolutionMode.off,
+      );
+    });
+
+    test('an explicit super resolution preference survives the round trip', () {
+      final config = PlayerSettingsController.extractConfig({
+        'player': <String, dynamic>{'videoFitIndex': 0, 'defaultSuperResolutionMode': 2},
+      });
+
+      expect(config['videoFitIndex'], 0);
+      expect(
+        SuperResolutionMode.fromStorageValue(config['defaultSuperResolutionMode'] as int),
+        SuperResolutionMode.efficiency,
+      );
     });
   });
 }

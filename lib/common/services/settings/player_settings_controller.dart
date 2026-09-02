@@ -36,7 +36,12 @@ class PlayerSettingsController extends GetxController {
 
   final RxBool androidEnableOpenSLES = hiveBool('androidEnableOpenSLES', false);
 
-  final RxInt defaultSuperResolutionMode = hiveInt('videoFitIndex', 1);
+  // Must stay on its own storage key. It used to reuse `videoFitIndex`, so
+  // changing the picture fill mode silently rewrote the super-resolution
+  // preference: fill index 2 mapped to `efficiency` and 3 to `quality`, which
+  // silently attached the Anime4K shader chain to mpv and collapsed the frame
+  // rate on low-power GPUs.
+  final RxInt defaultSuperResolutionMode = hiveInt('defaultSuperResolutionMode', 1);
 
   final RxBool disableSuperResolutionWarning = hiveBool('disableSuperResolutionWarning', false);
 
