@@ -154,6 +154,14 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
   bool _disposed = false;
   bool _listenerBound = false;
 
+  bool _performanceDiagnosticsInstalled = false;
+
+  /// Last size successfully pushed to the native texture, used to skip
+  /// redundant channel round-trips when layout repeats the same constraints.
+  int _lastOutputWidth = 0;
+
+  int _lastOutputHeight = 0;
+
   String? _currentUrl;
   bool _isAudioOnly = false;
 
@@ -511,6 +519,8 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       // the video-params listener refines it once metadata arrives.
       await _syncNativeOutputSize();
 
+      await _installPerformanceDiagnostics();
+
       await _bindListeners();
 
       if (_superResolutionMode != SuperResolutionMode.off) {
@@ -661,8 +671,28 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       return;
     }
 
+    await _applyNativeOutputSize(physicalSize / pixelRatio, pixelRatio);
+  }
+
+  /// Pins the native output texture to [logicalViewport] * [pixelRatio].
+  ///
+  /// The window-level estimate overshoots whenever the room page reserves
+  /// space for side panels or the control bar, so [_scheduleViewportSizeSync]
+  /// refines it with the real video-area constraints once laid out. On
+  /// software GL rasterizers (common on arm64 desktops) every texture pixel
+  /// is rasterized on the CPU, and an oversized texture directly depresses
+  /// the video frame rate.
+  Future<void> _applyNativeOutputSize(Size logicalViewport, double pixelRatio) async {
+    if (_disposed || !PlatformUtils.isDesktop) {
+      return;
+    }
+
+    if (!pixelRatio.isFinite || pixelRatio <= 0) {
+      return;
+    }
+
     final size = calculateVideoOutputSize(
-      logicalViewport: physicalSize / pixelRatio,
+      logicalViewport: logicalViewport,
       devicePixelRatio: pixelRatio,
       sourceWidth: _widthSubject.value,
       sourceHeight: _heightSubject.value,
@@ -672,8 +702,24 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       return;
     }
 
+    final width = size.width.round();
+
+    final height = size.height.round();
+
+    // Layout passes repeat the same constraints many times; skip the channel
+    // round-trip when nothing changed.
+    if (width == _lastOutputWidth && height == _lastOutputHeight) {
+      return;
+    }
+
     try {
-      await _controller.setSize(width: size.width.round(), height: size.height.round());
+      await _controller.setSize(width: width, height: height);
+
+      _lastOutputWidth = width;
+
+      _lastOutputHeight = height;
+
+      Log.i('MediaKitAdapter: output texture pinned to ${width}x$height');
     } catch (error, stackTrace) {
       // A torn-down player during an in-flight resize must not surface as a
       // playback failure.
@@ -681,6 +727,87 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
       Log.d(stackTrace.toString());
     }
+  }
+
+  /// Refines the pinned texture with the actual video-area constraints.
+  ///
+  /// Side effects are deferred to the end of the frame; [calculateVideoOutputSize]
+  /// and the local last-size cache keep repeated layout passes cheap.
+  void _scheduleViewportSizeSync(BuildContext context, BoxConstraints constraints) {
+    if (_disposed || !PlatformUtils.isDesktop) {
+      return;
+    }
+
+    if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight || constraints.maxWidth <= 0 || constraints.maxHeight <= 0) {
+      return;
+    }
+
+    final double pixelRatio;
+
+    try {
+      pixelRatio = View.of(context).devicePixelRatio;
+    } catch (_) {
+      return;
+    }
+
+    final logical = Size(constraints.maxWidth, constraints.maxHeight);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) {
+        return;
+      }
+
+      unawaited(_applyNativeOutputSize(logical, pixelRatio));
+    });
+  }
+
+  /// Instruments mpv so a "low frame rate" report can be answered with data
+  /// instead of guesses:
+  ///
+  /// - `hwdec-current`: the decoder mpv is actually using. `no`/empty means
+  ///   the CPU is decoding, which on arm64 Linux is the dominant cause of low
+  ///   video frame rates; it is reported loudly on purpose.
+  /// - `container-fps`: the source frame rate, so "low" can be judged against
+  ///   what the stream actually carries.
+  ///
+  /// Both are change-driven `mpv_observe_property` registrations and stay
+  /// silent while values hold; observing never alters playback.
+  Future<void> _installPerformanceDiagnostics() async {
+    if (_disposed || _performanceDiagnosticsInstalled) {
+      return;
+    }
+
+    if (_player.platform is! NativePlayer) {
+      return;
+    }
+
+    final native = _player.platform as NativePlayer;
+
+    _performanceDiagnosticsInstalled = true;
+
+    Future<void> observe(String property, void Function(String value) onValue) async {
+      try {
+        await native.observeProperty(property, (value) async => onValue(value));
+      } catch (error) {
+        // Duplicate registration or a teardown race must never break playback.
+        _performanceDiagnosticsInstalled = false;
+
+        Log.d('MediaKitAdapter: observe $property failed: $error');
+      }
+    }
+
+    await observe('hwdec-current', (value) {
+      if (value.isEmpty || value == 'no') {
+        Log.w('MediaKitAdapter: SOFTWARE decoding in use (hwdec-current=$value) '
+            '- expect reduced frame rates on low-power CPUs');
+      } else {
+        Log.i('MediaKitAdapter: hardware decoding active (hwdec-current=$value)');
+      }
+    });
+
+    await observe('container-fps', (value) {
+      Log.i('MediaKitAdapter: source container fps=$value');
+    });
   }
 
   Future<void> _bindListeners() async {
@@ -864,13 +991,19 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
           ratio = width / height;
         }
 
-        return Video(
-          controller: _controller,
-          controls: NoVideoControls,
-          aspectRatio: ratio,
-          fit: fit,
-          pauseUponEnteringBackgroundMode: false,
-          resumeUponEnteringForegroundMode: false,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            _scheduleViewportSizeSync(context, constraints);
+
+            return Video(
+              controller: _controller,
+              controls: NoVideoControls,
+              aspectRatio: ratio,
+              fit: fit,
+              pauseUponEnteringBackgroundMode: false,
+              resumeUponEnteringForegroundMode: false,
+            );
+          },
         );
       },
     );
