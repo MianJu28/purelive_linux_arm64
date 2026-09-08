@@ -24,8 +24,8 @@ import 'package:media_kit/media_kit.dart';
   late final int decodedWidth;
   late final int decodedHeight;
   if (hasCorrectedPair) {
-    decodedWidth = correctedWidth!;
-    decodedHeight = correctedHeight!;
+    decodedWidth = correctedWidth;
+    decodedHeight = correctedHeight;
   } else {
     decodedWidth = rawWidth!;
     decodedHeight = rawHeight!;
