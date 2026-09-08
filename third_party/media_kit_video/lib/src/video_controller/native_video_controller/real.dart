@@ -28,7 +28,8 @@ import 'package:media_kit_video/src/video_controller/platform_video_controller.d
 /// {@endtemplate}
 class NativeVideoController extends PlatformVideoController {
   /// Whether [NativeVideoController] is supported on the current platform or not.
-  static bool get supported => Platform.isWindows || Platform.isLinux || Platform.isMacOS || Platform.isIOS;
+  static bool get supported =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS || Platform.isIOS;
 
   /// Fixed width of the video output.
   int? width;
@@ -75,36 +76,30 @@ class NativeVideoController extends PlatformVideoController {
 
         final int handle = await player.handle;
 
-        final int sourceWidth;
-        final int sourceHeight;
+        final int width;
+        final int height;
         if (event.rotate == 0 || event.rotate == 180) {
-          sourceWidth = event.dw ?? 0;
-          sourceHeight = event.dh ?? 0;
+          width = event.dw ?? 0;
+          height = event.dh ?? 0;
         } else {
           // width & height are swapped for 90 or 270 degrees rotation.
-          sourceWidth = event.dh ?? 0;
-          sourceHeight = event.dw ?? 0;
+          width = event.dh ?? 0;
+          height = event.dw ?? 0;
         }
 
-        if (videoParamsWidth == sourceWidth && videoParamsHeight == sourceHeight) {
+        if (videoParamsWidth == width && videoParamsHeight == height) {
           return;
         }
 
-        videoParamsWidth = sourceWidth;
-        videoParamsHeight = sourceHeight;
-
-        // Respect an application-provided viewport size. Previously every
-        // video-parameter event overwrote setSize(), recreating a source-sized
-        // BGRA texture even when the visible Windows viewport was much smaller.
-        final outputWidth = this.width ?? sourceWidth;
-        final outputHeight = this.height ?? sourceHeight;
+        videoParamsWidth = width;
+        videoParamsHeight = height;
 
         await _channel.invokeMethod(
           'VideoOutputManager.SetSize',
           {
             'handle': handle.toString(),
-            'width': outputWidth.toString(),
-            'height': outputHeight.toString(),
+            'width': width.toString(),
+            'height': height.toString(),
           },
         );
       }),
@@ -204,10 +199,9 @@ class NativeVideoController extends PlatformVideoController {
   Future<void> setSize({
     int? width,
     int? height,
-    bool force = false,
   }) async {
     final handle = await player.handle;
-    if (!force && this.width == width && this.height == height) {
+    if (this.width == width && this.height == height) {
       // No need to resize if the requested size is same as the current size.
       return;
     }
@@ -259,6 +253,8 @@ class NativeVideoController extends PlatformVideoController {
     ..setMethodCallHandler(
       (MethodCall call) async {
         try {
+          debugPrint(call.method.toString());
+          debugPrint(call.arguments.toString());
           switch (call.method) {
             case 'VideoOutput.Resize':
               {
@@ -279,15 +275,6 @@ class NativeVideoController extends PlatformVideoController {
                   if (!(completer?.isCompleted ?? true)) {
                     completer?.complete();
                   }
-                }
-                break;
-              }
-            case 'VideoOutput.Frame':
-              {
-                final int handle = call.arguments['handle'];
-                final controller = _controllers[handle];
-                if (controller != null) {
-                  controller.frameRevision.value++;
                 }
                 break;
               }

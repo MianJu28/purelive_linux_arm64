@@ -50,7 +50,11 @@ class FFmpegManager {
     Log.d('[FFmpegManager] CA file: $_caFilePath');
   }
 
-  Future<void> start({required String taskId, required List<String> arguments, bool liveRecording = false}) async {
+  Future<void> start({
+    required String taskId,
+    required List<String> arguments,
+    bool liveRecording = false,
+  }) async {
     await _ffmpeg.start(
       taskId: taskId,
       arguments: arguments,

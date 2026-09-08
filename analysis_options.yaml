@@ -1,6 +1,6 @@
 include: package:flutter_lints/flutter.yaml
 formatter:
-  page_width: 120
+  page_width: 100
 analyzer:
   exclude:
     - "**/*.g.dart"
@@ -8,6 +8,9 @@ analyzer:
     - "**/*_zh_CN.dart"
     - "**/*.js"
     - build/**
+    # Device captures, build records and one-off forensic helpers live here;
+    # they are evidence artifacts rather than application source.
+    - local-artifacts/**
     - android/**
     - ios/**
     - web/**
@@ -23,3 +26,7 @@ analyzer:
     - third_party/media_kit_video/**
 linter:
   rules:
+    prefer_single_quotes: true
+    always_declare_return_types: true
+    avoid_print: true
+    prefer_const_constructors: true

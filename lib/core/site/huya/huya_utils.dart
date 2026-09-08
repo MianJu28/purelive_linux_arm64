@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 
 import 'huya_request_params.dart';
 
@@ -18,12 +18,15 @@ int rotl64(int t) {
 // 这里会有一个复用，当taf-websocket监听到 type=2001314 重新拉起huya-sc-list
 // 为了符合各个平台接口数据统一直通前端的需求，从site.getSuperMessage 标记首次拉起全量返回
 // 从 danmaku.websocket拉起，则只返回最后一个，实现增量SC
-// 接口数据错误不在考虑范围内
+// WebSocket 通知可能早于留言板写入；调用方会执行有界补偿拉取。
 // lPid--s = a.lPresenterUid == topSid
-Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({required int lPid, bool first = false}) async {
+Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({
+  required int lPid,
+  bool first = false,
+}) async {
   final BaseTarsHttp messageBoardClient = BaseTarsHttp(
-    "http://wup.huya.com",
-    "wupui",
+    'http://wup.huya.com',
+    'wupui',
     headers: HuyaRequestParams.requestHeaders,
   );
   var userId = HuyaUserId()..sHuYaUA = HuyaRequestParams.hysdkUa;
@@ -32,7 +35,11 @@ Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({required int lPi
     ..tId = userId
     ..iMessageBoardScope = 0
     ..iPageSize = 50;
-  var rsp = await messageBoardClient.tupRequest("getHeadLineMessageBoard", req, GetGameEventMessageBoardRsp());
+  var rsp = await messageBoardClient.tupRequest(
+    'getHeadLineMessageBoard',
+    req,
+    GetGameEventMessageBoardRsp(),
+  );
   final now = DateTime.now();
   final List<LiveSuperChatMessage> messages = [];
   for (final item in rsp.tMessageBoardPanel.vGameEventMessageBoardInfo) {
@@ -57,8 +64,9 @@ Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({required int lPi
     final startTime = endTime.subtract(Duration(seconds: totalSeconds));
 
     final message = LiveSuperChatMessage(
-      backgroundBottomColor: "#246488",
-      backgroundColor: "#ffffff",
+      messageId: item.lMessageId > 0 ? 'huya:${item.lMessageId}' : '',
+      backgroundBottomColor: '#246488',
+      backgroundColor: '#ffffff',
       endTime: endTime,
       face: item.tMessageUser.sAvatar,
       message: content,

@@ -1,23 +1,23 @@
 {
-  "version": "3.0.9",
-  "build_number": 4097,
-  "version_num": 300094097,
+  "version": "3.1.2",
+  "build_number": 4100,
+  "version_num": 301024100,
   "android_abis": [
     "armeabi-v7a",
     "arm64-v8a",
     "x86_64"
   ],
-  "version_desc": "version: 3.0.9\n版本更新：\n- 优化MPV播放器支持超高清观看。\n- 添加设备同步。\n- 修复弹幕速度不同步。\n",
+  "version_desc": "version: 3.1.2\n版本更新：\n- 修复ijk播放器黑屏。\n- 添加多画面静音。\n- 其他bug。\n\n",
   "prerelease": false,
-  "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.0.9",
+  "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.1.2",
   "platforms": {
     "android": {
-      "version": "3.0.9",
-      "build_number": 4097,
-      "version_num": 300094097,
-      "version_desc": "version: 3.0.9\n版本更新：\n- 优化MPV播放器支持超高清观看。\n- 添加设备同步。\n- 修复弹幕速度不同步。\n",
+      "version": "3.1.2",
+      "build_number": 4100,
+      "version_num": 301024100,
+      "version_desc": "version: 3.1.2\n版本更新：\n- 修复ijk播放器黑屏。\n- 添加多画面静音。\n- 其他bug。\n\n",
       "prerelease": false,
-      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.0.9",
+      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.1.2",
       "android_abis": [
         "armeabi-v7a",
         "arm64-v8a",
@@ -25,37 +25,37 @@
       ]
     },
     "windows": {
-      "version": "3.0.9",
-      "build_number": 4097,
-      "version_num": 300094097,
-      "version_desc": "version: 3.0.9\n版本更新：\n- 优化MPV播放器支持超高清观看。\n- 添加设备同步。\n- 修复弹幕速度不同步。\n",
+      "version": "3.1.2",
+      "build_number": 4100,
+      "version_num": 301024100,
+      "version_desc": "version: 3.1.2\n版本更新：\n- 修复ijk播放器黑屏。\n- 添加多画面静音。\n- 其他bug。\n\n",
       "prerelease": false,
-      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.0.9",
+      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.1.2",
       "windows_msix_available": true
     },
     "linux": {
-      "version": "3.0.9",
-      "build_number": 4097,
-      "version_num": 300094097,
-      "version_desc": "version: 3.0.9\n版本更新：\n- 优化MPV播放器支持超高清观看。\n- 添加设备同步。\n- 修复弹幕速度不同步。\n",
+      "version": "3.1.2",
+      "build_number": 4100,
+      "version_num": 301024100,
+      "version_desc": "version: 3.1.2\n版本更新：\n- 修复ijk播放器黑屏。\n- 添加多画面静音。\n- 其他bug。\n\n",
       "prerelease": false,
-      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.0.9"
+      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.1.2"
     },
     "macos": {
-      "version": "3.0.9",
-      "build_number": 4097,
-      "version_num": 300094097,
-      "version_desc": "version: 3.0.9\n版本更新：\n- 优化MPV播放器支持超高清观看。\n- 添加设备同步。\n- 修复弹幕速度不同步。\n",
+      "version": "3.1.2",
+      "build_number": 4100,
+      "version_num": 301024100,
+      "version_desc": "version: 3.1.2\n版本更新：\n- 修复ijk播放器黑屏。\n- 添加多画面静音。\n- 其他bug。\n\n",
       "prerelease": false,
-      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.0.9"
+      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.1.2"
     },
     "ios": {
-      "version": "3.0.9",
-      "build_number": 4097,
-      "version_num": 300094097,
-      "version_desc": "version: 3.0.9\n版本更新：\n- 优化MPV播放器支持超高清观看。\n- 添加设备同步。\n- 修复弹幕速度不同步。\n",
+      "version": "3.1.2",
+      "build_number": 4100,
+      "version_num": 301024100,
+      "version_desc": "version: 3.1.2\n版本更新：\n- 修复ijk播放器黑屏。\n- 添加多画面静音。\n- 其他bug。\n\n",
       "prerelease": false,
-      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.0.9"
+      "download_url": "https://github.com/liuchuancong/pure_live/releases/tag/v3.1.2"
     }
   }
 }

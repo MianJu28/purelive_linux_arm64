@@ -21,7 +21,10 @@ void main() {
         // Deliberately reverse insertion order. Positional pairing used to
         // attach these URLs to the opposite quality.
         'flv_pull_url': {'SD2': 'https://cdn.test/sd2.flv', 'HD1': 'https://cdn.test/hd1.flv'},
-        'hls_pull_url_map': {'HD1': 'https://cdn.test/hd1.m3u8', 'SD2': 'https://cdn.test/sd2.m3u8'},
+        'hls_pull_url_map': {
+          'HD1': 'https://cdn.test/hd1.m3u8',
+          'SD2': 'https://cdn.test/sd2.m3u8',
+        },
       });
 
       expect(qualities.map((quality) => quality.quality), ['高清', '流畅']);
@@ -137,8 +140,49 @@ void main() {
       });
 
       expect(qualities.map((quality) => quality.quality), ['原画', '蓝光', '超清', '高清', '标清', '流畅']);
-      expect(qualities.map((quality) => quality.selectionId), ['origin', 'full_hd1', 'hd1', 'sd2', 'sd1', 'md']);
+      expect(qualities.map((quality) => quality.selectionId), [
+        'origin',
+        'full_hd1',
+        'hd1',
+        'sd2',
+        'sd1',
+        'md',
+      ]);
       expect(qualities.last.sort, 1000000);
+    });
+
+    test('does not expose Douyin audio-only renditions as video quality choices', () {
+      final streamData = jsonEncode({
+        'data': {
+          'origin': {
+            'main': {'flv': 'https://cdn.test/source.flv?expire=1'},
+          },
+          'ao': {
+            'main': {'flv': 'https://cdn.test/source.flv?expire=1&only_audio=1'},
+          },
+          'future_audio': {
+            'main': {'flv': 'https://cdn.test/future.flv?only_audio=true'},
+          },
+        },
+      });
+
+      final qualities = DouyinSite.parseStreamQualities({
+        'live_core_sdk_data': {
+          'pull_data': {
+            'stream_data': streamData,
+            'options': {
+              'qualities': [
+                {'name': '原画', 'sdk_key': 'origin'},
+                {'name': 'ao', 'sdk_key': 'ao'},
+                {'name': 'audio', 'sdk_key': 'future_audio'},
+              ],
+            },
+          },
+        },
+      });
+
+      expect(qualities.map((quality) => quality.selectionId), ['origin']);
+      expect(qualities.single.quality, '原画');
     });
   });
 }

@@ -25,9 +25,7 @@ import 'package:pure_live/player/interface/media_kit_player_accessor.dart';
 
 @visibleForTesting
 ({int width, int height})? resolveMediaKitDisplaySize(VideoParams params) {
-  final size = resolveVideoParamsDisplaySize(params);
-
-  return size == null ? null : (width: size.width, height: size.height);
+  return resolveVideoParamsDisplaySize(params);
 }
 
 /// The host platform as seen by the mpv output configuration.
@@ -191,9 +189,9 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
   StreamSubscription? _playingSub;
   StreamSubscription? _bufferingSub;
-  StreamSubscription? _videoParamsSub;
   StreamSubscription? _completeSub;
   StreamSubscription? _errorSub;
+  StreamSubscription? _videoParamsSub;
 
   static Future<void> applyNativeLiveProperties(NativePlayer native) async {
     await native.setProperty('force-seekable', 'yes');
@@ -202,7 +200,7 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       'protocol_whitelist',
       'httpproxy,udp,rtp,tcp,tls,data,file,http,https,crypto,rtmp,rtmps,rtsp,srt',
     );
-    await native.setProperty("demuxer-cache-dir", await FileUtils().getTempPath());
+    await native.setProperty('demuxer-cache-dir', await FileUtils().getTempPath());
 
     await native.setProperty('demuxer-lavf-probesize', '2097152');
 
@@ -241,8 +239,12 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     if (PlatformUtils.isAndroid && settings.playerCompatMode.v) {
       return;
     }
-
-    await native.setProperty('ao', settings.androidEnableOpenSLES.v ? 'opensles' : 'audiotrack');
+    if (settings.audioOutputDriver.v != 'auto') {
+      await native.setProperty(
+        'ao',
+        settings.androidEnableOpenSLES.v ? 'opensles' : settings.audioOutputDriver.v,
+      );
+    }
 
     await native.setProperty('volume-max', '100');
 
@@ -259,6 +261,9 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     if (settings.enableRtxVsr.v) {
       await native.setProperty('vf', 'd3d11vpp=scale=2:scaling-mode=nvidia');
     }
+    if (settings.audioOutputDriver.v != 'auto') {
+      await native.setProperty('ao', settings.audioOutputDriver.v);
+    }
   }
 
   static Future<void> _configureMacOSCustomOutput(NativePlayer native) async {
@@ -267,8 +272,20 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     if (!settings.customPlayerOutput.v) {
       return;
     }
+    if (settings.audioOutputDriver.v != 'auto') {
+      await native.setProperty('ao', settings.audioOutputDriver.v);
+    }
+  }
 
-    await native.setProperty('hwdec', settings.videoHardwareDecoder.v);
+  static Future<void> _configureIOSCustomOutput(NativePlayer native) async {
+    final settings = SettingsService.to.player;
+
+    if (!settings.customPlayerOutput.v) {
+      return;
+    }
+    if (settings.audioOutputDriver.v != 'auto') {
+      await native.setProperty('ao', settings.audioOutputDriver.v);
+    }
   }
 
   static Future<void> _configureLinuxCustomOutput(NativePlayer native) async {
@@ -278,12 +295,9 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       return;
     }
 
-    await native.setProperty('ao', 'alsa');
-
-    await native.setProperty(
-      'hwdec',
-      settings.videoHardwareDecoder.v.isEmpty ? 'auto' : settings.videoHardwareDecoder.v,
-    );
+    if (settings.audioOutputDriver.v != 'auto') {
+      await native.setProperty('ao', settings.audioOutputDriver.v);
+    }
   }
 
   SuperResolutionMode _resolveInitialSuperResolutionMode() {
@@ -485,9 +499,10 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
     try {
       _stateSubject.add(PlayerState.initializing);
-
-      MediaKit.ensureInitialized();
-      _cachePolicy = PlaybackCachePolicy(isLocalPlayback: () => false, currentPlayer: () => _player);
+      _cachePolicy = PlaybackCachePolicy(
+        isLocalPlayback: () => false,
+        currentPlayer: () => _player,
+      );
       final settings = SettingsService.to.player;
 
       _player = Player(configuration: const PlayerConfiguration(osc: false));
@@ -507,6 +522,8 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
             await _configureWindowsCustomOutput(native);
           } else if (PlatformUtils.isMacOS) {
             await _configureMacOSCustomOutput(native);
+          } else if (PlatformUtils.isIOS) {
+            await _configureIOSCustomOutput(native);
           } else if (PlatformUtils.isLinux) {
             await _configureLinuxCustomOutput(native);
           }
@@ -939,7 +956,13 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       },
     );
 
-    _subscriptions.addAll([_playingSub!, _bufferingSub!, _videoParamsSub!, _completeSub!, _errorSub!]);
+    _subscriptions.addAll([
+      _playingSub!,
+      _bufferingSub!,
+      _completeSub!,
+      _errorSub!,
+      _videoParamsSub!,
+    ]);
   }
 
   Future<void> _cancelAllSubscriptions() async {
@@ -951,9 +974,9 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
     _playingSub = null;
     _bufferingSub = null;
-    _videoParamsSub = null;
     _completeSub = null;
     _errorSub = null;
+    _videoParamsSub = null;
   }
 
   void _emitError(Object error, StackTrace stackTrace, PlayerErrorType type) {
@@ -961,7 +984,9 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
       return;
     }
 
-    _safeAddError(PlayerException(message: error.toString(), type: type, error: error, stackTrace: stackTrace));
+    _safeAddError(
+      PlayerException(message: error.toString(), type: type, error: error, stackTrace: stackTrace),
+    );
 
     _stateSubject.add(PlayerState.error);
   }
@@ -1086,7 +1111,7 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     try {
       if (PlatformUtils.isAndroid) {
         if (audioOnly) {
-          await _controller.setVideoOutputEnabled(false);
+          await _player.setVideoTrack(VideoTrack.no());
         } else {
           await _restoreAndroidVideoOutput();
         }
@@ -1123,7 +1148,7 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     try {
       armed = true;
 
-      await _controller.setVideoOutputEnabled(true);
+      await _player.setVideoTrack(VideoTrack.auto());
 
       var observedFreshFrame = true;
 

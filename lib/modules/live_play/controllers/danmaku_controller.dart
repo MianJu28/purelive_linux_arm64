@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/core/common/core_log.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
@@ -7,7 +8,6 @@ import 'package:pure_live/modules/live_play/controllers/danmaku_message_gate.dar
 import 'package:pure_live/modules/live_play/controllers/danmaku_session_host.dart';
 import 'package:pure_live/modules/live_play/controllers/repeated_danmaku_filter.dart';
 import 'package:pure_live/modules/live_play/controllers/danmaku_similarity_filter.dart';
-
 
 /// Owns exactly one room-bound danmaku session.
 ///
@@ -60,7 +60,10 @@ class DanmakuController extends GetxController {
       settings.danmaku.enableDanmakuDisplay,
       settings.danmaku.enablePipDanmaku,
     ], (_) => unawaited(_syncConnectionForSettings()));
-    _filterWorker = everAll([settings.fav.blockedDanmakuUsers, settings.fav.shieldList], (_) => _refreshFilters());
+    _filterWorker = everAll([
+      settings.fav.blockedDanmakuUsers,
+      settings.fav.shieldList,
+    ], (_) => _refreshFilters());
     final dm = settings.danmaku;
     _similarityFilterWorker = everAll([
       dm.enableDanmakuSimilarityFilter,
@@ -232,7 +235,9 @@ class DanmakuController extends GetxController {
   }
 
   bool _acceptsCallback(LiveDanmaku engine, String key, int token) {
-    return token == _sessionToken && identical(_liveDanmaku, engine) && (_sessionKey == key || _connectingKey == key);
+    return token == _sessionToken &&
+        identical(_liveDanmaku, engine) &&
+        (_sessionKey == key || _connectingKey == key);
   }
 
   bool _isBlocked(LiveMessage message) {
@@ -309,10 +314,11 @@ class DanmakuController extends GetxController {
     if (!_initialized) return;
     final room = _state.room.detail;
     if (room == null) return;
-    const except = [Sites.kuaishouSite, Sites.iptvSite, Sites.ccSite];
+    const except = [Sites.iptvSite, Sites.ccSite];
     final settings = SettingsService.to.danmaku;
     try {
-      if (except.contains(room.platform) || (!settings.enableDanmakuDisplay.v && !settings.enablePipDanmaku.v)) {
+      if (except.contains(room.platform) ||
+          (!settings.enableDanmakuDisplay.v && !settings.enablePipDanmaku.v)) {
         await stopDanmaku();
       } else {
         await connectRoom(room);
@@ -337,9 +343,10 @@ class DanmakuController extends GetxController {
   bool _isRecoveryAllowed(LiveRoom room) {
     final override = recoveryAllowed;
     if (override != null) return override(room);
-    const except = [Sites.kuaishouSite, Sites.iptvSite, Sites.ccSite];
+    const except = [Sites.iptvSite, Sites.ccSite];
     final settings = SettingsService.to.danmaku;
-    return !except.contains(room.platform) && (settings.enableDanmakuDisplay.v || settings.enablePipDanmaku.v);
+    return !except.contains(room.platform) &&
+        (settings.enableDanmakuDisplay.v || settings.enablePipDanmaku.v);
   }
 
   String _roomKey(LiveRoom room) => '${room.platform ?? ''}:${room.roomId ?? ''}';

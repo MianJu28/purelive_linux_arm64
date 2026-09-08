@@ -1,15 +1,16 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter/services.dart';
 import 'package:pure_live/common/index.dart';
+import 'package:pure_live/core/common/log.dart';
 import 'package:pure_live/common/models/font_model.dart';
+import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/plugins/font_download_manager.dart';
 import 'package:pure_live/common/global/app_path_manager.dart';
-import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/common/services/medels/download_status.dart';
 import 'package:pure_live/common/services/settings/danmaku_settings_controller.dart';
+
 
 class FontSettingsController extends GetxController {
   Future<void>? _initialization;
@@ -77,32 +78,83 @@ class FontSettingsController extends GetxController {
     if (fontList.isEmpty) {
       return;
     }
-    curFontModel.value = fontList.firstWhere((e) => e.id == id, orElse: () => fontList.first);
-    if (id == 'Default') {
+    if (id == 'Microsoft YaHei') {
+      curFontModel.value = fontList.firstWhere(
+        (e) => e.id == 'Default',
+        orElse: () => fontList.first,
+      );
       fontState.value = DownloadState.notDownloaded;
     } else {
-      final downloaded = await FontDownloadManager.instance.checkFontDownloaded(id);
-      fontState.value = downloaded ? DownloadState.downloaded : DownloadState.notDownloaded;
-      if (downloaded) {
-        var loaded = await FontDownloadManager.instance.loadFont(id, fileName: fontFamilyFileName.v);
-        if (!loaded && fontFamilyFileName.v.isNotEmpty) {
-          loaded = await FontDownloadManager.instance.loadFont(id);
-          if (loaded) {
+      curFontModel.value = fontList.firstWhere((e) => e.id == id, orElse: () => fontList.first);
+
+      if (id == 'Default') {
+        fontState.value = DownloadState.notDownloaded;
+      } else {
+        final downloaded = await FontDownloadManager.instance.checkFontDownloaded(id);
+        fontState.value = downloaded ? DownloadState.downloaded : DownloadState.notDownloaded;
+
+        if (downloaded) {
+          var loaded = await FontDownloadManager.instance.loadFont(
+            id,
+            fileName: fontFamilyFileName.v,
+          );
+          if (!loaded && fontFamilyFileName.v.isNotEmpty) {
+            loaded = await FontDownloadManager.instance.loadFont(id);
+            if (loaded) {
+              fontFamilyFileName.v = '';
+              await HivePrefUtil.setString('fontFamilyFileName', '');
+            }
+          }
+          if (!loaded) {
+            fontState.value = DownloadState.notDownloaded;
+            fontFamilyName.v = Platform.isWindows ? 'Microsoft YaHei' : 'Default';
+            await HivePrefUtil.setString('fontFamilyName', fontFamilyName.v);
             fontFamilyFileName.v = '';
             await HivePrefUtil.setString('fontFamilyFileName', '');
+            if (fontFamilyName.v == 'Microsoft YaHei') {
+              curFontModel.value = fontList.firstWhere(
+                (e) => e.id == 'Default',
+                orElse: () => fontList.first,
+              );
+            } else {
+              curFontModel.value = fontList.firstWhere(
+                (e) => e.id == fontFamilyName.v,
+                orElse: () => fontList.first,
+              );
+            }
+          }
+        } else {
+          fontState.value = DownloadState.notDownloaded;
+          fontFamilyName.v = Platform.isWindows ? 'Microsoft YaHei' : 'Default';
+          await HivePrefUtil.setString('fontFamilyName', fontFamilyName.v);
+          fontFamilyFileName.v = '';
+          await HivePrefUtil.setString('fontFamilyFileName', '');
+          if (fontFamilyName.v == 'Microsoft YaHei') {
+            curFontModel.value = fontList.firstWhere(
+              (e) => e.id == 'Default',
+              orElse: () => fontList.first,
+            );
+          } else {
+            curFontModel.value = fontList.firstWhere(
+              (e) => e.id == fontFamilyName.v,
+              orElse: () => fontList.first,
+            );
           }
         }
-        if (!loaded) fontState.value = DownloadState.notDownloaded;
       }
     }
 
-    // The danmaku font is an independent selection. Register it as well so a
-    // persisted custom choice remains effective after a cold restart.
-    final danmakuId = Get.find<DanmakuSettingsController>().danmakuFontFamilyName.v;
-    if (danmakuId != 'Default' && danmakuId != id) {
+    // 处理弹幕字体
+    final danmakuController = Get.find<DanmakuSettingsController>();
+    final danmakuId = danmakuController.danmakuFontFamilyName.v;
+
+    if (danmakuId != 'Default' && danmakuId != id && danmakuId != 'Microsoft YaHei') {
       final danmakuDownloaded = await FontDownloadManager.instance.checkFontDownloaded(danmakuId);
       if (danmakuDownloaded) {
-        var loaded = await FontDownloadManager.instance.loadFont(danmakuId, fileName: danmakuFontFamilyFileName.v);
+        var loaded = await FontDownloadManager.instance.loadFont(
+          danmakuId,
+          fileName: danmakuFontFamilyFileName.v,
+        );
         if (!loaded && danmakuFontFamilyFileName.v.isNotEmpty) {
           loaded = await FontDownloadManager.instance.loadFont(danmakuId);
           if (loaded) {
@@ -110,12 +162,26 @@ class FontSettingsController extends GetxController {
             await HivePrefUtil.setString('danmakuFontFamilyFileName', '');
           }
         }
+        if (!loaded) {
+          danmakuController.danmakuFontFamilyName.v = 'Default';
+          await HivePrefUtil.setString('danmakuFontFamilyName', 'Default');
+          danmakuFontFamilyFileName.v = '';
+          await HivePrefUtil.setString('danmakuFontFamilyFileName', '');
+        }
+      } else {
+        danmakuController.danmakuFontFamilyName.v = 'Default';
+        await HivePrefUtil.setString('danmakuFontFamilyName', 'Default');
+        danmakuFontFamilyFileName.v = '';
+        await HivePrefUtil.setString('danmakuFontFamilyFileName', '');
       }
     }
   }
 
   Future<void> activateFontFamily(FontModel fontModel, {String? targetFileName}) async {
-    final loaded = await FontDownloadManager.instance.loadFont(fontModel.id, fileName: targetFileName ?? '');
+    final loaded = await FontDownloadManager.instance.loadFont(
+      fontModel.id,
+      fileName: targetFileName ?? '',
+    );
     if (!loaded) {
       ToastUtil.show(i18n('font_not_downloaded_or_corrupted'));
       return;
@@ -130,14 +196,19 @@ class FontSettingsController extends GetxController {
     Get.updateLocale(Get.locale ?? const Locale('zh', 'CN'));
     if (targetFileName != null) {
       final subName = targetFileName.split('-').last;
-      ToastUtil.show(i18n('font_toast_exclusive', args: {"name": fontModel.name, "subName": subName}));
+      ToastUtil.show(
+        i18n('font_toast_exclusive', args: {'name': fontModel.name, 'subName': subName}),
+      );
     } else {
-      ToastUtil.show(i18n('font_toast_global', args: {"name": fontModel.name}));
+      ToastUtil.show(i18n('font_toast_global', args: {'name': fontModel.name}));
     }
   }
 
   Future<void> activateDanmakuFontFamily(FontModel font, {String? targetFileName}) async {
-    final loaded = await FontDownloadManager.instance.loadFont(font.id, fileName: targetFileName ?? '');
+    final loaded = await FontDownloadManager.instance.loadFont(
+      font.id,
+      fileName: targetFileName ?? '',
+    );
     if (!loaded) {
       ToastUtil.show(i18n('font_not_downloaded_or_corrupted'));
       return;
@@ -152,7 +223,9 @@ class FontSettingsController extends GetxController {
     final inFlight = _fontDiskSizeRefresh;
     if (inFlight != null) return inFlight;
     final lastRefresh = _lastFontDiskSizeRefresh;
-    if (!force && lastRefresh != null && DateTime.now().difference(lastRefresh) < const Duration(seconds: 30)) {
+    if (!force &&
+        lastRefresh != null &&
+        DateTime.now().difference(lastRefresh) < const Duration(seconds: 30)) {
       return Future.value();
     }
     final refresh = _refreshFontDiskSizes();
@@ -164,7 +237,9 @@ class FontSettingsController extends GetxController {
 
   Future<void> _refreshFontDiskSizes() async {
     final dir = await AppPathManager().getDir(AppPathManager.dirDownload);
-    final fontDir = Directory('${dir.path}${Platform.pathSeparator}${AppPathManager.fontDirectoryName}');
+    final fontDir = Directory(
+      '${dir.path}${Platform.pathSeparator}${AppPathManager.fontDirectoryName}',
+    );
     if (!await fontDir.exists()) {
       fontFolderSizes.clear();
       _lastFontDiskSizeRefresh = DateTime.now();
@@ -187,7 +262,7 @@ class FontSettingsController extends GetxController {
   Future<void> uninstallFontFamily(FontModel font) async {
     await FontDownloadManager.instance.deleteFontFamily(font, (s) {});
     if (fontFamilyName.v == font.id) {
-      fontFamilyName.v = Platform.isWindows ? "Microsoft YaHei" : 'Default';
+      fontFamilyName.v = Platform.isWindows ? 'Microsoft YaHei' : 'Default';
       fontFamilyFileName.v = '';
       await HivePrefUtil.setString('fontFamilyName', fontFamilyName.v);
       await HivePrefUtil.setString('fontFamilyFileName', '');
@@ -204,8 +279,14 @@ class FontSettingsController extends GetxController {
   }
 
   void refreshSystemTheme() {
-    final theme = MyTheme(primaryColor: Get.theme.primaryColor);
-    Get.changeTheme(Get.isDarkMode ? theme.darkThemeData : theme.lightThemeData);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final theme = MyTheme(primaryColor: Get.theme.primaryColor);
+        Get.changeTheme(Get.isDarkMode ? theme.darkThemeData : theme.lightThemeData);
+      } catch (e) {
+        Log.i('refreshSystemTheme failed: $e');
+      }
+    });
   }
 
   Map<String, dynamic> toJson() {
@@ -249,7 +330,10 @@ class FontSettingsController extends GetxController {
     };
   }
 
-  static Map<String, dynamic> mergeConfig(Map<String, dynamic> rootConfig, Map<String, dynamic> updateFields) {
+  static Map<String, dynamic> mergeConfig(
+    Map<String, dynamic> rootConfig,
+    Map<String, dynamic> updateFields,
+  ) {
     final font = Map<String, dynamic>.from(rootConfig['font'] ?? {});
     updateFields.forEach((k, v) => font[k] = v);
     rootConfig['font'] = font;

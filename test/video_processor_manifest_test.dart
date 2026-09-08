@@ -4,6 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/recorder/services/video_processor_service.dart';
 
 void main() {
+  test('merge timeout scales beyond the old five-second failure window', () {
+    expect(
+      VideoProcessorService.mergeTimeout(inputBytes: 1024, recordedSeconds: 1),
+      const Duration(seconds: 30),
+    );
+    expect(
+      VideoProcessorService.mergeTimeout(inputBytes: 2 * 1024 * 1024 * 1024, recordedSeconds: 3600),
+      greaterThan(const Duration(minutes: 3)),
+    );
+  });
+
   test('concat manifest is explicit and safely escapes portable paths', () {
     final manifest = VideoProcessorService.buildConcatManifest(<String>[
       r'C:\Pure Live\001.ts',
@@ -28,9 +39,16 @@ void main() {
       ).map((file) => file.path),
       [r'C:\records\20260827_080001_002_000000.ts'],
     );
-    expect(VideoProcessorService.selectAttemptSegments(candidates: files, filePrefix: 'missing'), isEmpty);
     expect(
-      VideoProcessorService.selectAttemptSegments(candidates: files, filePrefix: 'legacy', allowLegacySegments: true),
+      VideoProcessorService.selectAttemptSegments(candidates: files, filePrefix: 'missing'),
+      isEmpty,
+    );
+    expect(
+      VideoProcessorService.selectAttemptSegments(
+        candidates: files,
+        filePrefix: 'legacy',
+        allowLegacySegments: true,
+      ),
       files,
     );
   });

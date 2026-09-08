@@ -1,15 +1,15 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:convert';
 
-import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:remixicon/remixicon.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:pure_live/common/services/settings/font_settings_controller.dart';
+import 'package:remixicon/remixicon.dart';
+import 'package:pure_live/common/index.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pure_live/core/interface/live_site.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:pure_live/common/index.dart';
-import 'package:pure_live/core/interface/live_site.dart';
+import 'package:pure_live/common/services/settings/font_settings_controller.dart';
 import 'package:pure_live/modules/multiview/multiview_room_search_controller.dart';
 import 'package:pure_live/modules/multiview/widgets/multiview_room_search_panel.dart';
 
@@ -40,7 +40,8 @@ class _FakeLiveSite extends LiveSite {
   }
 }
 
-Site _site(String id, _FakeLiveSite liveSite) => Site(id: id, name: id, logo: '', liveSite: liveSite);
+Site _site(String id, _FakeLiveSite liveSite) =>
+    Site(id: id, name: id, logo: '', liveSite: liveSite);
 
 int _byNick(LiveRoom left, LiveRoom right) => (left.nick ?? '').compareTo(right.nick ?? '');
 
@@ -164,7 +165,10 @@ void main() {
       audienceCompare: _byNick,
     );
 
-    await _pumpPanel(tester, MultiviewRoomSearchPanel(cellIndex: 2, onPicked: picked.add, search: controller));
+    await _pumpPanel(
+      tester,
+      MultiviewRoomSearchPanel(cellIndex: 2, onPicked: picked.add, search: controller),
+    );
 
     await tester.enterText(find.byType(TextField).first, 'anchor');
     await tester.tap(find.text('搜索'));
@@ -191,7 +195,10 @@ void main() {
       audienceCompare: _byNick,
     );
 
-    await _pumpPanel(tester, MultiviewRoomSearchPanel(cellIndex: 0, onPicked: (_) {}, search: controller));
+    await _pumpPanel(
+      tester,
+      MultiviewRoomSearchPanel(cellIndex: 0, onPicked: (_) {}, search: controller),
+    );
     await tester.enterText(find.byType(TextField).first, 'x');
     await tester.tap(find.text('搜索'));
     await _settle(tester);
@@ -204,12 +211,18 @@ void main() {
     final controller = MultiviewRoomSearchController(
       sites: <Site>[
         _site(Sites.huyaSite, _FakeLiveSite(fail: true)),
-        _site(Sites.douyuSite, _FakeLiveSite(rooms: <LiveRoom>[room(Sites.douyuSite, '42', 'still-shown')])),
+        _site(
+          Sites.douyuSite,
+          _FakeLiveSite(rooms: <LiveRoom>[room(Sites.douyuSite, '42', 'still-shown')]),
+        ),
       ],
       audienceCompare: _byNick,
     );
 
-    await _pumpPanel(tester, MultiviewRoomSearchPanel(cellIndex: 1, onPicked: (_) {}, search: controller));
+    await _pumpPanel(
+      tester,
+      MultiviewRoomSearchPanel(cellIndex: 1, onPicked: (_) {}, search: controller),
+    );
     await tester.enterText(find.byType(TextField).first, 'q');
     await tester.tap(find.text('搜索'));
     await _settle(tester);
@@ -226,7 +239,10 @@ void main() {
       audienceCompare: _byNick,
     );
 
-    await _pumpPanel(tester, MultiviewRoomSearchPanel(cellIndex: 0, onPicked: picked.add, search: controller));
+    await _pumpPanel(
+      tester,
+      MultiviewRoomSearchPanel(cellIndex: 0, onPicked: picked.add, search: controller),
+    );
     await tester.enterText(find.byType(TextField).last, 'https://www.huya.com/9527');
     await tester.tap(find.byIcon(Remix.add_line));
     await _settle(tester);
@@ -243,7 +259,10 @@ void main() {
       audienceCompare: _byNick,
     );
 
-    await _pumpPanel(tester, MultiviewRoomSearchPanel(cellIndex: 0, onPicked: picked.add, search: controller));
+    await _pumpPanel(
+      tester,
+      MultiviewRoomSearchPanel(cellIndex: 0, onPicked: picked.add, search: controller),
+    );
     // `nosuchsite/123` parses to a platform this app has no adapter for.
     await tester.enterText(find.byType(TextField).last, 'nosuchsite/123');
     await tester.tap(find.byIcon(Remix.add_line));
@@ -253,7 +272,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testPanel('the panel is non-modal: taps outside its rectangle reach what is behind it', (tester) async {
+  testPanel('the panel is non-modal: taps outside its rectangle reach what is behind it', (
+    tester,
+  ) async {
     var behindTaps = 0;
     final controller = MultiviewRoomSearchController(sites: <Site>[], audienceCompare: _byNick);
 
@@ -300,7 +321,12 @@ void main() {
         child: SizedBox(
           width: 320,
           height: 380,
-          child: MultiviewRoomSearchPanel(cellIndex: 0, onPicked: (_) {}, search: controller, onDragUpdate: moves.add),
+          child: MultiviewRoomSearchPanel(
+            cellIndex: 0,
+            onPicked: (_) {},
+            search: controller,
+            onDragUpdate: moves.add,
+          ),
         ),
       ),
     );

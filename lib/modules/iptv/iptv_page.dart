@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/file_utils.dart';
@@ -7,6 +9,7 @@ import 'package:pure_live/modules/auth/utils/constants.dart';
 import 'package:pure_live/core/iptv/local/database.dart' as database;
 import 'package:pure_live/core/iptv/services/epg_import_manager.dart';
 import 'package:pure_live/core/iptv/services/iptv_import_manager.dart';
+import 'package:pure_live/core/iptv/services/auto_sync_scheduler.dart';
 
 class IptvPage extends StatefulWidget {
   const IptvPage({super.key});
@@ -28,7 +31,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _refreshData();
+    unawaited(_initializePageResources());
   }
 
   @override
@@ -49,6 +52,18 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
     }
   }
 
+  Future<void> _initializePageResources() async {
+    await _refreshData();
+    if (!mounted || epgSources.isNotEmpty) return;
+
+    // Preserve the built-in EPG experience without performing a large network
+    // import on every ordinary application launch. The work begins only when
+    // the user opens IPTV settings and no EPG source exists yet.
+    await AutoSyncScheduler.instance.loadDefaultEpgResources();
+    if (!mounted) return;
+    await _refreshData();
+  }
+
   void _showSourceSelectionDialog() async {
     final RxBool isDialogLoading = true.obs;
     List<database.EpgSource> sources = [];
@@ -59,7 +74,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
       final db = Get.find<DbService>().db;
       sources = await db.getAllEpgSources();
     } catch (e) {
-      debugPrint("Dialog source fetch failure: $e");
+      debugPrint('Dialog source fetch failure: $e');
     } finally {
       isDialogLoading.value = false;
     }
@@ -73,8 +88,14 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(i18n("select_epg_source"), style: AppTextStyles.t11.copyWith(fontWeight: FontWeight.bold)),
-            IconButton(icon: const Icon(Icons.close, size: 22), onPressed: () => Navigator.of(context).pop()),
+            Text(
+              i18n('select_epg_source'),
+              style: AppTextStyles.t11.copyWith(fontWeight: FontWeight.bold),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 22),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ],
         ),
         content: SizedBox(
@@ -82,12 +103,12 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
           height: 400,
           child: Obx(() {
             if (isDialogLoading.value) {
-              return AppStatusView(type: AppStatusType.loading, title: "", subtitle: "");
+              return const AppStatusView(type: AppStatusType.loading, title: '', subtitle: '');
             }
             if (sources.isEmpty) {
               return Center(
                 child: Text(
-                  i18n("no_epg_sources_found"),
+                  i18n('no_epg_sources_found'),
                   style: AppTextStyles.t14.copyWith(color: Theme.of(context).hintColor),
                 ),
               );
@@ -118,7 +139,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                           SettingsService.to.iptv.selectedSourceName.v = selectedSource.name;
                         }
                         Navigator.of(context).pop();
-                        ToastUtil.show(i18n("epg_source_switched"));
+                        ToastUtil.show(i18n('epg_source_switched'));
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -141,7 +162,9 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                                 children: [
                                   Text(
                                     source.name,
-                                    style: TextStyle(fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500),
+                                    style: TextStyle(
+                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                    ),
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
@@ -165,7 +188,9 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
             );
           }),
         ),
-        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n("cancel")))],
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n('cancel'))),
+        ],
       ),
       barrierDismissible: true,
     );
@@ -174,27 +199,27 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(i18n("iptv_settings"))),
+      appBar: AppBar(title: Text(i18n('iptv_settings'))),
       body: ListView(
         physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          context.buildGroupTitle(i18n("iptv_manage")),
+          context.buildGroupTitle(i18n('iptv_manage')),
           context.buildModernCard([
             context.buildTile(
               icon: Remix.cloud_line,
-              title: i18n("iptv_list_manage"),
-              subtitle: i18n("download_guide_sub"),
+              title: i18n('iptv_list_manage'),
+              subtitle: i18n('download_guide_sub'),
               onTap: () => Get.to(() => const IptvManagePage()),
             ),
           ]),
           const SizedBox(height: 20),
-          context.buildGroupTitle(i18n("auto_sync_settings")),
+          context.buildGroupTitle(i18n('auto_sync_settings')),
           context.buildModernCard([
             context.buildSwitchTile(
               icon: Remix.refresh_line,
-              title: i18n("auto_sync_title"),
-              subtitle: i18n("auto_sync_desc"),
+              title: i18n('auto_sync_title'),
+              subtitle: i18n('auto_sync_desc'),
               value: SettingsService.to.iptv.isAutoSyncEnabled,
             ),
             Obx(() {
@@ -204,10 +229,10 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 children: [
                   context.buildTile(
                     icon: Remix.time_line,
-                    title: i18n("sync_interval_title"),
+                    title: i18n('sync_interval_title'),
                     subtitle: i18n(
-                      "sync_interval_hours",
-                      args: {"hour": "${SettingsService.to.iptv.autoSyncHoursInterval.v}"},
+                      'sync_interval_hours',
+                      args: {'hour': '${SettingsService.to.iptv.autoSyncHoursInterval.v}'},
                     ),
                     onTap: () => _showIntervalSelectionMenu(context),
                   ),
@@ -216,41 +241,43 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
             }),
             context.buildTile(
               icon: Remix.tv_line,
-              title: i18n("custom_ua_title"),
+              title: i18n('custom_ua_title'),
               subtitle: SettingsService.to.iptv.customIptvUserAgent.v.length > 30
-                  ? "${SettingsService.to.iptv.customIptvUserAgent.v.substring(0, 30)}..."
+                  ? '${SettingsService.to.iptv.customIptvUserAgent.v.substring(0, 30)}...'
                   : SettingsService.to.iptv.customIptvUserAgent.v,
               onTap: () => _showEditUserAgentDialog(context),
             ),
           ]),
           const SizedBox(height: 20),
-          context.buildGroupTitle(i18n("playlist_settings")),
+          context.buildGroupTitle(i18n('playlist_settings')),
           context.buildModernCard([
             context.buildTile(
               icon: Remix.download_2_line,
-              title: i18n("import_playlist"),
-              subtitle: i18n("playlist_file_type"),
-              onTap: () => showIptvImportDialog(),
+              title: i18n('import_playlist'),
+              subtitle: i18n('playlist_file_type'),
+              onTap: showIptvImportDialog,
             ),
           ]),
           const SizedBox(height: 20),
-          context.buildGroupTitle(i18n("epg_settings")),
+          context.buildGroupTitle(i18n('epg_settings')),
           context.buildModernCard([
             context.buildTile(
               icon: Remix.file_add_line,
-              title: i18n("import_epg_source"),
-              subtitle: i18n("epg_file_type"),
-              onTap: () => showEpgImportDialog(),
+              title: i18n('import_epg_source'),
+              subtitle: i18n('epg_file_type'),
+              onTap: showEpgImportDialog,
             ),
             Obx(
               () => context.buildTile(
                 icon: Remix.tv_2_line,
-                title: i18n("active_epg_source"),
+                title: i18n('active_epg_source'),
                 subtitle: SettingsService.to.iptv.selectedSourceId.v.isEmpty
-                    ? i18n("please_select_epg_source")
+                    ? i18n('please_select_epg_source')
                     : SettingsService.to.iptv.selectedSourceName.v,
-                subtitleColor: SettingsService.to.iptv.selectedSourceId.v.isEmpty ? Colors.orange : null,
-                onTap: () => _showSourceSelectionDialog(),
+                subtitleColor: SettingsService.to.iptv.selectedSourceId.v.isEmpty
+                    ? Colors.orange
+                    : null,
+                onTap: _showSourceSelectionDialog,
               ),
             ),
           ]),
@@ -283,7 +310,10 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                   Icon(Remix.tv_line, color: theme.colorScheme.primary, size: 24),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(i18n("edit_ua_title"), style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold)),
+                    child: Text(
+                      i18n('edit_ua_title'),
+                      style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -293,7 +323,10 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(i18n("custom_ua_desc"), style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                    Text(
+                      i18n('custom_ua_desc'),
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                    ),
                     const SizedBox(height: 16),
                     Obx(
                       () => Container(
@@ -311,13 +344,13 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                                 expands: true,
                                 maxLength: 500,
                                 decoration: InputDecoration(
-                                  hintText: "Mozilla/5.0...",
+                                  hintText: 'Mozilla/5.0...',
                                   border: InputBorder.none,
-                                  counterText: "",
+                                  counterText: '',
                                   contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
                                   suffixIcon: IconButton(
                                     icon: const Icon(Remix.close_circle_line, size: 18),
-                                    onPressed: () => controller.clear(),
+                                    onPressed: controller.clear,
                                   ),
                                 ),
                                 style: AppTextStyles.t13.copyWith(fontFamily: 'monospace'),
@@ -361,7 +394,10 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n("cancel"))),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(i18n('cancel')),
+                ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
@@ -373,9 +409,9 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                     final trimmedValue = controller.text.trim();
                     SettingsService.to.iptv.customIptvUserAgent.v = trimmedValue;
                     Navigator.of(context).pop();
-                    ToastUtil.show(i18n("settings_saved"));
+                    ToastUtil.show(i18n('settings_saved'));
                   },
-                  child: Text(i18n("confirm")),
+                  child: Text(i18n('confirm')),
                 ),
               ],
             );
@@ -405,7 +441,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  i18n("select_sync_interval"),
+                  i18n('select_sync_interval'),
                   style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -421,10 +457,14 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
 
                   return ListTile(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    tileColor: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.08) : null,
+                    tileColor: isSelected
+                        ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                        : null,
                     leading: Icon(
                       isSelected ? Remix.checkbox_circle_fill : Remix.checkbox_blank_circle_line,
-                      color: isSelected ? theme.colorScheme.primary : theme.hintColor.withValues(alpha: 0.5),
+                      color: isSelected
+                          ? theme.colorScheme.primary
+                          : theme.hintColor.withValues(alpha: 0.5),
                       size: 22,
                     ),
                     title: Text(
@@ -437,7 +477,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                     onTap: () {
                       SettingsService.to.iptv.autoSyncHoursInterval.v = hours;
                       Navigator.of(context).pop();
-                      ToastUtil.show(i18n("settings_saved"));
+                      ToastUtil.show(i18n('settings_saved'));
                     },
                   );
                 }),
@@ -464,7 +504,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  i18n("dialog_import_playlist_title"),
+                  i18n('dialog_import_playlist_title'),
                   style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -477,7 +517,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.folder_open_line, color: theme.colorScheme.primary),
-                  title: Text(i18n("local_import")),
+                  title: Text(i18n('local_import')),
                   onTap: () {
                     Navigator.of(context).pop();
                     IptvImportManager().importFromLocalPicker().then((_) => _refreshData());
@@ -489,7 +529,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.global_line, color: theme.colorScheme.primary),
-                  title: Text(i18n("network_import")),
+                  title: Text(i18n('network_import')),
                   onTap: () {
                     Navigator.of(context).pop();
                     showEditTextDialog(isEpg: false);
@@ -518,7 +558,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  i18n("dialog_import_epg_title"),
+                  i18n('dialog_import_epg_title'),
                   style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -531,7 +571,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.draft_line, color: theme.colorScheme.primary),
-                  title: Text(i18n("local_import")),
+                  title: Text(i18n('local_import')),
                   onTap: () {
                     Navigator.of(context).pop();
                     EpgImportManager().importFromLocalPicker().then((_) => _refreshData());
@@ -543,7 +583,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.cloud_windy_line, color: theme.colorScheme.primary),
-                  title: Text(i18n("network_import")),
+                  title: Text(i18n('network_import')),
                   onTap: () {
                     Navigator.of(context).pop();
                     showEditTextDialog(isEpg: true);
@@ -564,72 +604,75 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
     try {
       return await Get.dialog<String?>(
         AlertDialog(
-        title: Text(i18n("enter_download_url")),
-        content: SizedBox(
-          width: 400.0,
-          height: 300.0,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Column(
-              children: [
-                TextField(
-                  controller: urlEditingController,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.all(12),
-                    hintText: i18n("download_url"),
+          title: Text(i18n('enter_download_url')),
+          content: SizedBox(
+            width: 400.0,
+            height: 300.0,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: urlEditingController,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.all(12),
+                      hintText: i18n('download_url'),
+                    ),
+                    autofocus: true,
                   ),
-                  autofocus: true,
-                ),
-                spacer(12.0),
-                TextField(
-                  controller: textEditingController,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.all(12),
-                    hintText: i18n("file_name"),
+                  spacer(12.0),
+                  TextField(
+                    controller: textEditingController,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.all(12),
+                      hintText: i18n('file_name'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(Get.context!).pop(), child: Text(i18n("cancel"))),
-          TextButton(
-            onPressed: () async {
-              final urlText = urlEditingController.text.trim();
-              final fileNameText = textEditingController.text.trim();
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(Get.context!).pop(),
+              child: Text(i18n('cancel')),
+            ),
+            TextButton(
+              onPressed: () async {
+                final urlText = urlEditingController.text.trim();
+                final fileNameText = textEditingController.text.trim();
 
-              if (urlText.isEmpty) {
-                ToastUtil.show(i18n("enter_download_link"));
-                return;
-              }
-              if (!FileUtils.isValidUrl(urlText)) {
-                ToastUtil.show(i18n("invalid_download_link"));
-                return;
-              }
-              if (fileNameText.isEmpty) {
-                ToastUtil.show(i18n("enter_file_name"));
-                return;
-              }
+                if (urlText.isEmpty) {
+                  ToastUtil.show(i18n('enter_download_link'));
+                  return;
+                }
+                if (!FileUtils.isValidUrl(urlText)) {
+                  ToastUtil.show(i18n('invalid_download_link'));
+                  return;
+                }
+                if (fileNameText.isEmpty) {
+                  ToastUtil.show(i18n('enter_file_name'));
+                  return;
+                }
 
-              bool isSuccess = false;
+                bool isSuccess = false;
 
-              if (isEpg) {
-                isSuccess = await EpgImportManager().importFromNetworkUrl(urlText, fileNameText);
-              } else {
-                isSuccess = await IptvImportManager().importFromNetworkUrl(urlText, fileNameText);
-              }
+                if (isEpg) {
+                  isSuccess = await EpgImportManager().importFromNetworkUrl(urlText, fileNameText);
+                } else {
+                  isSuccess = await IptvImportManager().importFromNetworkUrl(urlText, fileNameText);
+                }
 
-              if (isSuccess) {
-                Navigator.of(Get.context!).pop();
-                await _refreshData();
-              }
-            },
-            child: Text(i18n("confirm")),
-          ),
-        ],
+                if (isSuccess) {
+                  Navigator.of(Get.context!).pop();
+                  await _refreshData();
+                }
+              },
+              child: Text(i18n('confirm')),
+            ),
+          ],
         ),
         barrierDismissible: false,
       );

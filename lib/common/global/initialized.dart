@@ -126,7 +126,9 @@ class AppInitializer {
     // startup. Deferring it until after the first frame reintroduced the
     // upstream-recorded I/O failure on the first recording attempt. Keep this
     // non-blocking; FFmpegService awaits the same idempotent future at use.
-    if (shouldStartRecorderPrewarmImmediately(mobile: PlatformUtils.isMobile)) _startFFmpegPrewarm();
+    if (shouldStartRecorderPrewarmImmediately(mobile: PlatformUtils.isMobile)) {
+      _startFFmpegPrewarm();
+    }
     _initSmartDialog();
     initRefresh();
 
@@ -135,10 +137,6 @@ class AppInitializer {
     } else if (PlatformUtils.isMobile) {
       await MobileManager.initialize();
     }
-
-    // Desktop startup has a heavier window/plugin path and did not exhibit
-    // the Android first-use failure, so it retains an idle warm-up.
-    if (PlatformUtils.isDesktop) _scheduleDesktopFFmpegPrewarm();
 
     if (PlatformUtils.isDesktopNotMac && instanceId.isEmpty) {
       _setupLaunchAtStartupSafe();
@@ -158,19 +156,15 @@ class AppInitializer {
   @visibleForTesting
   static bool shouldStartRecorderPrewarmImmediately({required bool mobile}) => mobile;
 
-  void _scheduleDesktopFFmpegPrewarm() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Timer(const Duration(seconds: 2), () {
-        _startFFmpegPrewarm();
-      });
-    });
-  }
-
   Future<void> _initWindowsSingleInstance(List<String> args, String instanceId) async {
     if (!Platform.isWindows) return;
     try {
       final safeId = instanceId.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
-      await WindowsSingleInstance.ensureSingleInstance(args, "PureLive_InstanceID_$safeId", bringWindowToFront: true);
+      await WindowsSingleInstance.ensureSingleInstance(
+        args,
+        'PureLive_InstanceID_$safeId',
+        bringWindowToFront: true,
+      );
     } catch (e) {
       log('WindowsSingleInstance initialization failed: $e');
     }

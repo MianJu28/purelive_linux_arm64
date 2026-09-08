@@ -14,6 +14,7 @@ import 'package:pure_live/modules/live_play/controllers/player_state.dart';
 import 'package:pure_live/recorder/pages/recorder/recorder_controller.dart';
 import 'package:pure_live/core/iptv/services/channel_detail_controller.dart';
 import 'package:pure_live/common/services/settings/metered_network_service.dart';
+import 'package:pure_live/common/services/settings/iptv_settings_controller.dart';
 import 'package:pure_live/recorder/pages/record_settings/record_settings_controller.dart';
 import 'package:pure_live/modules/live_play/widgets/local_interaction/local_interaction_controller.dart';
 
@@ -21,27 +22,33 @@ class InitialServices {
   static void initGlobalServices() {
     Get.put(SettingsService(), permanent: true);
     Get.put(BackupController(), permanent: true);
+    // Register IPTV only after SettingsService has finished its own onInit.
+    // Creating this controller from inside SettingsService.onInit can re-enter
+    // the dependency container during a cold Hive migration and stall the
+    // first frame. A direct, post-registration owner also avoids the old
+    // lazy-then-permanent collision in GetX.
+    Get.put(IptvSettingsController(), permanent: true);
     Get.put(LocalInteractionController(), permanent: true);
     Get.put(RouteObserverController(), permanent: true);
     Get.put<MeteredNetworkService>(MeteredNetworkService(), permanent: true);
   }
 
   static void initLazyControllers() {
-    Get.lazyPut(() => FavoriteController(), fenix: true);
-    Get.lazyPut(() => ChannelDetailController(), fenix: true);
-    Get.lazyPut(() => PopularController(), fenix: true);
-    Get.lazyPut(() => AreasController(), fenix: true);
-    Get.lazyPut(() => GlobalPlayerState(), fenix: true);
+    Get.lazyPut(FavoriteController.new, fenix: true);
+    Get.lazyPut(ChannelDetailController.new, fenix: true);
+    Get.lazyPut(PopularController.new, fenix: true);
+    Get.lazyPut(AreasController.new, fenix: true);
+    Get.lazyPut(GlobalPlayerState.new, fenix: true);
 
     // LivePlayController exposes recording actions in the room app bar.  It
     // can therefore be opened before the delayed heavy-service warm-up runs
     // (notably from a fast search result tap).  Register the dependency chain
     // lazily now so Get.find never races the three-second warm-up.
-    Get.lazyPut(() => CacheService(), fenix: true);
-    Get.lazyPut(() => RecordSettingsController(), fenix: true);
-    Get.lazyPut(() => RecorderController(), fenix: true);
-    Get.lazyPut(() => StreamResolverService(), fenix: true);
-    Get.lazyPut(() => AuthController(), fenix: true);
+    Get.lazyPut(CacheService.new, fenix: true);
+    Get.lazyPut(RecordSettingsController.new, fenix: true);
+    Get.lazyPut(RecorderController.new, fenix: true);
+    Get.lazyPut(StreamResolverService.new, fenix: true);
+    Get.lazyPut(AuthController.new, fenix: true);
   }
 
   static Future<void> initDb() async {
@@ -89,7 +96,10 @@ class InitialServices {
   }
 
   @visibleForTesting
-  static bool shouldWarmRecorderOnStartup({required bool autoStartOnBoot, required String? serializedTasks}) {
+  static bool shouldWarmRecorderOnStartup({
+    required bool autoStartOnBoot,
+    required String? serializedTasks,
+  }) {
     if (!autoStartOnBoot) return false;
     final value = serializedTasks?.trim();
     return value != null && value.isNotEmpty && value != '[]';

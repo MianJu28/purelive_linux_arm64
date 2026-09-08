@@ -6,7 +6,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/modules/favorite/room_grid_view.dart';
 
 void main() {
-  testWidgets('favorite platform page shows and triggers its vertical pull indicator', (tester) async {
+  test('wide mobile tablets retain pull-to-refresh while wide desktop layouts do not', () {
+    expect(shouldWrapFavoritePullToRefresh(viewportWidth: 1280, isMobilePlatform: true), isTrue);
+    expect(shouldWrapFavoritePullToRefresh(viewportWidth: 1280, isMobilePlatform: false), isFalse);
+    expect(shouldWrapFavoritePullToRefresh(viewportWidth: 600, isMobilePlatform: false), isTrue);
+  });
+
+  testWidgets('favorite platform page shows and triggers its vertical pull indicator', (
+    tester,
+  ) async {
     var refreshCount = 0;
     final refreshCompleter = Completer<void>();
     ScrollPhysics? installedPhysics;
@@ -35,7 +43,11 @@ void main() {
     final refresh = tester.widget<EasyRefresh>(find.byType(EasyRefresh));
     expect(refresh.key, const ValueKey('favorite_pull_to_refresh_bilibili'));
     expect(refresh.childBuilder, isNotNull);
-    expect(installedPhysics, isNotNull, reason: 'the scrollable must use EasyRefresh-owned physics');
+    expect(
+      installedPhysics,
+      isNotNull,
+      reason: 'the scrollable must use EasyRefresh-owned physics',
+    );
 
     final gesture = await tester.startGesture(tester.getCenter(find.byType(ListView)));
     for (var index = 0; index < 6; index++) {
@@ -48,7 +60,11 @@ void main() {
     await gesture.up();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(refreshCount, 1, reason: 'a real drag, rather than a direct callback invocation, must arm refresh');
+    expect(
+      refreshCount,
+      1,
+      reason: 'a real drag, rather than a direct callback invocation, must arm refresh',
+    );
     expect(find.byType(RefreshProgressIndicator), findsOneWidget);
 
     refreshCompleter.complete();

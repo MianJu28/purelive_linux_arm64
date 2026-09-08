@@ -1,6 +1,7 @@
 package com.mystyle.purelive
 
 import android.content.Context
+import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -8,40 +9,36 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.view.Display
+import android.window.BackEvent
+import android.window.OnBackAnimationCallback
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.core.content.ContextCompat
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-
-// Android 13+
-import android.window.OnBackInvokedCallback
-import android.window.OnBackInvokedDispatcher
-
-// Android 14+
-import android.window.BackEvent
-import android.window.OnBackAnimationCallback
+import kotlin.math.abs
+import kotlin.math.round
 
 class MainActivity : AudioServiceActivity() {
 
     companion object {
-        private const val DISPLAY_MODE_CHANNEL =
-            "pure_live/display_mode"
-
+        private const val DISPLAY_MODE_CHANNEL = "pure_live/display_mode"
         private const val BACKGROUND_PLAYBACK_CHANNEL =
             "pure_live/background_playback"
-
-        private const val PREDICTIVE_BACK_CHANNEL =
-            "pure_live/predictive_back"
+        private const val RECORDING_KEEP_ALIVE_CHANNEL =
+            "pure_live/recording_keep_alive"
+        private const val SYSTEM_BACK_CHANNEL =
+            "pure_live/system_back"
 
         private var playbackWakeLock: PowerManager.WakeLock? = null
         private var playbackWifiLock: WifiManager.WifiLock? = null
     }
 
-    // -------------------------------------------------------------------------
-    // Display mode
-    // -------------------------------------------------------------------------
+    // ============================================================
+    // High refresh rate
+    // ============================================================
 
-    // Start in Android's dynamic policy. Dart raises the request only around
-    // active touch/scroll/transition bursts when the user setting is enabled.
     private var highRefreshRateEnabled = false
 
     private var displayModeChannel: MethodChannel? = null
@@ -50,18 +47,13 @@ class MainActivity : AudioServiceActivity() {
 
     private var lastPublishedDisplayModeInfo: Map<String, Any>? = null
 
-    private val mainHandler =
-        Handler(Looper.getMainLooper())
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val displayModeRefresh = Runnable {
-        val info =
-            applyPreferredDisplayMode(
-                highRefreshRateEnabled,
-            )
+        val info = applyPreferredDisplayMode(highRefreshRateEnabled)
 
         if (info != lastPublishedDisplayModeInfo) {
             lastPublishedDisplayModeInfo = info
-
             displayModeChannel?.invokeMethod(
                 "displayModeChanged",
                 info,
@@ -69,161 +61,127 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    private val displayListener =
-        object : DisplayManager.DisplayListener {
+    private val displayListener = object : DisplayManager.DisplayListener {
 
-            override fun onDisplayAdded(
-                displayId: Int,
-            ) = scheduleDisplayModeRefresh()
-
-            override fun onDisplayRemoved(
-                displayId: Int,
-            ) = scheduleDisplayModeRefresh()
-
-            override fun onDisplayChanged(
-                displayId: Int,
-            ) {
-                val currentDisplayId =
-                    activeDisplay()?.displayId
-
-                if (
-                    currentDisplayId == null ||
-                    currentDisplayId == displayId
-                ) {
-                    scheduleDisplayModeRefresh()
-                }
-            }
+        override fun onDisplayAdded(displayId: Int) {
+            scheduleDisplayModeRefresh()
         }
 
-    // -------------------------------------------------------------------------
-    // Predictive Back
-    // -------------------------------------------------------------------------
+        override fun onDisplayRemoved(displayId: Int) {
+            scheduleDisplayModeRefresh()
+        }
+
+        override fun onDisplayChanged(displayId: Int) {
+            val currentDisplayId = activeDisplay()?.displayId
+
+            if (
+                currentDisplayId == null ||
+                currentDisplayId == displayId
+            ) {
+                scheduleDisplayModeRefresh()
+            }
+        }
+    }
+
+    // ============================================================
+    // System Back
+    //
+    // Android 6~12:
+    //     Activity.onBackPressed()
+    //
+    // Android 13:
+    //     OnBackInvokedCallback
+    //
+    // Android 14+:
+    //     OnBackAnimationCallback
+    // ============================================================
+
+    private var systemBackChannel: MethodChannel? = null
 
     /**
-     * Flutter MethodChannel.
+     * Whether Dart currently owns the system Back.
      *
-     * Android:
+     * This is intentionally NOT limited to Android 13+.
      *
-     *   Back
-     *      ↓
-     *   Native Android Back API
-     *      ↓
-     *   pure_live/predictive_back
-     *      ↓
-     *   AndroidPredictiveBackService
-     *      ↓
-     *   LivePlayBackScope
+     * Android 6~12 uses onBackPressed().
+     * Android 13+ additionally registers OnBackInvokedDispatcher.
      */
-    private var predictiveBackChannel: MethodChannel? = null
+    private var systemBackEnabled = false
 
     /**
-     * Whether Flutter currently asks Android to intercept Back.
-     *
-     * true:
-     *   Live player is in fullscreen / widescreen presentation.
-     *
-     * false:
-     *   Normal room. Flutter Navigator handles Back normally.
+     * Whether the Android 13+ callback has actually been registered.
      */
-    private var predictiveBackEnabled = false
+    private var systemBackRegistered = false
 
     /**
-     * Whether the Android 13+ callback is currently registered.
+     * Android 13+ callback.
      */
-    private var predictiveBackRegistered = false
-
-    /**
-     * Android 13+ normal Back callback.
-     *
-     * Used on Android 13.
-     *
-     * Android 14+ uses OnBackAnimationCallback instead so that predictive
-     * gesture progress can be forwarded to Flutter.
-     */
-    private val predictiveBackCallback =
+    private val systemBackCallback =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             @Suppress("NewApi")
             OnBackInvokedCallback {
-                handlePredictiveBackInvoked()
+                dispatchSystemBack()
             }
         } else {
             null
         }
 
     /**
-     * Android 14+ predictive Back callback.
-     *
-     * Android 14 introduced the animation callbacks:
-     *
-     *   onBackStarted()
-     *   onBackProgressed()
-     *   onBackCancelled()
-     *   onBackInvoked()
-     *
-     * We forward all four events to Flutter.
+     * Android 14+ predictive back animation callback.
      */
     @Suppress("NewApi")
-    private val predictiveBackAnimationCallback =
+    private val systemBackAnimationCallback =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             object : OnBackAnimationCallback {
 
                 override fun onBackStarted(
                     backEvent: BackEvent,
                 ) {
-                    predictiveBackChannel?.invokeMethod(
+                    systemBackChannel?.invokeMethod(
                         "backStarted",
-                        mapOf(
-                            "progress" to 0.0,
-                            "swipeEdge" to backEvent.swipeEdge,
-                            "touchX" to backEvent.touchX.toDouble(),
-                            "touchY" to backEvent.touchY.toDouble(),
-                        ),
+                        null,
                     )
                 }
 
                 override fun onBackProgressed(
                     backEvent: BackEvent,
                 ) {
-                    predictiveBackChannel?.invokeMethod(
+                    systemBackChannel?.invokeMethod(
                         "backProgress",
                         mapOf(
                             "progress" to
                                 backEvent.progress.toDouble(),
-                            "swipeEdge" to
-                                backEvent.swipeEdge,
-                            "touchX" to
-                                backEvent.touchX.toDouble(),
-                            "touchY" to
-                                backEvent.touchY.toDouble(),
                         ),
                     )
                 }
 
                 override fun onBackCancelled() {
-                    predictiveBackChannel?.invokeMethod(
+                    systemBackChannel?.invokeMethod(
                         "backCancelled",
                         null,
                     )
                 }
 
                 override fun onBackInvoked() {
-                    handlePredictiveBackInvoked()
+                    dispatchSystemBack()
                 }
             }
         } else {
             null
         }
 
+    // ============================================================
+    // Flutter Engine
+    // ============================================================
+
     override fun configureFlutterEngine(
         flutterEngine: FlutterEngine,
     ) {
-        super.configureFlutterEngine(
-            flutterEngine,
-        )
+        super.configureFlutterEngine(flutterEngine)
 
-        // ---------------------------------------------------------------------
-        // Display mode channel
-        // ---------------------------------------------------------------------
+        // ========================================================
+        // Display mode / refresh rate
+        // ========================================================
 
         displayModeChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -236,17 +194,15 @@ class MainActivity : AudioServiceActivity() {
 
                     "setHighRefreshRate" -> {
                         highRefreshRateEnabled =
-                            call.argument<Boolean>(
-                                "enabled",
-                            ) ?: true
+                            call.argument<Boolean>("enabled")
+                                ?: true
 
                         val info =
                             applyPreferredDisplayMode(
                                 highRefreshRateEnabled,
                             )
 
-                        lastPublishedDisplayModeInfo =
-                            info
+                        lastPublishedDisplayModeInfo = info
 
                         result.success(info)
                     }
@@ -257,14 +213,16 @@ class MainActivity : AudioServiceActivity() {
                         )
                     }
 
-                    else -> result.notImplemented()
+                    else -> {
+                        result.notImplemented()
+                    }
                 }
             }
         }
 
-        // ---------------------------------------------------------------------
-        // Background playback
-        // ---------------------------------------------------------------------
+        // ========================================================
+        // Background playback KeepAlive
+        // ========================================================
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -275,167 +233,149 @@ class MainActivity : AudioServiceActivity() {
 
                 "setKeepAlive" -> {
                     setPlaybackKeepAlive(
-                        call.argument<Boolean>(
-                            "enabled",
-                        ) ?: false,
+                        call.argument<Boolean>("enabled")
+                            ?: false,
                     )
 
                     result.success(null)
                 }
 
-                else -> result.notImplemented()
+                else -> {
+                    result.notImplemented()
+                }
             }
         }
 
-        // ---------------------------------------------------------------------
-        // Predictive Back
-        // ---------------------------------------------------------------------
+        // ========================================================
+        // Recording Foreground Service
+        // ========================================================
 
-        predictiveBackChannel = MethodChannel(
+        MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            PREDICTIVE_BACK_CHANNEL,
+            RECORDING_KEEP_ALIVE_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+
+            when (call.method) {
+
+                "start" -> {
+                    startRecordingForegroundService()
+                    result.success(null)
+                }
+
+                "stop" -> {
+                    stopRecordingForegroundService()
+                    result.success(null)
+                }
+
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+
+        // ========================================================
+        // System Back
+        // ========================================================
+
+        systemBackChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SYSTEM_BACK_CHANNEL,
         ).also { channel ->
 
             channel.setMethodCallHandler { call, result ->
 
                 when (call.method) {
 
-                    /**
-                     * Flutter controls whether this Activity should intercept
-                     * Android Back.
-                     *
-                     * enabled = true:
-                     *   fullscreen / widescreen presentation
-                     *
-                     * enabled = false:
-                     *   normal room
-                     */
                     "setEnabled" -> {
                         val enabled =
-                            call.argument<Boolean>(
-                                "enabled",
-                            ) ?: false
+                            call.argument<Boolean>("enabled")
+                                ?: false
 
-                        setPredictiveBackEnabled(
-                            enabled,
-                        )
+                        setSystemBackEnabled(enabled)
 
                         result.success(null)
                     }
 
-                    "isEnabled" -> {
-                        result.success(
-                            predictiveBackEnabled,
-                        )
+                    else -> {
+                        result.notImplemented()
                     }
-
-                    else -> result.notImplemented()
                 }
             }
         }
-
-        // ---------------------------------------------------------------------
-        // Initial display state
-        // ---------------------------------------------------------------------
 
         applyPreferredDisplayMode(
             highRefreshRateEnabled,
         )
     }
 
-    /**
-     * Called when Android Back has been committed.
-     *
-     * This can be:
-     *
-     * - Android physical Back key
-     * - Android system Back
-     * - Android 13 Back
-     * - Android 14+ predictive Back gesture
-     *
-     * We do NOT finish the Activity here.
-     *
-     * Flutter decides what to do.
-     *
-     * Native Back
-     *     ↓
-     * MethodChannel
-     *     ↓
-     * AndroidPredictiveBackService
-     *     ↓
-     * LivePlayBackScope
-     *     ↓
-     * exitPresentationForSystemBack()
-     */
-    private fun handlePredictiveBackInvoked() {
+    // ============================================================
+    // System Back
+    // ============================================================
 
-        if (!predictiveBackEnabled) {
+    /**
+     * Sends Back to Dart.
+     *
+     * This is shared by:
+     *
+     * Android 6~12 -> onBackPressed()
+     * Android 13+  -> OnBackInvokedCallback
+     */
+    private fun dispatchSystemBack() {
+        if (!systemBackEnabled) {
             return
         }
 
-        predictiveBackChannel?.invokeMethod(
+        systemBackChannel?.invokeMethod(
             "backInvoked",
             null,
         )
     }
 
     /**
-     * Enables or disables Android Back interception.
+     * Enables/disables Dart ownership of system Back.
      *
-     * Android 6 ~ 12:
-     *
-     *   Activity.onBackPressed()
-     *
-     * Android 13:
-     *
-     *   OnBackInvokedCallback
-     *
-     * Android 14+:
-     *
-     *   OnBackAnimationCallback
+     * Important:
+     * Android 6~12 also uses this flag.
      */
-    private fun setPredictiveBackEnabled(
+    private fun setSystemBackEnabled(
         enabled: Boolean,
     ) {
-
-        if (predictiveBackEnabled == enabled) {
-            return
-        }
-
-        predictiveBackEnabled = enabled
+        systemBackEnabled = enabled
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-
             if (enabled) {
-                registerPredictiveBack()
+                registerSystemBack()
             } else {
-                unregisterPredictiveBack()
+                unregisterSystemBack()
             }
         }
     }
 
     /**
-     * Registers Android 13+ Back callbacks.
+     * Register Android 13+ system Back callback.
      */
     @Suppress("NewApi")
-    private fun registerPredictiveBack() {
+    private fun registerSystemBack() {
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        if (
+            Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.TIRAMISU
+        ) {
             return
         }
 
-        if (predictiveBackRegistered) {
+        if (systemBackRegistered) {
             return
         }
 
         val callback =
             if (
                 Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                    Build.VERSION_CODES.UPSIDE_DOWN_CAKE
             ) {
-                predictiveBackAnimationCallback
+                systemBackAnimationCallback
             } else {
-                predictiveBackCallback
+                systemBackCallback
             }
 
         if (callback == null) {
@@ -443,78 +383,67 @@ class MainActivity : AudioServiceActivity() {
         }
 
         onBackInvokedDispatcher.registerOnBackInvokedCallback(
-            OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+            OnBackInvokedDispatcher.PRIORITY_OVERLAY,
             callback,
         )
 
-        predictiveBackRegistered = true
+        systemBackRegistered = true
     }
 
     /**
-     * Unregisters Android 13+ Back callbacks.
+     * Unregister Android 13+ system Back callback.
      */
     @Suppress("NewApi")
-    private fun unregisterPredictiveBack() {
+    private fun unregisterSystemBack() {
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        if (
+            Build.VERSION.SDK_INT <
+                Build.VERSION_CODES.TIRAMISU
+        ) {
             return
         }
 
-        if (!predictiveBackRegistered) {
+        if (!systemBackRegistered) {
             return
         }
 
         if (
             Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                Build.VERSION_CODES.UPSIDE_DOWN_CAKE
         ) {
-            predictiveBackAnimationCallback?.let {
+            systemBackAnimationCallback?.let {
                 onBackInvokedDispatcher
                     .unregisterOnBackInvokedCallback(it)
             }
         } else {
-            predictiveBackCallback?.let {
+            systemBackCallback?.let {
                 onBackInvokedDispatcher
                     .unregisterOnBackInvokedCallback(it)
             }
         }
 
-        predictiveBackRegistered = false
+        systemBackRegistered = false
     }
 
     /**
-     * Android 6 ~ 12 Back support.
+     * Android 6~12 fallback.
      *
-     * IMPORTANT:
-     *
-     * Do not use OnBackPressedDispatcher here because MainActivity extends
-     * AudioServiceActivity, not ComponentActivity.
-     *
-     * When interception is disabled, super.onBackPressed() is called so
-     * Flutter receives the normal Back event.
-     *
-     * When interception is enabled, the event is forwarded to Flutter
-     * through MethodChannel and the Activity is NOT finished.
+     * This is the important part for Android 6+ support.
      */
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
 
-        if (
-            Build.VERSION.SDK_INT <
-            Build.VERSION_CODES.TIRAMISU
-        ) {
-            if (predictiveBackEnabled) {
-                handlePredictiveBackInvoked()
-                return
-            }
+        if (systemBackEnabled) {
+            dispatchSystemBack()
+            return
         }
 
         super.onBackPressed()
     }
 
-    // -------------------------------------------------------------------------
+    // ============================================================
     // Lifecycle
-    // -------------------------------------------------------------------------
+    // ============================================================
 
     override fun onStart() {
         super.onStart()
@@ -526,6 +455,60 @@ class MainActivity : AudioServiceActivity() {
         )
     }
 
+    override fun onResume() {
+        super.onResume()
+
+        scheduleDisplayModeRefresh(
+            delayMillis = 0,
+        )
+
+        if (
+            systemBackEnabled &&
+            Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.TIRAMISU
+        ) {
+            registerSystemBack()
+        }
+    }
+
+    override fun onStop() {
+
+        unregisterDisplayListener()
+
+        if (
+            Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.TIRAMISU
+        ) {
+            unregisterSystemBack()
+        }
+
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+
+        mainHandler.removeCallbacks(
+            displayModeRefresh,
+        )
+
+        displayModeChannel = null
+
+        if (
+            Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.TIRAMISU
+        ) {
+            unregisterSystemBack()
+        }
+
+        systemBackChannel = null
+
+        super.onDestroy()
+    }
+
+    // ============================================================
+    // Background Playback KeepAlive
+    // ============================================================
+
     @Suppress("DEPRECATION")
     private fun setPlaybackKeepAlive(
         enabled: Boolean,
@@ -533,7 +516,12 @@ class MainActivity : AudioServiceActivity() {
 
         if (enabled) {
 
+            // ----------------------------------------------------
+            // WakeLock
+            // ----------------------------------------------------
+
             if (playbackWakeLock == null) {
+
                 val powerManager =
                     getSystemService(
                         Context.POWER_SERVICE,
@@ -552,7 +540,12 @@ class MainActivity : AudioServiceActivity() {
                 playbackWakeLock?.acquire()
             }
 
+            // ----------------------------------------------------
+            // WifiLock
+            // ----------------------------------------------------
+
             if (playbackWifiLock == null) {
+
                 val wifiManager =
                     applicationContext.getSystemService(
                         Context.WIFI_SERVICE,
@@ -561,7 +554,7 @@ class MainActivity : AudioServiceActivity() {
                 val mode =
                     if (
                         Build.VERSION.SDK_INT >=
-                        Build.VERSION_CODES.Q
+                            Build.VERSION_CODES.Q
                     ) {
                         WifiManager.WIFI_MODE_FULL_LOW_LATENCY
                     } else {
@@ -593,71 +586,36 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    // ============================================================
+    // Recording Foreground Service
+    // ============================================================
 
-        scheduleDisplayModeRefresh(
-            delayMillis = 0,
+    private fun startRecordingForegroundService() {
+
+        val intent = Intent(
+            this,
+            RecordingForegroundService::class.java,
         )
 
-        /**
-         * Activity resumed.
-         *
-         * Android 13+ needs the native callback registered again if the
-         * Activity lifecycle recreated or the callback was previously
-         * unregistered.
-         */
-        if (
-            predictiveBackEnabled &&
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.TIRAMISU
-        ) {
-            registerPredictiveBack()
-        }
+        ContextCompat.startForegroundService(
+            this,
+            intent,
+        )
     }
 
-    override fun onStop() {
+    private fun stopRecordingForegroundService() {
 
-        unregisterDisplayListener()
-
-        /**
-         * Native Android 13+ callback is not kept while Activity is stopped.
-         *
-         * predictiveBackEnabled itself remains true so it can be restored
-         * when the Activity resumes.
-         */
-        if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.TIRAMISU
-        ) {
-            unregisterPredictiveBack()
-        }
-
-        super.onStop()
-    }
-
-    override fun onDestroy() {
-
-        mainHandler.removeCallbacks(
-            displayModeRefresh,
+        val intent = Intent(
+            this,
+            RecordingForegroundService::class.java,
         )
 
-        if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.TIRAMISU
-        ) {
-            unregisterPredictiveBack()
-        }
-
-        displayModeChannel = null
-        predictiveBackChannel = null
-
-        super.onDestroy()
+        stopService(intent)
     }
 
-    // -------------------------------------------------------------------------
-    // Display listener
-    // -------------------------------------------------------------------------
+    // ============================================================
+    // Display Listener
+    // ============================================================
 
     private fun registerDisplayListener() {
 
@@ -714,17 +672,22 @@ class MainActivity : AudioServiceActivity() {
         )
     }
 
-    // -------------------------------------------------------------------------
-    // Display
-    // -------------------------------------------------------------------------
+    // ============================================================
+    // Display Mode
+    // ============================================================
 
     @Suppress("DEPRECATION")
-    private fun activeDisplay(): Display? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+    private fun activeDisplay(): Display? {
+
+        return if (
+            Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.R
+        ) {
             display
         } else {
             windowManager.defaultDisplay
         }
+    }
 
     private fun applyPreferredDisplayMode(
         enabled: Boolean,
@@ -732,7 +695,7 @@ class MainActivity : AudioServiceActivity() {
 
         if (
             Build.VERSION.SDK_INT <
-            Build.VERSION_CODES.M
+                Build.VERSION_CODES.M
         ) {
             return displayModeInfo()
         }
@@ -746,6 +709,7 @@ class MainActivity : AudioServiceActivity() {
 
         val compatibleModes =
             activeDisplay.supportedModes.filter {
+
                 it.physicalWidth ==
                     currentMode.physicalWidth &&
                     it.physicalHeight ==
@@ -764,10 +728,13 @@ class MainActivity : AudioServiceActivity() {
         val attributes =
             window.attributes
 
-        // Android recommends preferredRefreshRate when only the refresh rate
-        // should change. Pinning preferredDisplayModeId as well can force a
-        // heavy vendor mode transition and leaves less room for the scheduler
-        // to reconcile Flutter, video and PiP surfaces.
+        /*
+         * Android recommends preferredRefreshRate when
+         * only the refresh rate should change.
+         *
+         * Do not pin preferredDisplayModeId because some
+         * vendor devices can perform heavy mode transitions.
+         */
         val targetModeId = 0
 
         val targetRefreshRate =
@@ -779,11 +746,11 @@ class MainActivity : AudioServiceActivity() {
 
         if (
             attributes.preferredDisplayModeId !=
-            targetModeId ||
-            kotlin.math.abs(
-                attributes.preferredRefreshRate -
-                    targetRefreshRate,
-            ) > 0.01f
+                targetModeId ||
+                abs(
+                    attributes.preferredRefreshRate -
+                        targetRefreshRate,
+                ) > 0.01f
         ) {
 
             attributes.preferredDisplayModeId =
@@ -811,14 +778,16 @@ class MainActivity : AudioServiceActivity() {
 
         if (
             Build.VERSION.SDK_INT <
-            Build.VERSION_CODES.M
+                Build.VERSION_CODES.M
         ) {
             return mapOf(
                 "enabled" to highRefreshRateEnabled,
                 "currentRefreshRate" to 60.0,
                 "maxRefreshRate" to 60.0,
                 "preferredRefreshRate" to 60.0,
-                "supportedRefreshRates" to listOf(60.0),
+                "supportedRefreshRates" to listOf(
+                    60.0,
+                ),
             )
         }
 
@@ -833,6 +802,7 @@ class MainActivity : AudioServiceActivity() {
 
         val compatibleModes =
             activeDisplay.supportedModes.filter {
+
                 it.physicalWidth ==
                     currentMode.physicalWidth &&
                     it.physicalHeight ==
@@ -845,9 +815,7 @@ class MainActivity : AudioServiceActivity() {
                     it.refreshRate.toDouble()
                 }
                 .distinctBy {
-                    kotlin.math.round(
-                        it * 100,
-                    ).toInt()
+                    round(it * 100).toInt()
                 }
                 .sorted()
 
@@ -862,9 +830,10 @@ class MainActivity : AudioServiceActivity() {
             "enabled" to highRefreshRateEnabled,
             "currentRefreshRate" to
                 currentMode.refreshRate.toDouble(),
-            "maxRefreshRate" to (
-                rates.maxOrNull()
-                    ?: currentMode.refreshRate.toDouble()
+            "maxRefreshRate" to
+                (
+                    rates.maxOrNull()
+                        ?: currentMode.refreshRate.toDouble()
                 ),
             "preferredRefreshRate" to
                 bestMode.refreshRate.toDouble(),
@@ -875,7 +844,8 @@ class MainActivity : AudioServiceActivity() {
             "preferredDisplayModeId" to
                 window.attributes.preferredDisplayModeId,
             "requestedRefreshRate" to
-                window.attributes.preferredRefreshRate.toDouble(),
+                window.attributes.preferredRefreshRate
+                    .toDouble(),
         )
     }
 }

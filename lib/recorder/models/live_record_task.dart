@@ -25,6 +25,10 @@ class LiveRecordTask {
 
   String watching;
 
+  /// Semantic type of [watching]. Recording cards must not present a
+  /// platform popularity score as a concurrent audience head count.
+  AudienceMetricType audienceMetricType;
+
   String followers;
 
   bool isRecord;
@@ -92,6 +96,13 @@ class LiveRecordTask {
 
   DateTime createTime;
 
+  /// Start of the user-visible recording session. A signed CDN can rotate
+  /// through several native FFmpeg attempts, but the recording center must
+  /// keep showing the original session start instead of the latest retry.
+  DateTime? recordingStartedAt;
+
+  DateTime get displayStartTime => recordingStartedAt ?? createTime;
+
   DateTime? lastFailTime;
 
   /// Sanitized user-visible failure from the most recent attempt.
@@ -111,10 +122,12 @@ class LiveRecordTask {
     required this.avatar,
     required this.cover,
     required this.createTime,
+    this.recordingStartedAt,
 
     this.liveStatus = LiveStatus.unknown,
-    this.watching = "0",
-    this.followers = "0",
+    this.watching = '0',
+    this.audienceMetricType = AudienceMetricType.unknown,
+    this.followers = '0',
     this.isRecord = false,
 
     this.currentUrl,
@@ -149,28 +162,29 @@ class LiveRecordTask {
   /// =========================
 
   factory LiveRecordTask.fromRoom(LiveRoom room) {
-    final roomId = room.roomId ?? "";
+    final roomId = room.roomId ?? '';
 
-    final platform = room.platform ?? "";
+    final platform = room.platform ?? '';
 
     return LiveRecordTask(
-      taskId: "${platform}_$roomId",
+      taskId: '${platform}_$roomId',
 
       roomId: roomId,
 
       platform: platform,
 
-      title: room.title ?? "",
+      title: room.title ?? '',
 
-      nick: room.nick ?? "",
+      nick: room.nick ?? '',
 
-      avatar: room.avatar ?? "",
+      avatar: room.avatar ?? '',
 
-      cover: room.cover ?? "",
+      cover: room.cover ?? '',
 
-      watching: room.watching ?? "0",
+      watching: room.watching ?? '0',
+      audienceMetricType: room.effectiveAudienceMetricType,
 
-      followers: room.followers ?? "0",
+      followers: room.followers ?? '0',
 
       liveStatus: room.liveStatus ?? LiveStatus.unknown,
 
@@ -196,6 +210,8 @@ class LiveRecordTask {
 
     watching = room.watching ?? watching;
 
+    audienceMetricType = room.effectiveAudienceMetricType;
+
     followers = room.followers ?? followers;
 
     liveStatus = room.liveStatus ?? liveStatus;
@@ -214,11 +230,13 @@ class LiveRecordTask {
   }
 
   void beginNewRecording({DateTime? now}) {
+    final startedAt = now ?? DateTime.now();
     recordedSeconds = 0;
     fileSize = 0;
+    recordingStartedAt = startedAt;
     // A previous interrupted/failing remux remains recoverable. Do not discard
     // its absolute directory merely because the user starts the room again.
-    beginNewAttempt(now: now);
+    beginNewAttempt(now: startedAt);
   }
 
   void queuePendingAttempt({required String directoryPath, required String filePrefix}) {
@@ -235,7 +253,9 @@ class LiveRecordTask {
 
   void removePendingAttempt(PendingRecordingAttempt attempt) {
     pendingAttempts.removeWhere(
-      (candidate) => candidate.directoryPath == attempt.directoryPath && candidate.filePrefix == attempt.filePrefix,
+      (candidate) =>
+          candidate.directoryPath == attempt.directoryPath &&
+          candidate.filePrefix == attempt.filePrefix,
     );
   }
 
@@ -280,141 +300,162 @@ class LiveRecordTask {
   /// =========================
 
   Map<String, dynamic> toJson() => {
-    "schemaVersion": 5,
-    "taskId": taskId,
-    "roomId": roomId,
-    "platform": platform,
+    'schemaVersion': 7,
+    'taskId': taskId,
+    'roomId': roomId,
+    'platform': platform,
 
-    "title": title,
-    "nick": nick,
-    "avatar": avatar,
-    "cover": cover,
+    'title': title,
+    'nick': nick,
+    'avatar': avatar,
+    'cover': cover,
 
-    "watching": watching,
-    "followers": followers,
+    'watching': watching,
+    'audienceMetricType': audienceMetricType.index,
+    'audienceMetricTypeName': audienceMetricType.name,
+    'followers': followers,
 
-    "isRecord": isRecord,
+    'isRecord': isRecord,
 
-    "liveStatus": liveStatus.index,
-    "liveStatusName": liveStatus.name,
+    'liveStatus': liveStatus.index,
+    'liveStatusName': liveStatus.name,
 
     // Signed CDN addresses expire quickly and can contain account/session
     // tokens. They are runtime-only and must not be written to local prefs.
-    "selectedLine": selectedLine,
-    "selectedQuality": selectedQuality,
-    "selectedQualityId": selectedQualityId,
-    "selectedLineIndex": selectedLineIndex,
-    "outputDir": outputDir,
-    "pendingAttempts": pendingAttempts.map((attempt) => attempt.toJson()).toList(growable: false),
+    'selectedLine': selectedLine,
+    'selectedQuality': selectedQuality,
+    'selectedQualityId': selectedQualityId,
+    'selectedLineIndex': selectedLineIndex,
+    'outputDir': outputDir,
+    'pendingAttempts': pendingAttempts.map((attempt) => attempt.toJson()).toList(growable: false),
 
     /// 实时信息
-    "recordedSeconds": recordedSeconds,
-    "fileSize": fileSize,
-    "recordSpeed": recordSpeed,
-    "bitrate": bitrate,
-    "fps": fps,
-    "lastFrame": lastFrame,
-    "lastUpdate": lastUpdate?.toIso8601String(),
+    'recordedSeconds': recordedSeconds,
+    'fileSize': fileSize,
+    'recordSpeed': recordSpeed,
+    'bitrate': bitrate,
+    'fps': fps,
+    'lastFrame': lastFrame,
+    'lastUpdate': lastUpdate?.toIso8601String(),
 
     /// 状态
-    "status": status.index,
-    "statusName": status.name,
-    "autoReconnect": autoReconnect,
-    "retryCount": retryCount,
+    'status': status.index,
+    'statusName': status.name,
+    'autoReconnect': autoReconnect,
+    'retryCount': retryCount,
 
-    "createTime": createTime.toIso8601String(),
+    'createTime': createTime.toIso8601String(),
+    'recordingStartedAt': recordingStartedAt?.toIso8601String(),
 
-    "lastFailTime": lastFailTime?.toIso8601String(),
-    "lastError": lastError,
-    "lastErrorStage": lastErrorStage,
-    "wasStoppedByUser": wasStoppedByUser,
+    'lastFailTime': lastFailTime?.toIso8601String(),
+    'lastError': lastError,
+    'lastErrorStage': lastErrorStage,
+    'wasStoppedByUser': wasStoppedByUser,
   };
 
   factory LiveRecordTask.fromJson(Map<String, dynamic> json) {
-    final roomId = _string(json["roomId"]);
-    final platform = _string(json["platform"]).toLowerCase();
+    final roomId = _string(json['roomId']);
+    final platform = _string(json['platform']).toLowerCase();
     return LiveRecordTask(
-      taskId: _string(json["taskId"], fallback: "${platform}_$roomId"),
+      taskId: _string(json['taskId'], fallback: '${platform}_$roomId'),
 
       roomId: roomId,
 
       platform: platform,
 
-      title: _string(json["title"]),
+      title: _string(json['title']),
 
-      nick: _string(json["nick"]),
+      nick: _string(json['nick']),
 
-      avatar: _string(json["avatar"]),
+      avatar: _string(json['avatar']),
 
-      cover: _string(json["cover"]),
+      cover: _string(json['cover']),
 
-      watching: _string(json["watching"], fallback: "0"),
+      watching: _string(json['watching'], fallback: '0'),
 
-      followers: _string(json["followers"], fallback: "0"),
+      audienceMetricType: _enumValue(
+        AudienceMetricType.values,
+        name: json['audienceMetricTypeName'],
+        index: json['audienceMetricType'],
+        fallback: _defaultAudienceMetricType(platform),
+      ),
 
-      isRecord: _bool(json["isRecord"]),
+      followers: _string(json['followers'], fallback: '0'),
+
+      isRecord: _bool(json['isRecord']),
 
       liveStatus: _enumValue(
         LiveStatus.values,
-        name: json["liveStatusName"],
-        index: json["liveStatus"],
+        name: json['liveStatusName'],
+        index: json['liveStatus'],
         fallback: LiveStatus.unknown,
       ),
 
       // Discard schema-v1/v2 persisted signed URLs during migration.
       currentUrl: null,
 
-      selectedLine: _nullableString(json["selectedLine"]),
+      selectedLine: _nullableString(json['selectedLine']),
 
-      selectedQuality: _nullableString(json["selectedQuality"]),
+      selectedQuality: _nullableString(json['selectedQuality']),
 
-      selectedQualityId: _nullableString(json["selectedQualityId"]),
+      selectedQualityId: _nullableString(json['selectedQualityId']),
 
-      selectedLineIndex: _nullableInt(json["selectedLineIndex"]),
+      selectedLineIndex: _nullableInt(json['selectedLineIndex']),
 
-      outputDir: _nullableString(json["outputDir"]),
+      outputDir: _nullableString(json['outputDir']),
 
-      pendingAttempts: _pendingAttempts(json["pendingAttempts"]),
+      pendingAttempts: _pendingAttempts(json['pendingAttempts']),
 
       /// 实时录制
-      recordedSeconds: _recordedSeconds(json["recordedSeconds"]),
+      recordedSeconds: _recordedSeconds(json['recordedSeconds']),
 
-      fileSize: _int(json["fileSize"]),
+      fileSize: _int(json['fileSize']),
 
-      recordSpeed: _double(json["recordSpeed"]),
+      recordSpeed: _double(json['recordSpeed']),
 
-      bitrate: _double(json["bitrate"]),
+      bitrate: _double(json['bitrate']),
 
-      fps: _double(json["fps"]),
+      fps: _double(json['fps']),
 
-      lastFrame: _int(json["lastFrame"]),
+      lastFrame: _int(json['lastFrame']),
 
-      lastUpdate: _date(json["lastUpdate"]),
+      lastUpdate: _date(json['lastUpdate']),
 
       /// 状态
       status: _enumValue(
         RecordStatus.values,
-        name: json["statusName"],
-        index: json["status"],
+        name: json['statusName'],
+        index: json['status'],
         fallback: RecordStatus.stopped,
       ),
 
-      autoReconnect: _bool(json["autoReconnect"], fallback: true),
+      autoReconnect: _bool(json['autoReconnect'], fallback: true),
 
-      retryCount: _int(json["retryCount"]),
+      retryCount: _int(json['retryCount']),
 
-      createTime: _date(json["createTime"]) ?? DateTime.now(),
+      createTime: _date(json['createTime']) ?? DateTime.now(),
 
-      lastFailTime: _date(json["lastFailTime"]),
-      lastError: _diagnostic(json["lastError"]),
-      lastErrorStage: _stage(json["lastErrorStage"]),
-      wasStoppedByUser: _bool(json["wasStoppedByUser"]),
+      recordingStartedAt: _date(json['recordingStartedAt']),
+
+      lastFailTime: _date(json['lastFailTime']),
+      lastError: _diagnostic(json['lastError']),
+      lastErrorStage: _stage(json['lastErrorStage']),
+      wasStoppedByUser: _bool(json['wasStoppedByUser']),
     );
   }
 
   static String _string(dynamic value, {String fallback = ''}) {
     final text = value?.toString() ?? '';
     return text.isEmpty ? fallback : text;
+  }
+
+  static AudienceMetricType _defaultAudienceMetricType(String platform) {
+    return switch (platform.trim().toLowerCase()) {
+      'bilibili' || 'douyu' || 'huya' || 'cc' || 'yy' => AudienceMetricType.popularity,
+      'kuaishou' || 'twitch' || 'soop' => AudienceMetricType.onlineViewers,
+      'douyin' => AudienceMetricType.totalViewers,
+      _ => AudienceMetricType.unknown,
+    };
   }
 
   static String? _nullableString(dynamic value) {
@@ -515,7 +556,10 @@ class PendingRecordingAttempt {
   final String directoryPath;
   final String filePrefix;
 
-  Map<String, String> toJson() => <String, String>{'directoryPath': directoryPath, 'filePrefix': filePrefix};
+  Map<String, String> toJson() => <String, String>{
+    'directoryPath': directoryPath,
+    'filePrefix': filePrefix,
+  };
 
   static PendingRecordingAttempt? fromJson(Map<String, dynamic> json) {
     final directoryPath = json['directoryPath']?.toString().trim() ?? '';
