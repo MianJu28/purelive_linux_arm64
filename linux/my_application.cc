@@ -52,6 +52,12 @@ static void my_application_activate(GApplication* application) {
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
+  // Flutter 3.47 ships the Impeller OpenGLES backend on Linux. On the JM9100
+  // (mwv207) stack it dies with SIGSEGV inside the Jingjia GLES library, and
+  // on the llvmpipe fallback it cannot determine the GL version, which leaves
+  // the window black (docs/LINUX_JM9100_HWDECODE_AUDIT.md §9). Skia is the
+  // long-established Linux rendering path, so keep it for desktop builds.
+  fl_dart_project_set_enable_impeller(project, FALSE);
 
   FlView* view = fl_view_new(project);
   gtk_widget_show(GTK_WIDGET(view));

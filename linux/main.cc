@@ -37,11 +37,47 @@ static void jm9100_inject_vaapi_driver_env(void) {
   setenv("LIBVA_DRIVER_NAME", "jmgpu", 0);
 }
 
+// JM9100 (MWV207) Flutter UI rendering environment.
+//
+// Once the Jingjia EGL vendor ICD works (audit doc §5), glvnd selects the
+// mwv207 EGL library in this process and Flutter's Impeller OpenGLES backend
+// dies with SIGSEGV inside the Jingjia GLES stack at startup. Forcing the
+// Mesa vendor instead leaves the window black: Mesa cannot probe a driver
+// for PCI 0731:9100 under X11 ("failed to create dri2 screen"), and Impeller
+// cannot determine the GL version on the llvmpipe fallback. The stable
+// combination on this hardware is therefore:
+//   - UI: Skia (Impeller disabled in my_application.cc) on the Mesa software
+//     path (llvmpipe), which is how the app ran before the EGL ICD fix.
+//   - Playback: JMDEC hardware decoding kept through LIBVA_DRIVER_NAME=jmgpu
+//     (injected above); the decoder does not depend on the UI EGL choice.
+// Both variables respect explicit user settings and are only injected when
+// the JM9100 device is present. Remove this injection once the Jingjia GLES
+// stack passes Flutter's renderer, or switch it back to evaluate hardware UI
+// compositing (audit doc §9, follow-up items).
+static void jm9100_force_mesa_egl_for_ui(void) {
+  if (getenv("LIBGL_ALWAYS_SOFTWARE") != nullptr) {
+    return;  // Respect an explicit user/distro setting.
+  }
+
+  if (access("/dev/jmgpu", F_OK) != 0) {
+    return;  // No JM9100 device: not our hardware, keep the environment clean.
+  }
+
+  if (access("/usr/share/glvnd/egl_vendor.d/50_mesa.json", F_OK) != 0) {
+    return;  // Mesa vendor config missing: keep the environment untouched.
+  }
+
+  setenv("__EGL_VENDOR_LIBRARY_FILENAMES",
+         "/usr/share/glvnd/egl_vendor.d/50_mesa.json", 0);
+  setenv("LIBGL_ALWAYS_SOFTWARE", "1", 0);
+}
+
 #endif  // defined(__linux__)
 
 int main(int argc, char** argv) {
 #if defined(__linux__)
   jm9100_inject_vaapi_driver_env();
+  jm9100_force_mesa_egl_for_ui();
 #endif
   g_autoptr(MyApplication) app = my_application_new();
   return g_application_run(G_APPLICATION(app), argc, argv);
