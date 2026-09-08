@@ -227,6 +227,39 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     await native.setProperty('framedrop', 'decoder+vo');
 
     await native.setProperty('volume-max', '100');
+
+    if (PlatformUtils.isLinux) {
+      await _applyLinuxRenderRelief(native);
+    }
+  }
+
+  /// Linux-only render-cost relief for the JM9100 (mwv207) GPU stack.
+  ///
+  /// Diagnostics on the JM9100 (docs/LINUX_JM9100_HWDECODE_AUDIT.md §8) show
+  /// the per-pixel dither shader and non-bilinear sampling dominate the GL
+  /// render path: 1080p30 playback costs ~75% CPU with mpv defaults but only
+  /// ~37% with bilinear sampling and dithering disabled, while the direct
+  /// hardware presentation path sits at ~5%. Live content gains nothing from
+  /// dithering or high-order scalers, so the adapter pins the cheap path on
+  /// Linux only; Windows and Android keep their defaults.
+  ///
+  /// Failures are non-fatal: a private mpv build may reject a property, and
+  /// the pipeline then simply keeps its previous quality, which is why each
+  /// set is logged instead of aborting initialization.
+  static Future<void> _applyLinuxRenderRelief(NativePlayer native) async {
+    const properties = <String, String>{
+      'dither-depth': 'no',
+      'scale': 'bilinear',
+      'cscale': 'bilinear',
+    };
+
+    for (final entry in properties.entries) {
+      try {
+        await native.setProperty(entry.key, entry.value);
+      } catch (e) {
+        Log.w('MediaKitAdapter: setProperty(${entry.key}) failed: $e');
+      }
+    }
   }
 
   static Future<void> _configureAndroidCustomOutput(NativePlayer native) async {
