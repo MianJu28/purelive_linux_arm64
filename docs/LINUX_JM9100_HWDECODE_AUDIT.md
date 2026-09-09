@@ -289,3 +289,47 @@ X 驱动失败并回落软件 GLX：
 1. 方案一（应用内注入渲染参数）：改动小、无系统依赖、当日可验证；
 2. 复测基准（第 7.2 节表格全量重跑）+ 多视图场景抽样；
 3. 与厂商并行推进方案二、方案三。
+
+## 9. 启动闪退修复记录（2026-09-08）
+
+### 9.1 现象与根因
+
+驱动修复（EGL/GLX vendor ICD、libdrm）生效后，应用启动即崩溃
+（`systemd: Main process exited, code=killed, status=11/SEGV`）。复现与排除：
+
+| 注入组合 | 结果 | 判定 |
+| --- | --- | --- |
+| 无注入（修复后系统默认） | Impeller OpenGLESSDF → **SEGV** | glvnd 现在成功选中 mwv207 EGL，Jingjia GLES 栈令 Impeller 段错误 |
+| 强制 Mesa EGL | 无崩溃但 UI 黑屏 | Mesa 在 X11 上为 PCI 0731:9100 找不到 dri 驱动（`failed to create dri2 screen`）；llvmpipe 回退下 Impeller `Could not determine GL version` |
+| 屏蔽全部 EGL vendor | abort（exit 134） | embedder 无自动软件回退 |
+
+与 VAAPI/硬件解码设置无关：崩溃发生在 Flutter surface 创建阶段，先于播放器。
+
+根因：驱动修复让 Jingjia EGL「成功初始化」，把 Flutter 3.47 默认的 Impeller
+OpenGLES 后端引入了 Jingjia GLES 栈（段错误）；同时新加的 mwv207 GLX ICD
+破坏了 GTK/GLX 路径（`Failed to create OpenGL context: 指定的 RGBA 像素格式
+没有可用的设置`），且 `Skia` 壳的 GDK/GLX proc resolver 拿不到 `GL_VERSION`
+（FATAL abort）。
+
+### 9.2 修复（应用内，仅 Linux）
+
+- `linux/my_application.cc`：`fl_dart_project_set_enable_impeller(project, FALSE)`
+  —— Skia 是 Linux 经典路径，对 GLES2 兼容性远好于 Impeller。
+- `linux/main.cc` `jm9100_force_mesa_egl_for_ui()`（仅 `/dev/jmgpu` 存在时注入）：
+  - `__EGL_VENDOR_LIBRARY_FILENAMES=50_mesa.json` + `LIBGL_ALWAYS_SOFTWARE=1`
+    → UI 走 llvmpipe EGL（Skia），等同驱动修复前的稳定形态；
+  - `__GLX_VENDOR_LIBRARY_NAME=mesa`（**覆盖模式**，压过 profile.d 的 mwv207）
+    → 修复 GDK/GLX 的 proc resolver。
+- `LIBVA_DRIVER_NAME=jmgpu` 注入保持不变：JMDEC 解码与 UI EGL 选择解耦。
+
+### 9.3 验证结果
+
+- 新构建启动：**无 SEGV / FATAL / abort**，Dart 层正常（配置拉取、托盘、
+  更新检查均在跑），进程稳定存活。
+- 待人工确认：窗口 UI 显示正常后即可交付；播放 CPU 按第 8 节参数预期。
+
+### 9.4 后续项
+
+1. UI 确认后提交：`fix(linux): 禁用 Impeller 并强制 Mesa 软渲染修复 JM9100 启动闪退`。
+2. 长期：Jingjia GLES 通过 Flutter 渲染器验证后，可移除 §9.2 注入以恢复硬件 UI 合成；
+   建议景嘉微修复 mwv207 GLX ICD 的 RGBA visual 缺失（影响全桌面 GLX 客户端）。

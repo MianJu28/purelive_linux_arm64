@@ -70,6 +70,14 @@ static void jm9100_force_mesa_egl_for_ui(void) {
   setenv("__EGL_VENDOR_LIBRARY_FILENAMES",
          "/usr/share/glvnd/egl_vendor.d/50_mesa.json", 0);
   setenv("LIBGL_ALWAYS_SOFTWARE", "1", 0);
+  // The Skia shell obtains its GL context through GDK/GLX, not the embedder's
+  // own EGL display, so the GLX vendor must go back to mesa as well: the
+  // mwv207 GLX ICD advertises no matching RGBA visual ("Failed to create
+  // OpenGL context") and leaves the proc resolver without a GL_VERSION. This
+  // overrides on purpose: /etc/profile.d/mwv207_glvnd.sh exports mwv207 for
+  // the whole desktop session and would otherwise win, while the mwv207 GLX
+  // ICD breaks every GLX client on this machine, not just this app.
+  setenv("__GLX_VENDOR_LIBRARY_NAME", "mesa", 1);
 }
 
 #endif  // defined(__linux__)
