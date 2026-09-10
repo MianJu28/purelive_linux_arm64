@@ -7,6 +7,10 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+#if defined(__linux__)
+#include "jm9100_gl.h"
+#endif
+
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
@@ -48,6 +52,15 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+
+#if defined(__linux__)
+  // The JM9100 GL selection (linux/jm9100_gl.cc) may hand the window a visual
+  // that the active GLX vendor actually exposes an FBConfig for. Without it the
+  // GTK/Flutter GL context creation fails on the Jingjia stack and the window
+  // stays black. Must run before the window is realized.
+  jm9100_gl_apply_window_visual(window);
+#endif
+
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

@@ -62,6 +62,9 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+# libepoxy dispatches GL entry points (glGetString in jm9100_gl.cc); the GTK
+# stack and media_kit_video already depend on it, so it is always present.
+pkg_check_modules(EPOXY IMPORTED_TARGET epoxy)
 
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
@@ -121,6 +124,7 @@ endif()
 add_executable(${BINARY_NAME}
   "main.cc"
   "my_application.cc"
+  "jm9100_gl.cc"
   "${FLUTTER_REGISTRANT_FILTERED}"
 )
 
@@ -131,6 +135,9 @@ apply_standard_settings(${BINARY_NAME})
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+if(TARGET PkgConfig::EPOXY)
+  target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::EPOXY)
+endif()
 # 过滤后的 registrant 被写入 build 目录，但 #include "generated_plugin_registrant.h"
 # 使用相对路径，需在此显式加入源码目录以便找到该头文件。
 target_include_directories(${BINARY_NAME} PRIVATE "${FLUTTER_MANAGED_DIR}")
