@@ -48,22 +48,44 @@ set(LIBMPV_UNZIP_DIR "${CMAKE_BINARY_DIR}/mpv")
 make_directory("${LIBMPV_UNZIP_DIR}") 
 message(STATUS "create libmpv unzip directory ${LIBMPV_UNZIP_DIR}")
 
-message(STATUS "downloading libmpv from ${LIBMPV_ZIP_URL} to ${LIBMPV_ZIP_PATH}")
-file(DOWNLOAD ${LIBMPV_ZIP_URL} ${LIBMPV_ZIP_PATH} SHOW_PROGRESS STATUS download_status)
-
-list(GET download_status 0 download_status_code)
-if(NOT download_status_code EQUAL 0)
-  message(FATAL_ERROR "libmpv download failed. err: ${download_status_code}")
-else()
-  message(STATUS "libmpv download completed.")
+# Local archive override.
+#
+# The pinned download (Predidit/libmpv-linux-build) does not carry the JM9100
+# VA-API dmabuf fix in patches/mpv-0.41-vaapi-dmabuf-oes.patch, so a plain
+# `flutter build linux` silently restores a libmpv that refuses VA-API dmabuf
+# interop on the Jingjia desktop GL context. Point PURELIVE_LIBMPV_ZIP (CMake
+# cache variable or environment variable) at an archive containing libmpv.so.2
+# built from upstream mpv with that patch to keep the fix in the bundle.
+set(PURELIVE_LIBMPV_ZIP "" CACHE FILEPATH
+    "Prebuilt libmpv archive overriding the pinned download (must contain libmpv.so.2)")
+if(PURELIVE_LIBMPV_ZIP STREQUAL "" AND DEFINED ENV{PURELIVE_LIBMPV_ZIP})
+  set(PURELIVE_LIBMPV_ZIP "$ENV{PURELIVE_LIBMPV_ZIP}")
 endif()
 
-message(STATUS "Verifying SHA256 checksum for ${LIBMPV_ZIP_PATH}")
-file(SHA256 ${LIBMPV_ZIP_PATH} computed_sha256)
-if(NOT computed_sha256 STREQUAL "${LIBMPV_ZIP_SHA256}")
-  message(FATAL_ERROR "SHA256 checksum mismatch! Expected: ${LIBMPV_ZIP_SHA256}, Got: ${computed_sha256}")
+if(NOT PURELIVE_LIBMPV_ZIP STREQUAL "")
+  if(NOT EXISTS "${PURELIVE_LIBMPV_ZIP}")
+    message(FATAL_ERROR "PURELIVE_LIBMPV_ZIP does not exist: ${PURELIVE_LIBMPV_ZIP}")
+  endif()
+  message(STATUS "using local libmpv archive: ${PURELIVE_LIBMPV_ZIP}")
+  configure_file("${PURELIVE_LIBMPV_ZIP}" "${LIBMPV_ZIP_PATH}" COPYONLY)
 else()
-  message(STATUS "SHA256 checksum verification passed.")
+  message(STATUS "downloading libmpv from ${LIBMPV_ZIP_URL} to ${LIBMPV_ZIP_PATH}")
+  file(DOWNLOAD ${LIBMPV_ZIP_URL} ${LIBMPV_ZIP_PATH} SHOW_PROGRESS STATUS download_status)
+
+  list(GET download_status 0 download_status_code)
+  if(NOT download_status_code EQUAL 0)
+    message(FATAL_ERROR "libmpv download failed. err: ${download_status_code}")
+  else()
+    message(STATUS "libmpv download completed.")
+  endif()
+
+  message(STATUS "Verifying SHA256 checksum for ${LIBMPV_ZIP_PATH}")
+  file(SHA256 ${LIBMPV_ZIP_PATH} computed_sha256)
+  if(NOT computed_sha256 STREQUAL "${LIBMPV_ZIP_SHA256}")
+    message(FATAL_ERROR "SHA256 checksum mismatch! Expected: ${LIBMPV_ZIP_SHA256}, Got: ${computed_sha256}")
+  else()
+    message(STATUS "SHA256 checksum verification passed.")
+  endif()
 endif()
 
 message(STATUS "unzip libmpv to ${LIBMPV_UNZIP_DIR}")

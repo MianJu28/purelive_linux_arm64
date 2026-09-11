@@ -345,7 +345,8 @@ OpenGLES 后端引入了 Jingjia GLES 栈（段错误）；同时新加的 mwv20
 | --- | --- |
 | mwv207 GLX ICD 的 FBConfig 集合 | 30 个，visual 为 `0x21/0x22/0x113…0x14c`；**不含**屏幕默认 visual `0x100` |
 | GTK/Flutter 默认建窗（visual 0x100） | `gdk_window_create_gl_context` 失败：`指定的 RGBA 像素格式没有可用的设置` → 窗口全黑（mean=0） |
-| 指定 visual `0x7c`（本机实测可用值） | GL 上下文创建成功，renderer=`Jingjia JM9100`（GL 4.0） |
+| 指定 visual `0x7c`（32 位 ARGB，本机实测可用值） | GL 上下文创建成功，renderer=`Jingjia JM9100`（GL 4.0） |
+| 屏幕默认 visual `0x21`（24 位，X 默认） | 同样能建 GL 上下文，但 GTK/Flutter 呈现阶段崩溃（`GLXBadPixmap`、dri3 pixmap 建不出） |
 | Jingjia EGL（X11 platform） | ES 3.2；`GL_OES_EGL_image`、`EGL_EXT_image_dma_buf_import`、`EGL_KHR_image_base`、`GL_EXT_texture_rg` 均在 |
 | Jingjia 桌面 GL 4.0 扩展 | 有 `GL_OES_EGL_image`，**无** `GL_EXT_EGL_image_storage`；`glEGLImageTargetTexture2DOES` 入口存在 |
 | 纯 EGL/ES 进程内跑 media_kit 自带 libmpv | `hwdec=vaapi` → `hwdec-current=vaapi`、`Using EGL dmabuf interop via GL_OES_EGL_image`，回读帧为源色红 `(254,24,0)` |
@@ -354,16 +355,17 @@ OpenGLES 后端引入了 Jingjia GLES 栈（段错误）；同时新加的 mwv20
 
 ### 10.2 结论
 
-1. **UI 侧的黑屏根因已定位并可绕过**：不是 Impeller、也不是驱动没修好，而是
-   `mwv207` GLX vendor 不提供窗口默认 visual（`0x100`）对应的 FBConfig。换用
-   vendor 支持的 visual 后，Flutter 引擎可在 `Jingjia JM9100` 上建上下文并正常出图
+1. **UI 侧的黑屏根因已定位**：不是 Impeller、也不是驱动没修好，而是窗口 visual 与
+   `mwv207` GLX vendor 的 FBConfig 不匹配——屏幕默认 visual `0x100` 完全没有对应
+   FBConfig（`gdk_window_create_gl_context` 直接失败），vendor 自己的 24 位 visual
+   `0x21` 能建上下文但呈现阶段崩溃，只有 32 位 ARGB visual `0x7c` 能正常出图
    （实测窗口 mean≈0.973，无 `Failed to create OpenGL context`）。
 2. **应用内直通仍缺一环，且不在内核/驱动**：只要进程里先出现 GTK 的 GLX（桌面 GL）
    上下文，media_kit 的 mpv 上下文就被判定为 desktop GL，而 Jingjia 桌面 GL 未声明
    `GL_EXT_EGL_image_storage`，media_kit 自带（未打补丁）的 libmpv 直接拒绝 VA-API
    interop → 应用内无法进入 direct 硬解。`jm9100` 仓库的
-   `mpv_dmabuf_oes_image.patch`（放宽扩展检查、优先走 OES 入口）正是为这一层准备的，
-   需要落到应用自带的 `libmpv.so.2` 上。
+   `mpv_dmabuf_oes_image.patch`（放宽扩展检查、优先走 OES 入口）正是为这一层准备的；
+   该补丁已适配到 mpv v0.41.0 并接入应用构建，见 §10.4。
 3. 因此 §9.2 的 Mesa/llvmpipe 注入**暂时仍需保留**：它既是 UI 的稳定形态，也是当前
    唯一"能出画面"的解码路径（代价是 §7.2 的整机 CPU 无收益；若 mpv 在该路径选中
    direct 还可能得到 10.1 表中记录的零帧绿画面——此风险随 libmpv 补丁一并消除）。
@@ -375,40 +377,70 @@ OpenGLES 后端引入了 Jingjia GLES 栈（段错误）；同时新加的 mwv20
   - 默认（未设置环境变量）：与历史行为完全一致（Mesa EGL + Mesa GLX + `LIBGL_ALWAYS_SOFTWARE`），
     不额外启动任何进程。
   - `PURELIVE_JM9100_GL=hardware`（或 `auto`）：先以子进程自探测（`--jm9100-gl-probe`，
-    逐个尝试屏幕 visual，复现 Flutter 的 `gdk_window_create_gl_context` 调用），
-    探测成功后保留会话 GL 环境，并把主窗口 visual 设为 vendor 支持的那个；
-    探测失败则保持默认 visual 并记录告警。
+    按"32 位 ARGB 优先、其余回退"的顺序尝试屏幕 visual，复现 Flutter 的
+    `gdk_window_create_gl_context` 调用），探测成功后保留会话 GL 环境，并把主窗口
+    visual 设为探测到的那个；探测失败则保持默认 visual 并记录告警。
   - 之所以用"子进程探测 + 主窗口设 visual"，是因为 GL vendor 选择必须发生在任何 GL
     调用之前，而探测本身必然加载 GL 库，不能在主进程里做。
 - `linux/my_application.cc`：在窗口 realize 之前应用探测到的 visual（仅硬件模式）。
+- `third_party/media_kit_video`：新增 `patches/mpv-0.41-vaapi-dmabuf-oes.patch` 与
+  `PURELIVE_LIBMPV_ZIP` 构建覆盖（见 §10.4），`PURELIVE_PATCH.md` 记录构建与维护流程。
 - `LIBVA_DRIVER_NAME=jmgpu` 注入与"禁用 Impeller"保持不变。
 - `lib/player/adapters/media_kit_adapter.dart` 无需改动：`hwdec` 仍为设置项语义
   （默认 `auto`），`vo` 保持平台默认。
 
-### 10.4 验证与证据缺口
+### 10.4 自带 libmpv 补丁（P0，已完成并验证）
 
-验证（`flutter build linux --release` 产物，均截图取证）：
+§10.2 结论 2 的那一环已闭环：应用自带的 `libmpv.so.2` 现在提供带补丁版本。
+
+- 补丁：`third_party/media_kit_video/patches/mpv-0.41-vaapi-dmabuf-oes.patch`
+  （把 `jm9100:mpv_dmabuf_oes_image.patch` 适配到 mpv v0.41.0：桌面 GL 下
+  放宽扩展检查、并按"是否声明 `GL_EXT_EGL_image_storage`"选择 storage/OES 入口，
+  声明 storage 的栈行为不变）。
+- 构建：上游 mpv `v0.41.0` + media-kit 的 2 个补丁 + 上述补丁，`-Dlibmpv=true
+  -Dcplayer=false -Dvulkan=disabled -Dgpl=true`；本机依赖版本与上游要求完全一致
+  （libavcodec 60.31.102 / libplacebo 6.338.2）。完整命令见
+  `third_party/media_kit_video/PURELIVE_PATCH.md`。
+- 接入：`PURELIVE_LIBMPV_ZIP=<archive>` 覆盖 CMake 的固定下载（环境变量或缓存变量），
+  否则 `flutter build linux` 会把未打补丁的预编译包换回来；当前 release bundle 已装
+  入带补丁库。
+- 兼容性：新库与原预编译库的 `mpv_*` 导出集合**完全一致**（各 54 个），media_kit 的
+  FFI 绑定不受影响；差异是它动态链接系统 FFmpeg/libplacebo 而非静态内置。
+
+### 10.5 验证与证据缺口
+
+验证（`flutter build linux --release` 产物）：
 
 | 运行方式 | 结果 |
 | --- | --- |
-| 默认（软件）| 日志 `jm9100: using Mesa software rendering …`；窗口 1920x1030，mean≈0.973、无 GL 报错 |
-| `PURELIVE_JM9100_GL=hardware` | 日志 `probe visual 0x100: context failed` → `GPU GL stack enabled (visual 0x7c, renderer Jingjia JM9100)` → `window visual set to 0x7c`；窗口正常出图 |
-| mpv+EGL/GLES 直通探针（自带 libmpv） | 见 10.1 表：ES 进程内 direct vaapi 正确出图 |
+| libmpv 探针（先建 GLX 桌面 GL 上下文，再建隔离 EGL/GLES 上下文，`hwdec=vaapi`，读回 FBO） | **未打补丁**：`VAAPI hwdec only works with OpenGL or Vulkan backends`、`hwdec-current=no`；**打补丁**：`Using EGL dmabuf interop via GL_OES_EGL_image`、`hwdec-current=vaapi`、帧像素与软解一致（`(254,0,73)`，非全零 NV12 绿屏） |
+| 默认（软件）模式启动 | 日志 `jm9100: using Mesa software rendering …`；窗口 1920x1030 正常出图（mean≈0.878），无 GL 报错 |
+| `PURELIVE_JM9100_GL=hardware` | 日志 `GPU GL stack enabled (visual 0x7c, renderer Jingjia JM9100)`；但自 16:44 起出现引擎侧 `Could not wrap embedder supplied frame-buffer` + 窗口全黑 |
+
+visual 选择规则已按实测修正：屏幕默认 visual `0x21` 是 24 位，能建 GL 上下文但
+GTK/Flutter 呈现阶段崩溃（`GLXBadPixmap`、`xcb_dri3_buffer_from_pixmap` 失败）；
+`0x7c` 是 32 位 ARGB（合成器在跑时 GTK 的选择），因此探测改为**优先 32 位 ARGB**
+visual，其余仅作最后回退。
 
 缺口（未取到证据，不作结论）：
 
-1. **应用内播放未采样**：命令行 `--open-room=` 流程在本机无法进入播放页（应用自身
-   的 HTTP 通道对 douyu/bilibili 直播接口报 `DioExceptionType.unknown`，shell 侧
-   `curl` 同一接口 200，属应用网络/代理配置问题），因此"硬件 GL 栈下应用内播放画面是否
-   正常"（含 Jingjia EGL→GLX 的 EGLImage 跨 API 共享）仍为未验证项。
-2. 硬件模式下的整机 CPU 与多视图收益未复测（§7.2 表格需在补齐 libmpv 后重跑）。
+1. **硬件 GL 栈下应用内播放/渲染未通过**：同一 visual（`0x7c`）在 16:05–16:35 曾正常
+   出图，16:44 一次 `GLXBadPixmap` 崩溃之后，引擎持续报 framebuffer 包装失败、窗口
+   全黑（同期 EGL 直通探针仍正常，说明不是整机 GPU 失效）。需要排查是崩溃后的 X/GLX
+   vendor 会话状态、还是该 visual 的呈现路径本身不稳定；硬件模式因此**保持 opt-in**。
+2. **应用内播放未采样**：命令行 `--open-room=` 在本机无法进入播放页（应用自身 HTTP
+   通道对 douyu/bilibili 直播接口报 `DioExceptionType.unknown`，shell 侧 `curl` 同一
+   接口 200，属应用网络/代理配置），因此"应用内 direct 硬解 + Jingjia EGL→GLX 的
+   EGLImage 共享"仍待端到端确认。
+3. 硬件模式下的整机 CPU 与多视图收益未复测（§7.2 表格需在硬件栈可用后重跑）。
 
-### 10.5 建议的后续顺序
+### 10.6 建议的后续顺序
 
-1. 给应用自带的 `libmpv.so.2` 打上 `jm9100:mpv_dmabuf_oes_image.patch`（当前
-   `third_party/media_kit_video/linux/CMakeLists.txt` 直接下载 Predidit 预编译包，
-   需替换为带补丁的构建产物），随后验证 mpv 在 desktop GL 下 `hwdec-current=vaapi`。
-2. 补齐后把 `PURELIVE_JM9100_GL` 的默认值切到 `auto`（探测通过即用硬件栈），
-   并与厂商确认 mwv207 GLX ICD 的默认 visual 缺失问题（影响全桌面 GLX 客户端）。
-3. 端到端播放冒烟（单路 + 2×2 多视图 + HEVC Main10）与 §7.2 基准重跑后，再决定是否
-   移除 §9.2 的软件渲染回退。
+1. 排查硬件栈呈现失败：在干净 X 会话（或重启后）复测 `PURELIVE_JM9100_GL=hardware`，
+   确认是否与上一次 `GLXBadPixmap` 崩溃留下的会话状态有关；必要时用
+   `GDK_SYNCHRONIZE=1` + `gdb` 抓 `gdk_x_error` 回溯。
+2. 播放端到端冒烟（单路 + 2×2 多视图 + HEVC Main10）：默认模式用于回归，硬件模式下
+   预期日志为 `Using EGL dmabuf interop via GL_OES_EGL_image` + `hwdec-current=vaapi`。
+3. 硬件栈稳定后把 `PURELIVE_JM9100_GL` 默认切到 `auto`，并把带补丁的 libmpv 归档
+   托管到发布地址（更新 `PURELIVE_LIBMPV_ZIP` 对应的固定 URL/SHA256）。
+4. 与厂商确认 mwv207 GLX ICD 的默认 visual/呈现问题（影响全桌面 GLX 客户端）。

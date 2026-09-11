@@ -54,14 +54,16 @@ gboolean tryVisual(GdkVisual* visual, unsigned long* visual_id, gchar** renderer
     GError* error = nullptr;
     GdkGLContext* context = gdk_window_create_gl_context(gdk_window, &error);
     if (context == nullptr) {
-      g_printerr("jm9100: probe visual 0x%lx: context failed (%s)\n", visualIdOf(visual),
+      g_printerr("jm9100: probe visual 0x%lx (depth %d): context failed (%s)\n",
+                 visualIdOf(visual), gdk_visual_get_depth(visual),
                  error != nullptr ? error->message : "unknown");
       g_clear_error(&error);
     } else {
       gdk_gl_context_set_use_es(context, TRUE);
       gdk_gl_context_set_required_version(context, 2, 0);
       if (!gdk_gl_context_realize(context, &error)) {
-        g_printerr("jm9100: probe visual 0x%lx: realize failed (%s)\n", visualIdOf(visual),
+        g_printerr("jm9100: probe visual 0x%lx (depth %d): realize failed (%s)\n",
+                   visualIdOf(visual), gdk_visual_get_depth(visual),
                    error != nullptr ? error->message : "unknown");
         g_clear_error(&error);
       } else {
@@ -109,15 +111,25 @@ int runProbeChild() {
   gchar* renderer = nullptr;
   gboolean found = FALSE;
 
-  // The system visual is what GTK picks on its own, so it is tried first; every
-  // other visual of the screen is the fallback set the vendor may support.
-  for (int pass = 0; pass < 2 && !found; ++pass) {
+  // Candidate order. A visual only has to create a GL context to look usable,
+  // but GTK also presents the window through it: on the JM9100 driver the
+  // screen default visual (0x21, 24-bit) creates a context and then fails while
+  // presenting (GLXBadPixmap / dri3 back-pixmap), while the 32-bit ARGB visual
+  // (0x7c here) renders. Prefer ARGB visuals - what GTK itself picks when a
+  // compositor is running - and keep the remaining ones, system visual first,
+  // only as a last resort.
+  for (int pass = 0; pass < 3 && !found; ++pass) {
     for (GList* item = visuals; item != nullptr && !found; item = item->next) {
       GdkVisual* visual = GDK_VISUAL(item->data);
       if (visual == nullptr) {
         continue;
       }
-      if ((pass == 0) != (visual == system_visual)) {
+      const gboolean is_system = visual == system_visual;
+      const gboolean is_argb = gdk_visual_get_depth(visual) == 32;
+      const gboolean wanted = pass == 0   ? (is_argb && !is_system)
+                              : pass == 1 ? (is_argb && is_system)
+                                          : (!is_argb && is_system);
+      if (!wanted) {
         continue;
       }
       found = tryVisual(visual, &visual_id, &renderer);
