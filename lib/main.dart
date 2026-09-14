@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/file_utils.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -30,6 +31,13 @@ void main(List<String> args) async {
 
   await AppInitializer().initialize(args);
 
+  // 诊断用：PURELIVE_FPS_DEBUG=1 时每 2 秒打印一次 Flutter 帧节拍与 build/raster
+  // 耗时分布。视频纹理由 Flutter 合成，帧节拍直接决定画面呈现上限，用于定位
+  // JM9100 上的画面抖动（docs/LINUX_JM9100_HWDECODE_AUDIT.md §10.8）。
+  if (Platform.environment['PURELIVE_FPS_DEBUG'] == '1') {
+    _installFrameTimingProbe();
+  }
+
   runApp(
     EasyLocalization(
       supportedLocales: const [Locale('en'), Locale('zh')],
@@ -39,6 +47,43 @@ void main(List<String> args) async {
       child: MyApp(),
     ),
   );
+}
+
+void _installFrameTimingProbe() {
+  var frames = 0;
+  var lastReport = DateTime.now();
+  final build = <int>[];
+  final raster = <int>[];
+
+  String pct(List<int> values, double p) {
+    if (values.isEmpty) return '-';
+    final index = (values.length * p).clamp(0, values.length - 1).toInt();
+    return (values[index] / 1000).toStringAsFixed(1);
+  }
+
+  SchedulerBinding.instance.addTimingsCallback((timings) {
+    for (final timing in timings) {
+      frames++;
+      build.add(timing.buildDuration.inMicroseconds);
+      raster.add(timing.rasterDuration.inMicroseconds);
+    }
+
+    final now = DateTime.now();
+    final elapsed = now.difference(lastReport).inMilliseconds;
+    if (elapsed < 2000) return;
+
+    build.sort();
+    raster.sort();
+    debugPrint(
+      '[fpsprobe] frames=$frames fps=${(frames * 1000 / elapsed).toStringAsFixed(1)} '
+      'build p50=${pct(build, 0.5)}ms p95=${pct(build, 0.95)}ms max=${(build.last / 1000).toStringAsFixed(1)}ms '
+      'raster p50=${pct(raster, 0.5)}ms p95=${pct(raster, 0.95)}ms max=${(raster.last / 1000).toStringAsFixed(1)}ms',
+    );
+    frames = 0;
+    build.clear();
+    raster.clear();
+    lastReport = now;
+  });
 }
 
 class MyApp extends StatefulWidget {

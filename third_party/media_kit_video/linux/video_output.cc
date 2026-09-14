@@ -609,6 +609,33 @@ static void video_output_render(VideoOutput* self) {
       texture_gl_swap_buffers(self->texture_gl);
       fl_texture_registrar_mark_texture_frame_available(
           self->texture_registrar, FL_TEXTURE(self->texture_gl));
+
+      // PureLive 诊断（PURELIVE_MPV_STATS=1）：每 2 秒打印一次真实视频渲染帧率与
+      // 最大帧间隔，用于定位画面抖动节拍（docs/LINUX_JM9100_HWDECODE_AUDIT.md §10.8）。
+      if (g_getenv("PURELIVE_MPV_STATS") != NULL) {
+        static gint64 window_start_us = 0;
+        static gint64 last_us = 0;
+        static gint64 max_gap_us = 0;
+        static int frames = 0;
+        const gint64 now_us = g_get_monotonic_time();
+        if (window_start_us == 0) {
+          window_start_us = now_us;
+          last_us = now_us;
+        }
+        frames++;
+        if (now_us - last_us > max_gap_us) {
+          max_gap_us = now_us - last_us;
+        }
+        last_us = now_us;
+        const gint64 elapsed_us = now_us - window_start_us;
+        if (elapsed_us >= 2000000) {
+          g_print("mpvstats: frames=%d fps=%.1f max_gap=%.1fms\n", frames,
+                  frames * 1000000.0 / elapsed_us, max_gap_us / 1000.0);
+          frames = 0;
+          window_start_us = now_us;
+          max_gap_us = 0;
+        }
+      }
     }
   }
 }
