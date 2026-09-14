@@ -54,14 +54,38 @@ message(STATUS "create libmpv unzip directory ${LIBMPV_UNZIP_DIR}")
 # frame-buffer"), so the JM9100 VA-API dmabuf fix is implemented inside the
 # process instead: see purelive_get_proc_address in linux/video_output.cc and
 # the eglGetProcAddress interposition in ../../../linux/jm9100_gl.cc.
-message(STATUS "downloading libmpv from ${LIBMPV_ZIP_URL} to ${LIBMPV_ZIP_PATH}")
-file(DOWNLOAD ${LIBMPV_ZIP_URL} ${LIBMPV_ZIP_PATH} SHOW_PROGRESS STATUS download_status)
+# PureLive: the pinned archives live on GitHub releases, which this build
+# environment cannot always reach. Reuse an already extracted tree when it is
+# present (pinned libmpv.so.2 plus headers), fall back to a cached archive whose
+# checksum matches, and only then download. Anything downloaded is still
+# verified against the pinned SHA256 below.
+set(LIBMPV_PATH "${LIBMPV_UNZIP_DIR}")
+set(LIBMPV_READY FALSE)
+if(EXISTS "${LIBMPV_UNZIP_DIR}/libmpv.so.2" AND EXISTS "${LIBMPV_UNZIP_DIR}/include/mpv/client.h")
+  set(LIBMPV_READY TRUE)
+  message(STATUS "reusing extracted libmpv in ${LIBMPV_UNZIP_DIR}")
+endif()
 
-list(GET download_status 0 download_status_code)
-if(NOT download_status_code EQUAL 0)
-  message(FATAL_ERROR "libmpv download failed. err: ${download_status_code}")
-else()
-  message(STATUS "libmpv download completed.")
+if(NOT LIBMPV_READY)
+set(libmpv_zip_reusable FALSE)
+if(EXISTS "${LIBMPV_ZIP_PATH}")
+  file(SHA256 ${LIBMPV_ZIP_PATH} cached_zip_sha256)
+  if(cached_zip_sha256 STREQUAL "${LIBMPV_ZIP_SHA256}")
+    set(libmpv_zip_reusable TRUE)
+    message(STATUS "reusing cached libmpv archive ${LIBMPV_ZIP_PATH}")
+  endif()
+endif()
+
+if(NOT libmpv_zip_reusable)
+  message(STATUS "downloading libmpv from ${LIBMPV_ZIP_URL} to ${LIBMPV_ZIP_PATH}")
+  file(DOWNLOAD ${LIBMPV_ZIP_URL} ${LIBMPV_ZIP_PATH} SHOW_PROGRESS STATUS download_status)
+
+  list(GET download_status 0 download_status_code)
+  if(NOT download_status_code EQUAL 0)
+    message(FATAL_ERROR "libmpv download failed. err: ${download_status_code}")
+  else()
+    message(STATUS "libmpv download completed.")
+  endif()
 endif()
 
 message(STATUS "Verifying SHA256 checksum for ${LIBMPV_ZIP_PATH}")
@@ -85,8 +109,6 @@ else()
   message(STATUS "unzip libmpv success.")
 endif()
 
-set(LIBMPV_PATH "${LIBMPV_UNZIP_DIR}")
-
 if(EXISTS "${LIBMPV_PATH}/libmpv.so.2")
   message(STATUS "libmpv.so.2 founded ${LIBMPV_PATH}/libmpv.so.2")
 else()
@@ -96,14 +118,25 @@ endif()
 set(LIBMPV_HEADER_ZIP_PATH "${CMAKE_BINARY_DIR}/libmpv_${ARCH_NAME}_header.zip")
 set(LIBMPV_HEADER_UNZIP_DIR "${CMAKE_BINARY_DIR}/mpv/include")
 
-message(STATUS "downloading libmpv header from ${LIBMPV_HEADER_ZIP_URL} to ${LIBMPV_HEADER_ZIP_PATH}")
-file(DOWNLOAD ${LIBMPV_HEADER_ZIP_URL} ${LIBMPV_HEADER_ZIP_PATH} SHOW_PROGRESS STATUS download_status)
+set(libmpv_header_zip_reusable FALSE)
+if(EXISTS "${LIBMPV_HEADER_ZIP_PATH}")
+  file(SHA256 ${LIBMPV_HEADER_ZIP_PATH} cached_header_sha256)
+  if(cached_header_sha256 STREQUAL "${LIBMPV_HEADER_ZIP_SHA256}")
+    set(libmpv_header_zip_reusable TRUE)
+    message(STATUS "reusing cached libmpv header archive ${LIBMPV_HEADER_ZIP_PATH}")
+  endif()
+endif()
 
-list(GET download_status 0 download_status_code)
-if(NOT download_status_code EQUAL 0)
-  message(FATAL_ERROR "libmpv header download failed. err: ${download_status_code}")
-else()
-  message(STATUS "libmpv header download completed.")
+if(NOT libmpv_header_zip_reusable)
+  message(STATUS "downloading libmpv header from ${LIBMPV_HEADER_ZIP_URL} to ${LIBMPV_HEADER_ZIP_PATH}")
+  file(DOWNLOAD ${LIBMPV_HEADER_ZIP_URL} ${LIBMPV_HEADER_ZIP_PATH} SHOW_PROGRESS STATUS download_status)
+
+  list(GET download_status 0 download_status_code)
+  if(NOT download_status_code EQUAL 0)
+    message(FATAL_ERROR "libmpv header download failed. err: ${download_status_code}")
+  else()
+    message(STATUS "libmpv header download completed.")
+  endif()
 endif()
 
 message(STATUS "Verifying SHA256 checksum for ${LIBMPV_HEADER_ZIP_PATH}")
@@ -125,6 +158,7 @@ if(NOT unzip_result EQUAL 0)
 else()
   message(STATUS "unzip libmpv header success.")
 endif()
+endif() # NOT LIBMPV_READY
 
 if(MEDIA_KIT_LIBS_AVAILABLE)
   add_library(

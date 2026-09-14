@@ -473,3 +473,34 @@ Android/iOS 语义不变；用户无需修改既有设置即可恢复 §10.5 的
 
 厂商侧遗留（转 `jm9100` 仓库）：`gbm_jm_surface_get_free_buffer` 对 NULL surface 解引用；
 GLX/EGL 窗口 surface 路径仍不稳定（§10.5 缺口 3）。
+
+### 10.8 播放画面抖动的排查（2026-09-14，进行中）
+
+现象：闪退修复后直播可正常播放，但维护者报告画面存在抖动。
+
+已排除项（均有本机证据）：
+
+| 项 | 证据 |
+| --- | --- |
+| 几何/尺寸抖动 | 日志中 `VideoOutput.Resize` 仅 `1x1` → `1280x720`×3，无尺寸反复 |
+| 算力饥饿 | 播放 20 s 采样：进程 CPU 时间 6.24 s（单核 31.2%、整机≈3.9%），未饱和 |
+| 崩溃/纹理重建风暴 | 无 SIGSEGV 回溯；`Texture ID` 仅 1 次 |
+| Linux 轻量渲染参数缺失 | 已按 §8.2 恢复 `dither-depth=no` + `scale/cscale=bilinear`；恢复前后 CPU 采样 29.7% / 31.2%，说明当前 direct 管线并非 CPU 受限，该恢复属硬化而非实测修复 |
+
+环境侧事实（外部依赖，非应用可改）：HDMI 当前跑 **100 Hz**（`1920x1080 100.00*`）；
+**无合成器**（`_NET_WM_CM_S0` 不存在）；X 侧无硬件 GLX（§8.3：`mwv207_drv.so` ABI 不匹配
+→ DRISWRAST），即 GL 结果需软件拷贝进入 X pixmap，且无 vblank 同步保证。
+
+待验证假设（按可能性排序）与判据：
+
+1. **呈现节拍/撕裂**：100 Hz 面板 + 无合成器 + 无 GPU 合成，交换链与 vblank 不同步。
+   判据：以 `PURELIVE_JM9100_GL=software`（Mesa 窗口）运行，若两侧同样抖动 → 属 X
+   呈现路径（§8.3 外部依赖）；若仅硬件栈抖动 → 厂商 GL/呈现路径问题。
+2. **帧率不整除**：直播源 50/60 fps 与 100 Hz 不整除，且 mpv 默认 `video-sync=audio`
+   → 周期性丢帧/重复帧（judder）。判据：注入 `video-sync=display-resample` 后观察是否改善。
+3. **direct 互操作**：本机 direct 依赖把 storage 入口重定向到 OES（§10.4），若厂商 OES
+   路径与解码写入缺少同步，会出现可见撕裂。判据：把 `videoHardwareDecoder` 切到
+   `auto-copy`（不走 dmabuf 互操作）后是否消失。
+4. **仅 UI 抖动**：若只有弹幕/控件抖而视频内容稳定，则为 Flutter 在厂商 GL 上的合成问题。
+
+下一步：按 1→4 做单变量 A/B（每次只改一项），结果回填本节。

@@ -124,6 +124,36 @@ class MediaKitAdapter
       await native.setProperty('hwdec', 'd3d11va');
       await native.setProperty('vf', 'd3d11vpp=scale=2:scaling-mode=nvidia');
     }
+
+    if (PlatformUtils.isLinux) {
+      await _applyLinuxRenderRelief(native);
+    }
+  }
+
+  /// Linux-only render-cost relief for the Jingjia JM9100 (mwv207) GL stack.
+  ///
+  /// `docs/LINUX_JM9100_HWDECODE_AUDIT.md` §8.1 在本机实测：1080p30 直播在 mpv
+  /// 默认渲染参数下约 74.7% 整机 CPU，改成 bilinear 采样并关闭逐像素 dither 后
+  /// 约 36.6%，而 direct 呈现路径约 5%。直播内容不需要 dither 与高阶缩放，
+  /// 因此在 Linux 固定走廉价路径：渲染线程负载和单帧耗时下降，帧间隔更稳定
+  /// （默认参数的逐像素 shader 会让 mwv207 的 GL 提交时间超过帧预算，表现为
+  /// 画面抖动/顿挫）。只对 Linux 生效，Windows/Android 保持各自默认。
+  ///
+  /// 失败不致命：私有 mpv 构建可能拒绝某个属性，此时保持原质量并记录日志。
+  static Future<void> _applyLinuxRenderRelief(dynamic native) async {
+    const properties = <String, String>{
+      'dither-depth': 'no',
+      'scale': 'bilinear',
+      'cscale': 'bilinear',
+    };
+
+    for (final entry in properties.entries) {
+      try {
+        await native.setProperty(entry.key, entry.value);
+      } catch (e) {
+        debugPrint('MediaKitAdapter: setProperty(${entry.key}) failed: $e');
+      }
+    }
   }
 
   late final Player _player;

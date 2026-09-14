@@ -3,8 +3,11 @@
 - 来源：本仓库上游 `master` 的 `third_party/media_kit_video`（`media_kit_video 1.2.5`，
   源自 `https://github.com/Predidit/media-kit.git`）。
 - License: MIT；上游 `LICENSE` 随目录保留。
-- 本目录相对上游**只有一处补丁**：Jingjia（JM9100）VA-API dmabuf 兼容层（见下节），
-  落在 `linux/video_output.cc` 与 `linux/CMakeLists.txt`。
+- 本目录相对上游的补丁都在 `linux/`：Jingjia（JM9100）VA-API dmabuf 兼容层
+  （`video_output.cc` 的 `purelive_get_proc_address` 与 `CMakeLists.txt` 的说明注释），
+  以及 `CMakeLists.txt` 中"复用已解压的 libmpv / 校验通过的缓存归档"的离线构建改动
+  （上游每次配置都重新下载 GitHub Release 归档，本机网络不稳定时会中断构建，且失败
+  下载会把缓存截断为 0 字节）。
 
 历史说明：PureLive 曾在 `994465d9` 基线上自行追加 `VideoController.setVideoOutputEnabled`、
 Windows `frameRevision` 帧进度回调与 `setSize(force:)`。这些能力已由上游副本自带
@@ -56,8 +59,9 @@ software-decoded ones (no all-zero NV12 "green screen").
 上游更新 media-kit 时的步骤：
 
 1. 用新的上游包替换本目录（保持目录名 `third_party/media_kit_video`）。
-2. 重新应用 Jingjia 兼容补丁：`linux/video_output.cc` 的 `purelive_get_proc_address`
-   包装与 `linux/CMakeLists.txt` 的说明注释，可用
+2. 重新应用 `linux/` 下的两处补丁：Jingjia 兼容层（`video_output.cc` 的
+   `purelive_get_proc_address` 包装与 `CMakeLists.txt` 的说明注释）与构建复用逻辑
+   （解压产物/缓存归档命中时跳过下载，下载后仍校验 SHA256），可用
    `git diff upstream/master <上一版本> -- third_party/media_kit_video/linux` 取回。
 3. 与本目录对比，除上述文件与本说明外不应有其它差异；`pubspec.yaml` 的差异只允许是
    本仓库 `pubspec.yaml` 的 override。
