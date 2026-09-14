@@ -1,10 +1,12 @@
 #include "jm9100_gl.h"
 
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <epoxy/egl.h>
 #include <epoxy/gl.h>
 #include <gdk/gdk.h>
 #if defined(GDK_WINDOWING_X11)
@@ -15,6 +17,7 @@ namespace {
 
 constexpr char kProbeSwitch[] = "--jm9100-gl-probe";
 constexpr char kModeVariable[] = "PURELIVE_JM9100_GL";
+constexpr char kCompatVariable[] = "JMGPU_GL_COMPAT";
 constexpr int kProbeTimeoutSeconds = 15;
 
 // Result of the last environment decision.
@@ -23,18 +26,120 @@ unsigned long g_visual_id = 0;
 
 bool devicePresent() { return access("/dev/jmgpu", F_OK) == 0; }
 
-unsigned long visualIdOf(GdkVisual* visual) {
-#if defined(GDK_WINDOWING_X11)
-  Visual* xvisual = gdk_x11_visual_get_xvisual(visual);
-  if (xvisual != nullptr) {
-    return static_cast<unsigned long>(xvisual->visualid);
+// --- GL compat for the Jingjia stack -----------------------------------------
+//
+// The vendor's user space declares GL_OES_EGL_image and implements
+// glEGLImageTargetTexture2DOES, but has no glEGLImageTargetTexStorageEXT at all:
+// that entry point is a glvnd-generated no-op stub, so a client that takes the
+// GL_EXT_EGL_image_storage route imports a dmabuf into a texture that stays all
+// zero (jm9100 README §3.6/§3.8). The system-wide fix there is an LD_PRELOAD
+// shim; an application can do the same in-process:
+//
+//  * media_kit_video's get_proc_address wrapper advertises
+//    GL_EXT_EGL_image_storage to libmpv (video_output.cc), and
+//  * the interposer below redirects the storage entry point, which libmpv
+//    resolves through libEGL directly, onto the working OES entry point.
+//
+// Together they are equivalent to mpv's mpv_dmabuf_oes_image.patch and let the
+// pinned libmpv archive stay untouched (a locally rebuilt, dynamically linked
+// libmpv breaks the Flutter embedder's surface creation on this driver).
+bool compatEnabled() {
+  const char* disabled = g_getenv(kCompatVariable);
+  if (disabled != nullptr && strcmp(disabled, "0") == 0) {
+    return FALSE;
   }
-#endif
-  return 0;
+  return devicePresent();
 }
 
-// Tries to build the same GL context the Flutter embedder needs (EGL/GLES2
-// through the window's visual) on one candidate visual.
+typedef void (*EglProc)(void);
+
+void* libEglHandle() {
+  static void* handle = dlopen("libEGL.so.1", RTLD_NOW | RTLD_LOCAL);
+  return handle;
+}
+
+EglProc realEglGetProcAddressImpl(const char* name) {
+  static auto real = reinterpret_cast<EglProc (*)(const char*)>([] {
+    void* handle = libEglHandle();
+    return handle != nullptr ? dlsym(handle, "eglGetProcAddress") : nullptr;
+  }());
+  return real != nullptr ? real(name) : nullptr;
+}
+
+// Only the Jingjia renderer needs the redirection: Mesa implements the storage
+// entry properly and must keep using it, otherwise the software fallback would
+// silently switch to a different (immutable texture) life cycle.
+bool jingjiaRendererInUse() {
+  static int cached = -1;
+  if (cached >= 0) {
+    return cached == 1;
+  }
+  auto current_context = reinterpret_cast<EGLContext (*)(void)>([] {
+    void* handle = libEglHandle();
+    return handle != nullptr ? dlsym(handle, "eglGetCurrentContext") : nullptr;
+  }());
+  if (current_context == nullptr || current_context() == EGL_NO_CONTEXT) {
+    return FALSE;  // No EGL context here; keep the vendor answer.
+  }
+  auto get_string = reinterpret_cast<const GLubyte* (*)(GLenum)>(
+      realEglGetProcAddressImpl("glGetString"));
+  if (get_string == nullptr) {
+    return FALSE;
+  }
+  const char* renderer = reinterpret_cast<const char*>(get_string(GL_RENDERER));
+  if (renderer == nullptr) {
+    return FALSE;
+  }
+  cached = strstr(renderer, "Jingjia") != nullptr ? 1 : 0;
+  return cached == 1;
+}
+
+}  // namespace
+
+// libepoxy maps the EGL entry points onto its own wrappers, so the macro has to
+// be lifted before this file can provide the real symbol that interposes.
+#if defined(eglGetProcAddress)
+#undef eglGetProcAddress
+#endif
+
+// Interposes the process-wide libEGL entry point lookup so libmpv (loaded later
+// by media_kit) resolves the storage entry point to the OES one that actually
+// binds the imported dmabuf.
+extern "C" EglProc eglGetProcAddress(const char* procname) {
+  if (procname == nullptr) {
+    return nullptr;
+  }
+  if (compatEnabled() &&
+      (strcmp(procname, "glEGLImageTargetTexStorageEXT") == 0 ||
+       strcmp(procname, "glEGLImageTargetTextureStorageEXT") == 0) &&
+      jingjiaRendererInUse()) {
+    EglProc oes = realEglGetProcAddressImpl("glEGLImageTargetTexture2DOES");
+    if (oes != nullptr) {
+      static gboolean logged = FALSE;
+      if (!logged) {
+        logged = TRUE;
+        g_print("jm9100: redirecting %s to glEGLImageTargetTexture2DOES\n", procname);
+      }
+      return oes;
+    }
+  }
+  return realEglGetProcAddressImpl(procname);
+}
+
+namespace {
+
+#if defined(GDK_WINDOWING_X11)
+unsigned long visualIdOf(GdkVisual* visual) {
+  Visual* xvisual = gdk_x11_visual_get_xvisual(visual);
+  return xvisual != nullptr ? static_cast<unsigned long>(xvisual->visualid) : 0UL;
+}
+#endif
+
+// Tries to build the GL context the Flutter/GTK embedder needs on one visual.
+// The GTK shell renders through the GDK/GLX context, so a visual is usable only
+// when the active GL vendor exposes an FBConfig for it; the screen default
+// visual (0x21 here) and GTK's own fallback (0x100) have no vendor config and
+// leave the window black.
 gboolean tryVisual(GdkVisual* visual, unsigned long* visual_id, gchar** renderer) {
   GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   if (window == nullptr) {
@@ -86,7 +191,7 @@ gboolean tryVisual(GdkVisual* visual, unsigned long* visual_id, gchar** renderer
 }
 
 // Runs in the probe child: reports which visual of the current session gives a
-// working GL context for the embedder path.
+// GL context the embedder can render with.
 int runProbeChild() {
   // g_spawn_sync has no timeout; a wedged driver must not hang application
   // startup, so the child terminates itself.
@@ -111,13 +216,12 @@ int runProbeChild() {
   gchar* renderer = nullptr;
   gboolean found = FALSE;
 
-  // Candidate order. A visual only has to create a GL context to look usable,
-  // but GTK also presents the window through it: on the JM9100 driver the
-  // screen default visual (0x21, 24-bit) creates a context and then fails while
-  // presenting (GLXBadPixmap / dri3 back-pixmap), while the 32-bit ARGB visual
-  // (0x7c here) renders. Prefer ARGB visuals - what GTK itself picks when a
-  // compositor is running - and keep the remaining ones, system visual first,
-  // only as a last resort.
+  // Candidate order, measured on the JM9100: the vendor only exposes a GLX
+  // FBConfig for its own 24-bit visual (0x21/0x22) and for the 32-bit ARGB
+  // visuals, while GTK's own fallback (0x100) has none. A window on 0x21 is
+  // created successfully but then fails during presentation (GLXBadPixmap), so
+  // the 32-bit ARGB visuals - the ones a composited GTK window prefers - are
+  // tried first and the remaining ones stay as a last resort.
   for (int pass = 0; pass < 3 && !found; ++pass) {
     for (GList* item = visuals; item != nullptr && !found; item = item->next) {
       GdkVisual* visual = GDK_VISUAL(item->data);
@@ -222,9 +326,8 @@ gboolean probeSessionGl(const char* executable_path, unsigned long* visual_id, g
 
 // The JM9100 stack could not serve the embedder; keep the long-standing
 // Mesa/llvmpipe configuration: Mesa EGL for the engine and libmpv, the Mesa GLX
-// vendor for GDK (the mwv207 GLX ICD advertises no matching visual), and Mesa's
-// software rasterizer because the X server cannot create a DRI2/DRI3 screen for
-// PCI 0731:9100.
+// vendor for GDK, and Mesa's software rasterizer because the X server cannot
+// create a DRI2/DRI3 screen for PCI 0731:9100.
 void applySoftwareGlEnvironment() {
   if (access("/usr/share/glvnd/egl_vendor.d/50_mesa.json", F_OK) != 0) {
     return;
@@ -256,18 +359,8 @@ void jm9100_gl_prepare_environment(const char* executable_path) {
   }
 
   const gchar* requested = g_getenv(kModeVariable);
-  const gboolean hardware_requested =
-      requested != nullptr && (g_ascii_strcasecmp(requested, "hardware") == 0 ||
-                               g_ascii_strcasecmp(requested, "auto") == 0);
-
-  if (!hardware_requested) {
-    // Default remains the long-standing Mesa/llvmpipe configuration. The GPU GL
-    // stack is opt-in until the in-app video pipeline on it is verified end to
-    // end: the bundled libmpv refuses the VA-API dmabuf interop for the desktop
-    // GL context the GTK embedder ends up with (see the audit document), and the
-    // cross-API EGLImage sharing has not been sampled on hardware yet.
-    g_print("jm9100: using Mesa software rendering (set %s=hardware for the GPU GL stack)\n",
-            kModeVariable);
+  if (requested != nullptr && g_ascii_strcasecmp(requested, "software") == 0) {
+    g_print("jm9100: GL backend forced to software (%s=software)\n", kModeVariable);
     applySoftwareGlEnvironment();
     return;
   }
@@ -277,11 +370,17 @@ void jm9100_gl_prepare_environment(const char* executable_path) {
   const gboolean probed = probeSessionGl(executable_path, &visual_id, &renderer);
 
   if (!probed) {
-    // Explicit request: keep the session GL environment anyway rather than
-    // silently falling back, so the failure stays visible to the caller.
-    g_printerr("jm9100: the GPU GL stack was requested but no usable visual was found; "
-               "the window keeps the default visual\n");
-    g_hardware_selected = TRUE;
+    const gboolean forced_hardware =
+        requested != nullptr && g_ascii_strcasecmp(requested, "hardware") == 0;
+    if (forced_hardware) {
+      g_printerr("jm9100: the GPU GL stack was requested but the probe failed; "
+                 "the window keeps the default visual\n");
+      g_hardware_selected = TRUE;
+      return;
+    }
+    g_print("jm9100: no usable GPU GL context for the Flutter embedder; "
+            "using Mesa software rendering\n");
+    applySoftwareGlEnvironment();
     return;
   }
 
@@ -301,15 +400,21 @@ void jm9100_gl_apply_window_visual(GtkWindow* window) {
   if (screen == nullptr || !GDK_IS_X11_SCREEN(screen)) {
     return;
   }
-  GdkVisual* visual = gdk_x11_screen_lookup_visual(GDK_X11_SCREEN(screen), g_visual_id);
+
+  // The window must use the visual the probe validated: GTK's own choice has no
+  // vendor FBConfig on this driver and renders nothing.
+  const gchar* override = g_getenv("PURELIVE_JM9100_VISUAL");
+  unsigned long requested = g_visual_id;
+  if (override != nullptr && override[0] != '\0') {
+    requested = strtoul(override, nullptr, 0);
+  }
+
+  GdkVisual* visual = gdk_x11_screen_lookup_visual(GDK_X11_SCREEN(screen), requested);
   if (visual == nullptr) {
-    g_printerr("jm9100: X visual 0x%lx is unavailable; keeping the default visual\n",
-               g_visual_id);
+    g_printerr("jm9100: X visual 0x%lx is unavailable; keeping the default visual\n", requested);
     return;
   }
-  // The embedder resolves its GL config from the window's visual, so this must
-  // happen before the window is realized.
   gtk_widget_set_visual(GTK_WIDGET(window), visual);
-  g_print("jm9100: window visual set to 0x%lx\n", g_visual_id);
+  g_print("jm9100: window visual set to 0x%lx\n", requested);
 #endif
 }

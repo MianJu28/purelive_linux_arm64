@@ -48,58 +48,45 @@ and height. Normal resize calls keep the upstream equality fast path. Together
 with the frame-progress fence, this prevents a 0×0 replacement output from
 being treated as presentation-ready after an overlay route or transport retry.
 
-## Bundled libmpv patch (JM9100 VA-API dmabuf)
+## Jingjia (JM9100) VA-API dmabuf compat
 
-`linux/CMakeLists.txt` downloads the media-kit libmpv archive into `lib/`. On the
-Jingjia JM9100 the embedder ends up with a *desktop* GL context, and mpv then
-requires `GL_EXT_EGL_image_storage` for the VA-API dmabuf interop. That driver
-resolves `glEGLImageTargetTexStorageEXT` but never binds the imported surface
-(only its `GL_OES_EGL_image` entry works) and omits the storage extension string,
-so the upstream archive refuses the interop (`VAAPI hwdec only works with OpenGL
-or Vulkan backends`) and the app falls back to `vaapi-copy`/software decoding.
+The pinned libmpv archive is deliberately used **unmodified**. On the Jingjia
+JM9100 the embedder ends up with a desktop GL context, and mpv then requires
+`GL_EXT_EGL_image_storage` for its VA-API dmabuf interop. That vendor declares
+`GL_OES_EGL_image` and implements `glEGLImageTargetTexture2DOES`, but
+`glEGLImageTargetTexStorageEXT` is only a glvnd no-op stub (jm9100 README
+§3.6/§3.8), so the upstream archive refuses the interop
+(`VAAPI hwdec only works with OpenGL or Vulkan backends`) and the app falls back
+to `vaapi-copy`/software decoding.
 
-`patches/mpv-0.41-vaapi-dmabuf-oes.patch` fixes that: the OES route is accepted
-as an alternative to the storage route, and the OES entry is used whenever the
-stack does not advertise the storage extension. Stacks that do advertise it keep
-their previous behavior.
+Replacing the archive with a locally rebuilt libmpv was tried and rejected: an
+mpv 0.41.0 build linked against the system FFmpeg/libplacebo makes the Flutter
+embedder fail its surface creation on this driver (`Could not wrap embedder
+supplied frame-buffer`, 88-133 errors, black window), while the pinned archive
+renders normally with the same window visual.
 
-Build the archive from upstream mpv `v0.41.0` (the version media-kit's pinned
-archive is based on) plus the two media-kit patches from
-`Predidit/libmpv-linux-build@patch/mpv` (`mpv-fix-gles-sampler-precision.patch`,
-`mpv-fix-libmpv-fd-leak.patch`):
+The fix therefore lives inside the process and mirrors the system-wide
+`jm_gl_compat.c` shim from the driver repository:
 
-```sh
-git clone --depth 1 --branch v0.41.0 https://github.com/mpv-player/mpv.git
-cd mpv
-git apply /path/to/mpv-fix-gles-sampler-precision.patch
-git apply /path/to/mpv-fix-libmpv-fd-leak.patch
-git apply /path/to/purelive/third_party/media_kit_video/patches/mpv-0.41-vaapi-dmabuf-oes.patch
-meson setup build -Dlibmpv=true -Dcplayer=false -Dvulkan=disabled -Dgpl=true -Dbuildtype=release
-ninja -C build
-mkdir -p pkg && cp build/libmpv.so.2.5.0 pkg/libmpv.so.2
-(cd pkg && zip -9 libmpv_aarch64.zip libmpv.so.2)
-```
+- `linux/video_output.cc` (`purelive_get_proc_address`): libmpv loads all GL
+  entry points through this resolver, so it receives wrappers that advertise
+  `GL_EXT_EGL_image_storage` (via `glGetString`, `glGetStringi` and
+  `GL_NUM_EXTENSIONS`) and let mpv pick the storage route;
+- `linux/jm9100_gl.cc` (`eglGetProcAddress` interposition, requires
+  `ENABLE_EXPORTS` on the runner): the storage entry point, which libmpv resolves
+  through libEGL directly, is redirected onto the working
+  `glEGLImageTargetTexture2DOES`.
 
-Point the build at that archive (CMake cache variable or environment variable);
-without it `flutter build linux` silently restores the unpatched download:
+Both only engage when the current renderer is the Jingjia stack
+(`JMGPU_GL_COMPAT=0` disables them), so other vendors keep upstream behavior.
 
-```sh
-PURELIVE_LIBMPV_ZIP=/path/to/libmpv_aarch64.zip flutter build linux --release
-```
-
-The archive must contain `libmpv.so.2` with SONAME `libmpv.so.2`. On this
-machine the resulting library is linked against the system FFmpeg/libplacebo
-(6.1.5/6.338.2) instead of media-kit's static build; its `mpv_*` export set is
-identical to the pinned archive, so media_kit's bindings stay satisfied.
-
-Verification used for the patch (device-independent, no app UI needed): a libmpv
-render-context probe that creates a GLX desktop-GL context first (like the GTK
-embedder) and then the isolated EGL/GLES2 context, plays a solid-red H.264 clip
-with `hwdec=vaapi` and reads the rendered FBO back. Unpatched archive:
-`VAAPI hwdec only works with OpenGL or Vulkan backends`, `hwdec-current=no`.
-Patched archive: `Using EGL dmabuf interop via GL_OES_EGL_image`,
-`hwdec-current=vaapi`, frame pixels equal to the software-decoded ones (no
-all-zero NV12 "green screen").
+Verification: a libmpv render-context probe that creates a GLX desktop-GL context
+first (like the GTK embedder) and then the isolated EGL/GLES2 context, plays a
+solid-red H.264 clip with `hwdec=vaapi` and reads the rendered FBO back. Without
+the compat: `VAAPI hwdec only works with OpenGL or Vulkan backends`,
+`hwdec-current=no`. With it: `Using EGL dmabuf interop via
+GL_EXT_EGL_image_storage`, `hwdec-current=vaapi`, frame pixels equal to the
+software-decoded ones (no all-zero NV12 "green screen").
 
 ## Maintenance
 
@@ -117,7 +104,9 @@ When updating the pinned media-kit revision:
    stalled CDN advances to the next line, a 0×0 candidate never replaces the
    active texture, remounting reasserts viewport size, and explicit pause never
    triggers the watchdog.
-7. Re-apply `patches/mpv-0.41-vaapi-dmabuf-oes.patch` to the newly pinned
-   libmpv source and rebuild the archive; when the pinned media-kit revision
-   changes the mpv version, port the patch to that file revision first and
-   re-run the libmpv probe described above.
+7. Keep the pinned libmpv archive untouched and re-check the Jingjia compat
+   wrappers (`purelive_get_proc_address`, `eglGetProcAddress` interposition):
+   they depend on media_kit still loading GL entry points through
+   `MPV_RENDER_PARAM_OPENGL_INIT_PARAMS.get_proc_address` and on mpv still
+   resolving the dmabuf interop entry points via `eglGetProcAddress`. Re-run the
+   libmpv probe described above after any media-kit or mpv version change.

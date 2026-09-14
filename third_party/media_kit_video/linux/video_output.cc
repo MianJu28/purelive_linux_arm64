@@ -36,6 +36,98 @@ struct _VideoOutput {
   gboolean destroyed;
 };
 
+// --- PureLive: Jingjia (JM9100) VA-API dmabuf compat -------------------------
+//
+// The vendor's user space declares GL_OES_EGL_image and implements
+// glEGLImageTargetTexture2DOES, but has no glEGLImageTargetTexStorageEXT: that
+// entry point is a glvnd-generated no-op stub (jm9100 README §3.6/§3.8). libmpv
+// picks the storage route on a desktop GL context, imports the dmabuf into a
+// texture that stays all zero and therefore refuses direct decoding
+// ("VAAPI hwdec only works with OpenGL or Vulkan backends"), which forces
+// vaapi-copy/software decoding.
+//
+// Advertising GL_EXT_EGL_image_storage here lets mpv take the storage route; the
+// runner redirects that entry point onto the working OES entry
+// (linux/jm9100_gl.cc), so zero-copy VA-API works with the pinned libmpv
+// archive. Nothing is changed for vendors that implement the storage route
+// properly: the wrappers only engage when the renderer is the Jingjia stack.
+static gboolean purelive_compat_active(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* renderer = NULL;
+    auto get_string = (const GLubyte* (*)(GLenum))eglGetProcAddress("glGetString");
+    if (get_string != NULL) {
+      renderer = (const char*)get_string(GL_RENDERER);
+    }
+    cached = renderer != NULL && strstr(renderer, "Jingjia") != NULL;
+    if (cached == 1) {
+      g_print("jm9100: advertising GL_EXT_EGL_image_storage to libmpv\n");
+    }
+  }
+  return cached == 1;
+}
+
+static const GLubyte* purelive_gl_get_string(GLenum name) {
+  static auto real = (const GLubyte* (*)(GLenum))eglGetProcAddress("glGetString");
+  const GLubyte* value = real != NULL ? real(name) : NULL;
+  if (!purelive_compat_active() || name != GL_EXTENSIONS || value == NULL) {
+    return value;
+  }
+  static const char* extended = NULL;
+  if (extended == NULL) {
+    extended = g_strdup_printf("%s GL_EXT_EGL_image_storage", (const char*)value);
+  }
+  return (const GLubyte*)extended;
+}
+
+static const GLubyte* purelive_gl_get_string_i(GLenum name, GLuint index) {
+  static auto real = (const GLubyte* (*)(GLenum, GLuint))eglGetProcAddress("glGetStringi");
+  static auto get_integerv = (void (*)(GLenum, GLint*))eglGetProcAddress("glGetIntegerv");
+  if (!purelive_compat_active() || name != GL_EXTENSIONS || real == NULL) {
+    return real != NULL ? real(name, index) : NULL;
+  }
+  GLint count = 0;
+  if (get_integerv != NULL) {
+    get_integerv(GL_NUM_EXTENSIONS, &count);
+  }
+  if (index >= (GLuint)count) {
+    static const GLubyte extension[] = "GL_EXT_EGL_image_storage";
+    return extension;
+  }
+  return real(name, index);
+}
+
+static void purelive_gl_get_integerv(GLenum name, GLint* value) {
+  static auto real = (void (*)(GLenum, GLint*))eglGetProcAddress("glGetIntegerv");
+  if (real == NULL) {
+    return;
+  }
+  real(name, value);
+  if (purelive_compat_active() && name == GL_NUM_EXTENSIONS && value != NULL) {
+    *value += 1;
+  }
+}
+
+// mpv loads every GL entry point through this resolver, so the wrappers above
+// only affect libmpv - the Flutter engine keeps the vendor's real answers.
+static void* purelive_get_proc_address(const char* name) {
+  if (name == NULL) {
+    return NULL;
+  }
+  if (purelive_compat_active()) {
+    if (strcmp(name, "glGetString") == 0) {
+      return (void*)purelive_gl_get_string;
+    }
+    if (strcmp(name, "glGetStringi") == 0) {
+      return (void*)purelive_gl_get_string_i;
+    }
+    if (strcmp(name, "glGetIntegerv") == 0) {
+      return (void*)purelive_gl_get_integerv;
+    }
+  }
+  return (void*)eglGetProcAddress(name);
+}
+
 G_DEFINE_TYPE(VideoOutput, video_output, G_TYPE_OBJECT)
 
 static void video_output_dispose(GObject* object) {
@@ -216,9 +308,11 @@ VideoOutput* video_output_new(FlTextureRegistrar* texture_registrar,
       if (self->egl_context != EGL_NO_CONTEXT) {
         // Surfaceless: mpv only ever renders into FBOs.
         if (eglMakeCurrent(self->egl_display, EGL_NO_SURFACE, EGL_NO_SURFACE, self->egl_context)) {
+          // PureLive: resolver wrapped for the Jingjia VA-API dmabuf compat
+          // (see purelive_get_proc_address above).
           mpv_opengl_init_params gl_init_params{
               [](auto, auto name) {
-                return (void*)eglGetProcAddress(name);
+                return purelive_get_proc_address(name);
               },
               NULL,
           };
