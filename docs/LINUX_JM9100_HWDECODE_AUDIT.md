@@ -440,6 +440,36 @@ FBConfig + GTK 建上下文成功"（本仓库探测即为此），而非 EGL co
 2. 若播放正常，考虑把 `hwdec` 的 Linux 默认语义写进设置文档（仍保持 `auto`，因为
    `auto` 已能选到 direct），并复跑 §7.2 基准。
 3. 与厂商确认两处结构性缺陷（README §7 已列）：`glEGLImageTargetTexStorageEXT`
-   未实现、EGL config 仅覆盖单一 visual。
+   未实现、EGL config 仅覆盖单一 visual；另见 §10.7 新增的 GBM surface 空指针。
 4. 用户侧可选：系统级 `./build_gl_compat.sh install` 可让其它播放器同样直通；
    本应用不依赖它。
+
+### 10.7 上游重建后"打开直播间闪退"的定位与修复（2026-09-14）
+
+现象：以上游 `master` 为基线重建后（提交 `e27cc42f`），打开任意直播间立即闪退
+（`exit=139`），应用日志停在 `NativeVideoController: Texture ID` 与 libva 的
+`pci id for fd ...` 之后。
+
+取证（无 gdb，用 `LD_PRELOAD` 注入 SIGSEGV 回溯 + `strace`）：
+
+| 证据 | 内容 |
+| --- | --- |
+| 调用栈 | `libmpv.so.2` → `/usr/lib/aarch64-linux-gnu/mwv207/libEGL_mwv207.so.1.5.0` → `/lib/aarch64-linux-gnu/libgbm_jm.so(gbm_jm_surface_get_free_buffer+0x48)` 空指针（`si_addr=0x839`） |
+| strace | 崩溃线程加载 `dri_gbm.so`、解析 Mesa `drirc` 配置后即 SIGSEGV，随后进程全部线程一并终止 |
+| 触发设置 | `customPlayerOutput=true` 且 `videoOutputDriver="gpu"`（`app_settings.hive` 实测值） |
+| 对照 | `PURELIVE_JM9100_GL=software`（Mesa/llvmpipe）不崩溃 → 触发点在厂商 EGL/GBM 路径 |
+
+根因：`lib/player/adapters/media_kit_adapter.dart` 在"自定义输出"分支把设置里的渲染器
+直接作为 `vo` 传给 mpv。该值取自 Android 渲染器词表（`gpu` / `gpu-next` /
+`mediacodec_embed`），桌面转发后 mpv 会为自己创建 EGL/window surface 并脱离 Flutter
+纹理：在本机 mwv207 栈上就是 `libEGL_mwv207 → libgbm_jm` 的 GBM surface 分配空指针
+崩溃（较轻的表现即 §9 记录过的"有声音、黑画面"）。维护分支此前的实现
+（`resolveVideoOutputDriver`）在非 Android 平台返回 `null`，重建时该保护被上游实现覆盖，
+因此回归。
+
+修复：桌面平台不再向 mpv 转发 `vo`（保持 media_kit 默认的 libmpv 渲染上下文），
+Android/iOS 语义不变；用户无需修改既有设置即可恢复 §10.5 的直通硬解形态。修复后复测：
+打开直播间不崩溃，画面正常且持续更新（相邻两帧 RMSE≈0.375）。
+
+厂商侧遗留（转 `jm9100` 仓库）：`gbm_jm_surface_get_free_buffer` 对 NULL surface 解引用；
+GLX/EGL 窗口 surface 路径仍不稳定（§10.5 缺口 3）。

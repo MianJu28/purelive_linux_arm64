@@ -262,10 +262,17 @@ class MediaKitAdapter
       // =========================
       final platform = defaultTargetPlatform;
       final androidCompatMode = PlatformUtils.isAndroid && SettingsService.to.player.playerCompatMode.v;
-      final videoOutputDriver = normalizeMpvVideoOutputDriverForPlatform(
-        SettingsService.to.player.videoOutputDriver.v,
-        platform,
-      );
+      // 桌面平台必须保持 media_kit 的默认渲染路径（内部即 libmpv 渲染上下文）。
+      // 设置项里的 `gpu` / `gpu-next` / `mediacodec_embed` 属于 Android 渲染器词表：
+      // 一旦转发给桌面 mpv，mpv 会为自己创建 EGL/window surface 并脱离 Flutter 纹理，
+      // 轻则黑屏（有声音无画面），重则在本机 mwv207 栈上直接崩溃——调用栈为
+      // libmpv → libEGL_mwv207 → libgbm_jm.so(gbm_jm_surface_get_free_buffer) 空指针。
+      // 详见 docs/LINUX_JM9100_HWDECODE_AUDIT.md §10。Android/iOS 维持原有语义。
+      final String? videoOutputDriver = switch (platform) {
+        TargetPlatform.android || TargetPlatform.iOS =>
+          normalizeMpvVideoOutputDriverForPlatform(SettingsService.to.player.videoOutputDriver.v, platform),
+        _ => null,
+      };
       final hardwareDecoder = normalizeMpvHardwareDecoderForPlatform(
         SettingsService.to.player.videoHardwareDecoder.v,
         platform,
