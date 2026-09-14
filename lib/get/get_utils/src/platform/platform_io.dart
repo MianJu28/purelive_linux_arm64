@@ -16,5 +16,6 @@ class GeneralPlatform {
 
   static bool get isFuchsia => Platform.isFuchsia;
 
-  static bool get isDesktop => Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  static bool get isDesktop =>
+      Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 }

@@ -16,15 +16,7 @@ void main() {
     final filter = RepeatedDanmakuFilter();
     final start = DateTime(2026, 8, 19, 12);
 
-    expect(
-      filter.accepts(
-        message('  加油  '),
-        enabled: true,
-        window: const Duration(seconds: 5),
-        now: start,
-      ),
-      isTrue,
-    );
+    expect(filter.accepts(message('  加油  '), enabled: true, window: const Duration(seconds: 5), now: start), isTrue);
     expect(
       filter.accepts(
         message('加油', user: 'u2'),
@@ -49,15 +41,7 @@ void main() {
     final filter = RepeatedDanmakuFilter();
     final start = DateTime(2026, 8, 19, 12);
 
-    expect(
-      filter.accepts(
-        message('hello'),
-        enabled: true,
-        window: const Duration(seconds: 5),
-        now: start,
-      ),
-      isTrue,
-    );
+    expect(filter.accepts(message('hello'), enabled: true, window: const Duration(seconds: 5), now: start), isTrue);
     expect(
       filter.accepts(
         message('hello', user: 'local', local: true),

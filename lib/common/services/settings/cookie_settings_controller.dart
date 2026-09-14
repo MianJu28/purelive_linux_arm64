@@ -1,6 +1,7 @@
 import 'package:pure_live/get/get.dart';
 import 'package:pure_live/common/services/utils/hive_rx.dart';
 import 'package:pure_live/common/services/settings/bilibili_account_service.dart';
+import 'package:pure_live/common/services/settings/cookie_value.dart';
 
 class CookieSettingsController extends GetxController {
   final RxString bilibiliCookie = hiveString('bilibiliCookie', '');
@@ -12,25 +13,24 @@ class CookieSettingsController extends GetxController {
   final RxString soopCookie = hiveString('soopCookie', '');
   final RxString yyCookie = hiveString('yyCookie', '');
 
-  /// 按平台标识取已配置的 Cookie；未知平台或未配置时返回空串。
-  String cookieForPlatform(String platform) {
-    switch (platform.toLowerCase()) {
-      case 'bilibili':
-        return bilibiliCookie.v;
-      case 'huya':
-        return huyaCookie.v;
-      case 'douyin':
-        return douyinCookie.v;
-      case 'kuaishou':
-        return kuaishouCookie.v;
-      case 'twitch':
-        return twitchCookie.v;
-      case 'soop':
-        return soopCookie.v;
-      case 'yy':
-        return yyCookie.v;
-      default:
-        return '';
+  @override
+  void onInit() {
+    super.onInit();
+    _normalizeStoredCookies();
+  }
+
+  void _normalizeStoredCookies() {
+    for (final cookie in [
+      bilibiliCookie,
+      huyaCookie,
+      douyinCookie,
+      kuaishouCookie,
+      twitchCookie,
+      soopCookie,
+      yyCookie,
+    ]) {
+      final normalized = normalizeAccountCookie(cookie.v);
+      if (normalized != cookie.v) cookie.v = normalized;
     }
   }
 
@@ -58,15 +58,30 @@ class CookieSettingsController extends GetxController {
     };
   }
 
+  /// Parse the complete section without notifying observers or persisting values.
+  static Map<String, dynamic> parseConfig(Map<String, dynamic> json) {
+    return {
+      'bilibiliCookie': normalizeAccountCookie((json['bilibiliCookie'] ?? '') as String),
+      'huyaCookie': normalizeAccountCookie((json['huyaCookie'] ?? '') as String),
+      'douyinCookie': normalizeAccountCookie((json['douyinCookie'] ?? '') as String),
+      'kuaishouCookie': normalizeAccountCookie((json['kuaishouCookie'] ?? '') as String),
+      'bilibiliUid': (json['bilibiliUid'] ?? 0) as int,
+      'twitchCookie': normalizeAccountCookie((json['twitchCookie'] ?? '') as String),
+      'soopCookie': normalizeAccountCookie((json['soopCookie'] ?? '') as String),
+      'yyCookie': normalizeAccountCookie((json['yyCookie'] ?? '') as String),
+    };
+  }
+
   void fromJson(Map<String, dynamic> json) {
-    bilibiliCookie.v = json['bilibiliCookie'] ?? '';
-    huyaCookie.v = json['huyaCookie'] ?? '';
-    douyinCookie.v = json['douyinCookie'] ?? '';
-    kuaishouCookie.v = json['kuaishouCookie'] ?? '';
-    bilibiliUid.v = json['bilibiliUid'] ?? 0;
-    twitchCookie.v = json['twitchCookie'] ?? '';
-    soopCookie.v = json['soopCookie'] ?? '';
-    yyCookie.v = json['yyCookie'] ?? '';
+    final parsed = parseConfig(json);
+    bilibiliCookie.v = parsed['bilibiliCookie'];
+    huyaCookie.v = parsed['huyaCookie'];
+    douyinCookie.v = parsed['douyinCookie'];
+    kuaishouCookie.v = parsed['kuaishouCookie'];
+    bilibiliUid.v = parsed['bilibiliUid'];
+    twitchCookie.v = parsed['twitchCookie'];
+    soopCookie.v = parsed['soopCookie'];
+    yyCookie.v = parsed['yyCookie'];
 
     BiliBiliAccountService.instance.setCookie(bilibiliCookie.v);
     BiliBiliAccountService.instance.loadUserInfo();
@@ -74,22 +89,10 @@ class CookieSettingsController extends GetxController {
 
   static Map<String, dynamic> extractConfig(Map<String, dynamic>? rootConfig) {
     final cookie = rootConfig?['cookie'] as Map<String, dynamic>? ?? {};
-    return {
-      'bilibiliCookie': cookie['bilibiliCookie'] ?? '',
-      'huyaCookie': cookie['huyaCookie'] ?? '',
-      'douyinCookie': cookie['douyinCookie'] ?? '',
-      'kuaishouCookie': cookie['kuaishouCookie'] ?? '',
-      'bilibiliUid': cookie['bilibiliUid'] ?? 0,
-      'twitchCookie': cookie['twitchCookie'] ?? '',
-      'soopCookie': cookie['soopCookie'] ?? '',
-      'yyCookie': cookie['yyCookie'] ?? '',
-    };
+    return parseConfig(cookie);
   }
 
-  static Map<String, dynamic> mergeConfig(
-    Map<String, dynamic> rootConfig,
-    Map<String, dynamic> updateFields,
-  ) {
+  static Map<String, dynamic> mergeConfig(Map<String, dynamic> rootConfig, Map<String, dynamic> updateFields) {
     final cookie = Map<String, dynamic>.from(rootConfig['cookie'] ?? {});
     updateFields.forEach((k, v) => cookie[k] = v);
     rootConfig['cookie'] = cookie;

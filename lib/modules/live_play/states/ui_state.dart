@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-enum VideoMode { normal, widescreen, fullscreen }
+enum VideoMode { normal, widescreen, fullscreen, portraitFullscreen }
 
 bool requiresSystemFullscreenExit(VideoMode mode) {
-  return mode == VideoMode.fullscreen;
+  return mode == VideoMode.fullscreen || mode == VideoMode.portraitFullscreen;
 }
 
 @immutable
@@ -14,7 +14,6 @@ class UIState {
   final int closeTimes;
   final bool closeTimeFlag;
   final bool displayVideoLayer;
-  final int uiRotation;
   const UIState({
     this.screenMode = VideoMode.normal,
     this.refreshKey = 0,
@@ -22,7 +21,6 @@ class UIState {
     this.closeTimes = 240,
     this.closeTimeFlag = false,
     this.displayVideoLayer = true,
-    this.uiRotation = 0,
   });
   UIState copyWith({
     VideoMode? screenMode,
@@ -31,7 +29,6 @@ class UIState {
     int? closeTimes,
     bool? closeTimeFlag,
     bool? displayVideoLayer,
-    int? uiRotation,
   }) {
     return UIState(
       screenMode: screenMode ?? this.screenMode,
@@ -40,7 +37,6 @@ class UIState {
       closeTimes: closeTimes ?? this.closeTimes,
       closeTimeFlag: closeTimeFlag ?? this.closeTimeFlag,
       displayVideoLayer: displayVideoLayer ?? this.displayVideoLayer,
-      uiRotation: uiRotation ?? this.uiRotation,
     );
   }
 
@@ -53,7 +49,6 @@ class UIState {
         '  closeTimes: $closeTimes,\n'
         '  closeTimeFlag: $closeTimeFlag,\n'
         'displayVideoLayer: $displayVideoLayer,\n'
-        '  uiRotation: $uiRotation,\n'
         ')';
   }
 
@@ -66,18 +61,9 @@ class UIState {
         other.isMenuOpen == isMenuOpen &&
         other.closeTimes == closeTimes &&
         other.closeTimeFlag == closeTimeFlag &&
-        other.displayVideoLayer == displayVideoLayer &&
-        other.uiRotation == uiRotation;
+        other.displayVideoLayer == displayVideoLayer;
   }
 
   @override
-  int get hashCode => Object.hash(
-    screenMode,
-    refreshKey,
-    isMenuOpen,
-    closeTimes,
-    closeTimeFlag,
-    displayVideoLayer,
-    uiRotation,
-  );
+  int get hashCode => Object.hash(screenMode, refreshKey, isMenuOpen, closeTimes, closeTimeFlag, displayVideoLayer);
 }

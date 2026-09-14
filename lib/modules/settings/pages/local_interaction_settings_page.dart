@@ -32,6 +32,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
     return Scaffold(
       appBar: AppBar(title: Text(i18n('local_interaction_settings'))),
       body: ListView(
+        key: const ValueKey('local-interaction-settings-scroll'),
         physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
@@ -58,10 +59,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          i18n('local_platform_pack_desc'),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                        Text(i18n('local_platform_pack_desc'), style: Theme.of(context).textTheme.bodySmall),
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 8,
@@ -69,6 +67,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
                           children: LocalInteractionController.platformPacks
                               .map(
                                 (pack) => ChoiceChip(
+                                  key: ValueKey('local-platform-pack-${pack.id}'),
                                   avatar: Text(pack.badge),
                                   label: Text(pack.name),
                                   selected: controller.previewPlatform.v == pack.id,
@@ -93,10 +92,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
                       controller: nameController,
                       maxLength: 20,
                       textInputAction: TextInputAction.done,
-                      decoration: InputDecoration(
-                        labelText: i18n('local_user_name'),
-                        counterText: '',
-                      ),
+                      decoration: InputDecoration(labelText: i18n('local_user_name'), counterText: ''),
                       onSubmitted: controller.updateName,
                     ),
                   ),
@@ -105,10 +101,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          i18n('local_title_select'),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                        Text(i18n('local_title_select'), style: Theme.of(context).textTheme.titleSmall),
                         const SizedBox(height: 8),
                         Obx(
                           () => Wrap(
@@ -175,10 +168,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    i18n('local_interaction_room_entry_desc'),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  child: Text(i18n('local_interaction_room_entry_desc'), style: Theme.of(context).textTheme.bodySmall),
                 ),
                 const SizedBox(height: 20),
                 context.buildGroupTitle(i18n('local_experience_economy')),
@@ -188,19 +178,15 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          i18n('local_experience_economy_desc'),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                        Text(i18n('local_experience_economy_desc'), style: Theme.of(context).textTheme.bodySmall),
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 8,
+                          runSpacing: 8,
                           children: const [500, 2000, 10000]
                               .map(
-                                (value) => OutlinedButton(
-                                  onPressed: () => controller.recharge(value),
-                                  child: Text('+$value'),
-                                ),
+                                (value) =>
+                                    OutlinedButton(onPressed: () => controller.recharge(value), child: Text('+$value')),
                               )
                               .toList(),
                         ),
@@ -228,10 +214,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            pack.accentColor.withValues(alpha: .18),
-            pack.accentColor.withValues(alpha: .05),
-          ],
+          colors: [pack.accentColor.withValues(alpha: .18), pack.accentColor.withValues(alpha: .05)],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: pack.accentColor.withValues(alpha: .25)),
@@ -252,10 +235,7 @@ class _LocalInteractionSettingsPageState extends State<LocalInteractionSettingsP
               spacing: 10,
               runSpacing: 8,
               children: gifts
-                  .map(
-                    (gift) =>
-                        Chip(label: Text('${gift.emoji} ${i18n(gift.nameKey)} · ${gift.price}')),
-                  )
+                  .map((gift) => Chip(label: Text('${gift.emoji} ${i18n(gift.nameKey)} · ${gift.price}')))
                   .toList(),
             ),
           ],

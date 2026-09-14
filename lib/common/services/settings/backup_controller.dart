@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
-
 import 'package:pure_live/get/get.dart';
+import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/common/services/utils/hive_rx.dart';
 import 'package:pure_live/modules/tags/tag_management_controller.dart';
 import 'package:pure_live/common/services/settings/web_dav_controller.dart';
@@ -22,14 +22,16 @@ import 'package:pure_live/common/services/settings/volume_settings_controller.da
 import 'package:pure_live/common/services/settings/cookie_settings_controller.dart';
 import 'package:pure_live/common/services/settings/danmaku_settings_controller.dart';
 
+
 class BackupController extends GetxController {
   static BackupController get to => Get.find();
 
   static const int backupVersion = 3;
+  static bool _restoreInProgress = false;
 
   final RxString backupDirectory = hiveString('backupDirectory', '');
 
-  Map<String, dynamic> exportAllSettings({bool includeSensitiveData = false}) {
+  Map<String, dynamic> exportAllSettings({bool includeSensitiveData = true}) {
     if (!Get.isRegistered<TagManagementController>()) {
       Get.put(TagManagementController());
     }
@@ -71,8 +73,100 @@ class BackupController extends GetxController {
     return result;
   }
 
-  void importAllSettings(Map<String, dynamic> data) {
+  // Derive recognized wire keys from the existing canonical configuration
+  // extractors, rather than maintaining another list of hundreds of fields.
+  static final Map<String, Set<String>> _sectionKeys = {
+    'app': AppSettingsController.extractConfig(null).keys.toSet(),
+    'theme': ThemeSettingsController.extractConfig(null).keys.toSet()..add('languageName'),
+    'font': FontSettingsController.extractConfig(null).keys.toSet(),
+    'player': PlayerSettingsController.extractConfig(null).keys.toSet(),
+    'danmaku': DanmakuSettingsController.extractConfig(null).keys.toSet()..add('pipDanmaNoEmojiMode'),
+    'volume': VolumeSettingsController.extractConfig(null).keys.toSet(),
+    'favorite': FavoriteRoomController.extractConfig(null).keys.toSet(),
+    'history': HistoryController.extractConfig(null).keys.toSet(),
+    'webdav': WebDavController.extractConfig(null).keys.toSet(),
+    'iptv': IptvSettingsController.extractConfig(null).keys.toSet(),
+    'cookie': CookieSettingsController.extractConfig(null).keys.toSet(),
+    'proxy': ProxySettingsController.extractConfig(null).keys.toSet(),
+    'windowSize': WindowSizeController.extractConfig(null).keys.toSet(),
+    'exit': ExitSettingsController.extractConfig(null).keys.toSet(),
+    'startup': StartupController.extractConfig(null).keys.toSet(),
+    'refresh': RefreshConfigController.extractConfig(null).keys.toSet(),
+    'page': PageSettingsController.extractConfig(null).keys.toSet(),
+    'tags': {'tags', 'roomTagsMap'},
+  };
+
+  static int countConfigSections(Map<String, dynamic> data) {
+    return _sectionKeys.keys.where(data.containsKey).length;
+  }
+
+  static void validateBackupIdentity(Map<String, dynamic> data) {
     final version = data['backupVersion'];
+    if (version != null && (version is! int || version < 1)) {
+      throw const FormatException('Invalid backup version');
+    }
+    bool recognized = false;
+    if (version == null) {
+      final legacyTags = data['custom_tags_data'];
+      recognized =
+          (legacyTags is Map && legacyTags.keys.any(_sectionKeys['tags']!.contains)) ||
+          data.containsKey('pipDanmaNoEmojiMode') ||
+          _sectionKeys.entries
+              .where((entry) => entry.key != 'tags')
+              .any((entry) => data.keys.any(entry.value.contains));
+    } else {
+      validateSectionStructure(data);
+      recognized = _sectionKeys.entries.any((entry) {
+        final section = data[entry.key];
+        return section is Map && section.keys.any(entry.value.contains);
+      });
+    }
+    if (!recognized) throw const FormatException('No recognized backup settings');
+  }
+
+  void importAllSettings(Map<String, dynamic> data) {
+    validateBackupIdentity(data);
+    final version = data['backupVersion'];
+
+    // Validate input before any controller notifies observers or persists it.
+    // This does not make asynchronous storage failures transactional.
+    if (version != null) validateSectionStructure(data);
+    final parsers = <String, Map<String, dynamic> Function(Map<String, dynamic>)>{
+      'app': AppSettingsController.parseConfig,
+      'player': PlayerSettingsController.parseConfig,
+      'danmaku': DanmakuSettingsController.parseConfig,
+      'windowSize': WindowSizeController.parseConfig,
+      'theme': ThemeSettingsController.parseConfig,
+      'font': FontSettingsController.parseConfig,
+      'exit': ExitSettingsController.parseConfig,
+      'iptv': IptvSettingsController.parseConfig,
+      'startup': StartupController.parseConfig,
+      'proxy': ProxySettingsController.parseConfig,
+      'refresh': RefreshConfigController.parseConfig,
+      'cookie': CookieSettingsController.parseConfig,
+      'favorite': FavoriteRoomController.parseConfig,
+      'history': HistoryController.parseConfig,
+      'webdav': WebDavController.parseConfig,
+      'page': PageSettingsController.parseConfig,
+    };
+    for (final entry in parsers.entries) {
+      if (version == null) {
+        entry.value(data);
+      } else if (data.containsKey(entry.key)) {
+        entry.value(Map<String, dynamic>.from(data[entry.key] ?? {}));
+      }
+    }
+    final tags = version == null ? data['custom_tags_data'] : data['tags'];
+    if (tags != null) {
+      TagManagementController.parseConfig(Map<String, dynamic>.from(tags));
+    }
+    if (version == null) {
+      VolumeSettingsController.parseConfig(data);
+    } else {
+      VolumeSettingsController.parseConfig(Map<String, dynamic>.from(data['volume'] ?? {}));
+      // Validate the legacy player-owned flag after normalizing its ownership.
+      WindowSizeController.parseConfig(WindowSizeController.extractConfig(data));
+    }
 
     if (version == null) {
       _importLegacy(data);
@@ -96,6 +190,7 @@ class BackupController extends GetxController {
   }
 
   void _importV2(Map<String, dynamic> data) {
+    validateSectionStructure(data);
     Get.find<AppSettingsController>().fromJson(Map<String, dynamic>.from(data['app'] ?? {}));
 
     Get.find<ThemeSettingsController>().fromJson(Map<String, dynamic>.from(data['theme'] ?? {}));
@@ -104,9 +199,7 @@ class BackupController extends GetxController {
 
     Get.find<PlayerSettingsController>().fromJson(Map<String, dynamic>.from(data['player'] ?? {}));
 
-    Get.find<DanmakuSettingsController>().fromJson(
-      Map<String, dynamic>.from(data['danmaku'] ?? {}),
-    );
+    Get.find<DanmakuSettingsController>().fromJson(Map<String, dynamic>.from(data['danmaku'] ?? {}));
 
     Get.find<VolumeSettingsController>().fromJson(Map<String, dynamic>.from(data['volume'] ?? {}));
 
@@ -121,9 +214,7 @@ class BackupController extends GetxController {
     Get.find<IptvSettingsController>().fromJson(Map<String, dynamic>.from(data['iptv'] ?? {}));
 
     if (data.containsKey('cookie')) {
-      Get.find<CookieSettingsController>().fromJson(
-        Map<String, dynamic>.from(data['cookie'] ?? {}),
-      );
+      Get.find<CookieSettingsController>().fromJson(Map<String, dynamic>.from(data['cookie'] ?? {}));
     }
 
     Get.find<ProxySettingsController>().fromJson(Map<String, dynamic>.from(data['proxy'] ?? {}));
@@ -147,6 +238,38 @@ class BackupController extends GetxController {
     final tagsData = data['tags'];
     if (tagsData is Map) {
       Get.find<TagManagementController>().importFromJson(Map<String, dynamic>.from(tagsData));
+    }
+  }
+
+  /// Reject malformed sections before any controller persists an earlier one.
+  /// Missing/null sections keep their historical default-import behavior.
+  static void validateSectionStructure(Map<String, dynamic> data) {
+    const sections = <String>[
+      'app',
+      'theme',
+      'font',
+      'player',
+      'danmaku',
+      'volume',
+      'favorite',
+      'history',
+      'webdav',
+      'iptv',
+      'cookie',
+      'proxy',
+      'windowSize',
+      'exit',
+      'startup',
+      'refresh',
+      'page',
+      'tags',
+    ];
+    for (final name in sections) {
+      final section = data[name];
+      if (section == null) continue;
+      if (section is! Map || section.keys.any((key) => key is! String)) {
+        throw FormatException('Invalid backup section: $name');
+      }
     }
   }
 
@@ -188,7 +311,17 @@ class BackupController extends GetxController {
     }
   }
 
-  bool recover(File file) {
+  Future<void> restoreAllSettings(Map<String, dynamic> data) async {
+    if (_restoreInProgress) throw StateError('A settings restore is already running');
+    _restoreInProgress = true;
+    try {
+      await HivePrefUtil.persistBatch(() => importAllSettings(data));
+    } finally {
+      _restoreInProgress = false;
+    }
+  }
+
+  Future<bool> recover(File file) async {
     try {
       final json = file.readAsStringSync();
       final data = jsonDecode(json);
@@ -197,7 +330,7 @@ class BackupController extends GetxController {
         return false;
       }
 
-      importAllSettings(data);
+      await restoreAllSettings(data);
 
       return true;
     } catch (_) {
@@ -234,7 +367,7 @@ class BackupController extends GetxController {
     }
   }
 
-  Map<String, dynamic> exportToTVSettings({bool includeSensitiveData = false}) {
+  Map<String, dynamic> exportToTVSettings({bool includeSensitiveData = true}) {
     final danmaku = Get.find<DanmakuSettingsController>().toJson();
     final iptv = Get.find<IptvSettingsController>().toJson();
     final favorite = Get.find<FavoriteRoomController>().toJson();

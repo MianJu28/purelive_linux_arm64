@@ -1,5 +1,4 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 class ThemeUtils {
@@ -16,7 +15,11 @@ class ThemeUtils {
     return Theme.of(context).brightness == Brightness.light;
   }
 
-  static T select<T>(BuildContext context, {required T light, required T dark}) {
+  static T select<T>(
+    BuildContext context, {
+    required T light,
+    required T dark,
+  }) {
     return isDark(context) ? dark : light;
   }
 

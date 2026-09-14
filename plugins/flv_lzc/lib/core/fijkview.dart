@@ -31,13 +31,7 @@ part of fijkplayer;
 /// If change FijkView between normal mode and full screen mode, the panel would
 /// be rebuild. [data] can be used to pass value from different panel.
 typedef FijkPanelWidgetBuilder =
-    Widget Function(
-      FijkPlayer player,
-      FijkData data,
-      BuildContext context,
-      Size viewSize,
-      Rect texturePos,
-    );
+    Widget Function(FijkPlayer player, FijkData data, BuildContext context, Size viewSize, Rect texturePos);
 
 /// How a video should be inscribed into [FijkView].
 ///
@@ -75,26 +69,14 @@ class FijkFit {
   final double sizeFactor;
 
   /// Fill the target FijkView box by distorting the video's aspect ratio.
-  static const FijkFit fill = FijkFit(
-    sizeFactor: 1.0,
-    aspectRatio: double.infinity,
-    alignment: Alignment.center,
-  );
+  static const FijkFit fill = FijkFit(sizeFactor: 1.0, aspectRatio: double.infinity, alignment: Alignment.center);
 
   /// As large as possible while still containing the video entirely within the
   /// target FijkView box.
-  static const FijkFit contain = FijkFit(
-    sizeFactor: 1.0,
-    aspectRatio: -1,
-    alignment: Alignment.center,
-  );
+  static const FijkFit contain = FijkFit(sizeFactor: 1.0, aspectRatio: -1, alignment: Alignment.center);
 
   /// As small as possible while still covering the entire target FijkView box.
-  static const FijkFit cover = FijkFit(
-    sizeFactor: -0.5,
-    aspectRatio: -1,
-    alignment: Alignment.center,
-  );
+  static const FijkFit cover = FijkFit(sizeFactor: -0.5, aspectRatio: -1, alignment: Alignment.center);
 
   /// Make sure the full width of the source is shown, regardless of
   /// whether this means the source overflows the target box vertically.
@@ -270,12 +252,7 @@ class _FijkViewState extends State<FijkView> {
       builder: (BuildContext context, Widget? child) {
         return Scaffold(
           resizeToAvoidBottomInset: false,
-          body: _InnerFijkView(
-            fijkViewState: this,
-            fullScreen: true,
-            cover: widget.cover,
-            data: _fijkData,
-          ),
+          body: _InnerFijkView(fijkViewState: this, fullScreen: true, cover: widget.cover, data: _fijkData),
         );
       },
     );
@@ -338,23 +315,13 @@ class _FijkViewState extends State<FijkView> {
       height: widget.height,
       child: _fullScreen
           ? Container()
-          : _InnerFijkView(
-              fijkViewState: this,
-              fullScreen: false,
-              cover: widget.cover,
-              data: _fijkData,
-            ),
+          : _InnerFijkView(fijkViewState: this, fullScreen: false, cover: widget.cover, data: _fijkData),
     );
   }
 }
 
 class _InnerFijkView extends StatefulWidget {
-  _InnerFijkView({
-    required this.fijkViewState,
-    required this.fullScreen,
-    required this.cover,
-    required this.data,
-  });
+  _InnerFijkView({required this.fijkViewState, required this.fullScreen, required this.cover, required this.data});
 
   final _FijkViewState fijkViewState;
   final bool fullScreen;
@@ -483,10 +450,7 @@ class __InnerFijkViewState extends State<_InnerFijkView> {
     Size childSize = applyAspectRatio(constraints, getAspectRatio(constraints, fit.aspectRatio));
     double sizeFactor = fit.sizeFactor;
     if (-1.0 < sizeFactor && sizeFactor < -0.0) {
-      sizeFactor = max(
-        constraints.maxWidth / childSize.width,
-        constraints.maxHeight / childSize.height,
-      );
+      sizeFactor = max(constraints.maxWidth / childSize.width, constraints.maxHeight / childSize.height);
     } else if (-2.0 < sizeFactor && sizeFactor < -1.0) {
       sizeFactor = constraints.maxWidth / childSize.width;
     } else if (-3.0 < sizeFactor && sizeFactor < -2.0) {
@@ -506,7 +470,7 @@ class __InnerFijkViewState extends State<_InnerFijkView> {
   }
 
   Widget buildTexture() {
-    Widget tex = _textureId >= 0 ? Texture(textureId: _textureId) : Container();
+    Widget tex = _textureId > 0 ? Texture(textureId: _textureId) : Container();
     if (_degree != 0 && _textureId >= 0) {
       return RotatedBox(quarterTurns: _degree ~/ 90, child: tex);
     }

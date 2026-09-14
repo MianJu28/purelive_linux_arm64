@@ -36,16 +36,22 @@ class TagManagementController extends GetxController {
     await HivePrefUtil.setAnyPref(_roomTagsMappingKey, roomTagsMap);
   }
 
-  void setRoomTags(LiveRoom room, List<String> newTagIds) {
+  Future<void> setRoomTags(LiveRoom room, List<String> newTagIds) async {
     final roomKey = room.identityKey;
-    if (newTagIds.isEmpty) {
+    final validTagIds = tags.map((tag) => tag.id).toSet();
+    final normalizedTagIds = newTagIds.where(validTagIds.contains).toSet().toList(growable: false);
+    final legacyKey = room.normalizedRoomId;
+    if (legacyKey.isNotEmpty && legacyKey != roomKey) {
+      roomTagsMap.remove(legacyKey);
+    }
+    if (normalizedTagIds.isEmpty) {
       roomTagsMap.remove(roomKey);
     } else {
-      roomTagsMap[roomKey] = List<String>.from(newTagIds);
+      roomTagsMap[roomKey] = normalizedTagIds;
     }
 
     roomTagsMap.refresh();
-    saveRoomTagsMapping();
+    await saveRoomTagsMapping();
   }
 
   /// Moves the legacy room-number-only mapping to platform-scoped identities.
@@ -115,6 +121,7 @@ class TagManagementController extends GetxController {
   }
 
   bool updateTag(int index, String newName, String newDescription) {
+    if (index < 0 || index >= tags.length) return false;
     final cleanName = newName.trim();
     if (cleanName.isEmpty) return false;
 
@@ -144,7 +151,25 @@ class TagManagementController extends GetxController {
   }
 
   void deleteTag(int index) {
+    if (index < 0 || index >= tags.length) return;
+    final deletedTagId = tags[index].id;
     tags.removeAt(index);
+
+    var mappingChanged = false;
+    for (final entry in roomTagsMap.entries.toList(growable: false)) {
+      final remainingIds = entry.value.where((id) => id != deletedTagId).toList(growable: false);
+      if (remainingIds.length == entry.value.length) continue;
+      mappingChanged = true;
+      if (remainingIds.isEmpty) {
+        roomTagsMap.remove(entry.key);
+      } else {
+        roomTagsMap[entry.key] = remainingIds;
+      }
+    }
+    if (mappingChanged) {
+      roomTagsMap.refresh();
+      saveRoomTagsMapping();
+    }
     _refreshSequentialOrders();
   }
 
@@ -160,23 +185,32 @@ class TagManagementController extends GetxController {
     return {'tags': tags.map((e) => e.toJson()).toList(), 'roomTagsMap': roomTagsMap};
   }
 
-  void importFromJson(Map<String, dynamic>? json) {
-    if (json == null) return;
-
-    if (json.containsKey('tags') && json['tags'] != null) {
+  static Map<String, dynamic> parseConfig(Map<String, dynamic> json) {
+    final result = <String, dynamic>{};
+    if (json['tags'] != null) {
       final storedTags = json['tags'] as List;
       final list = storedTags.map((e) => LiveTag.fromJson(Map<String, dynamic>.from(e))).toList();
       list.sort((a, b) => a.order.compareTo(b.order));
-      tags.assignAll(list);
-      saveTags();
+      result['tags'] = list;
     }
-
-    if (json.containsKey('roomTagsMap') && json['roomTagsMap'] != null) {
+    if (json['roomTagsMap'] != null) {
       final storedMap = json['roomTagsMap'] as Map;
-      final convertedMap = storedMap.map((key, value) {
+      result['roomTagsMap'] = storedMap.map((key, value) {
         return MapEntry(key.toString(), List<String>.from(value as List));
       });
-      roomTagsMap.assignAll(convertedMap);
+    }
+    return result;
+  }
+
+  void importFromJson(Map<String, dynamic>? json) {
+    if (json == null) return;
+    final parsed = parseConfig(json);
+    if (parsed.containsKey('tags')) {
+      tags.assignAll(parsed['tags']);
+      saveTags();
+    }
+    if (parsed.containsKey('roomTagsMap')) {
+      roomTagsMap.assignAll(parsed['roomTagsMap']);
       saveRoomTagsMapping();
     }
   }

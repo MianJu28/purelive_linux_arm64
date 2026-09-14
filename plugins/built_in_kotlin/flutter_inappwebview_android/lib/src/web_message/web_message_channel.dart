@@ -9,7 +9,8 @@ import 'web_message_port.dart';
 /// value to avoid breaking changes. See [PlatformWebMessageChannelCreationParams] for
 /// more information.
 @immutable
-class AndroidWebMessageChannelCreationParams extends PlatformWebMessageChannelCreationParams {
+class AndroidWebMessageChannelCreationParams
+    extends PlatformWebMessageChannelCreationParams {
   /// Creates a new [AndroidWebMessageChannelCreationParams] instance.
   const AndroidWebMessageChannelCreationParams(
       {required super.id, required super.port1, required super.port2});
@@ -30,17 +31,18 @@ class AndroidWebMessageChannelCreationParams extends PlatformWebMessageChannelCr
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformWebMessageChannel}
-class AndroidWebMessageChannel extends PlatformWebMessageChannel with ChannelController {
+class AndroidWebMessageChannel extends PlatformWebMessageChannel
+    with ChannelController {
   /// Constructs a [AndroidWebMessageChannel].
   AndroidWebMessageChannel(PlatformWebMessageChannelCreationParams params)
       : super.implementation(
           params is AndroidWebMessageChannelCreationParams
               ? params
-              : AndroidWebMessageChannelCreationParams.fromPlatformWebMessageChannelCreationParams(
-                  params),
+              : AndroidWebMessageChannelCreationParams
+                  .fromPlatformWebMessageChannelCreationParams(params),
         ) {
-    channel =
-        MethodChannel('com.pichillilorenzo/flutter_inappwebview_web_message_channel_${params.id}');
+    channel = MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_web_message_channel_${params.id}');
     handler = _handleMethod;
     initMethodCallHandler();
   }
@@ -48,8 +50,10 @@ class AndroidWebMessageChannel extends PlatformWebMessageChannel with ChannelCon
   static final AndroidWebMessageChannel _staticValue = AndroidWebMessageChannel(
       AndroidWebMessageChannelCreationParams(
           id: '',
-          port1: AndroidWebMessagePort(AndroidWebMessagePortCreationParams(index: 0)),
-          port2: AndroidWebMessagePort(AndroidWebMessagePortCreationParams(index: 1))));
+          port1: AndroidWebMessagePort(
+              AndroidWebMessagePortCreationParams(index: 0)),
+          port2: AndroidWebMessagePort(
+              AndroidWebMessagePortCreationParams(index: 1))));
 
   /// Provide static access.
   factory AndroidWebMessageChannel.static() {
@@ -64,10 +68,13 @@ class AndroidWebMessageChannel extends PlatformWebMessageChannel with ChannelCon
     if (map == null) {
       return null;
     }
-    var webMessageChannel = AndroidWebMessageChannel(AndroidWebMessageChannelCreationParams(
-        id: map["id"],
-        port1: AndroidWebMessagePort(AndroidWebMessagePortCreationParams(index: 0)),
-        port2: AndroidWebMessagePort(AndroidWebMessagePortCreationParams(index: 1))));
+    var webMessageChannel = AndroidWebMessageChannel(
+        AndroidWebMessageChannelCreationParams(
+            id: map["id"],
+            port1: AndroidWebMessagePort(
+                AndroidWebMessagePortCreationParams(index: 0)),
+            port2: AndroidWebMessagePort(
+                AndroidWebMessagePortCreationParams(index: 1))));
     webMessageChannel._androidPort1.webMessageChannel = webMessageChannel;
     webMessageChannel._androidPort2.webMessageChannel = webMessageChannel;
     return webMessageChannel;
@@ -80,7 +87,8 @@ class AndroidWebMessageChannel extends PlatformWebMessageChannel with ChannelCon
         var port = index == 0 ? _androidPort1 : _androidPort2;
         if (port.onMessage != null) {
           WebMessage? message = call.arguments["message"] != null
-              ? WebMessage.fromMap(call.arguments["message"].cast<String, dynamic>())
+              ? WebMessage.fromMap(
+                  call.arguments["message"].cast<String, dynamic>())
               : null;
           port.onMessage!(message);
         }

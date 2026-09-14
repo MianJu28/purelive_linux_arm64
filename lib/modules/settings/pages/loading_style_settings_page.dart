@@ -5,6 +5,7 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:loading_indicator/loading_indicator.dart';
 import 'package:pure_live/common/index.dart' hide Indicator;
 import 'package:loading_animation_widget/loading_animation_widget.dart';
+import 'package:pure_live/modules/settings/widgets/app_color_picker_dialog.dart';
 
 class LoadingStyleSettingsPage extends StatefulWidget {
   const LoadingStyleSettingsPage({super.key});
@@ -13,72 +14,28 @@ class LoadingStyleSettingsPage extends StatefulWidget {
   State<LoadingStyleSettingsPage> createState() => _LoadingStyleSettingsPageState();
 }
 
-class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
-    with SingleTickerProviderStateMixin {
+class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage> with SingleTickerProviderStateMixin {
   late AnimationController _rotateController;
 
   @override
   void initState() {
     super.initState();
-    _rotateController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    )..repeat();
+    _rotateController = AnimationController(duration: const Duration(milliseconds: 1000), vsync: this)..repeat();
   }
 
   Future<bool> colorPickerDialog() async {
     final bool isZh = Get.locale?.languageCode == 'zh';
-    return ColorPicker(
-      color: HexColor(
-        SettingsService.to.theme.loadingStyleColorSwitch.v.isEmpty
-            ? Theme.of(context).colorScheme.primary.hex
-            : SettingsService.to.theme.loadingStyleColorSwitch.v,
-      ),
-      onColorChanged: (Color color) {
-        SettingsService.to.theme.loadingStyleColorSwitch.v = color.hex;
-      },
-
-      width: 40,
-      height: 40,
-      borderRadius: 4,
-      spacing: 5,
-      runSpacing: 5,
-      wheelDiameter: 155,
-      heading: Text(i18n('theme_color'), style: Theme.of(Get.context!).textTheme.titleMedium),
-      subheading: Text(i18n('select_opacity'), style: Theme.of(Get.context!).textTheme.titleMedium),
-      wheelSubheading: Text(
-        i18n('theme_color_opacity'),
-        style: Theme.of(Get.context!).textTheme.titleMedium,
-      ),
-      showMaterialName: false,
-      showColorName: false,
-      showColorCode: true,
-      copyPasteBehavior: const ColorPickerCopyPasteBehavior(longPressMenu: true),
-      materialNameTextStyle: Theme.of(Get.context!).textTheme.bodySmall,
-      colorNameTextStyle: Theme.of(Get.context!).textTheme.bodySmall,
-      colorCodeTextStyle: Theme.of(Get.context!).textTheme.bodyMedium,
-      colorCodePrefixStyle: Theme.of(Get.context!).textTheme.bodySmall,
-      selectedPickerTypeColor: Theme.of(Get.context!).colorScheme.primary,
+    final initialColor = SettingsService.to.theme.loadingStyleColor ?? Theme.of(context).colorScheme.primary;
+    return showAppColorPickerDialog(
+      context: context,
+      initialColor: initialColor,
+      title: i18n('change_loading_color'),
+      enableOpacity: true,
+      labels: buildAppColorPickerLabels(translate: (key) => i18n(key), isChinese: isZh, enableOpacity: true),
       customColorSwatchesAndNames: AppConsts.colorsNameMap,
-
-      pickerTypeLabels: <ColorPickerType, String>{
-        ColorPickerType.primary: isZh ? '常用色' : 'Primary',
-        ColorPickerType.accent: isZh ? '鲜艳色' : 'Accent',
-        ColorPickerType.custom: isZh ? '自定义' : 'Custom',
-        ColorPickerType.wheel: isZh ? '调色盘' : 'Wheel',
+      onColorChanged: (Color color) {
+        SettingsService.to.theme.loadingStyleColorSwitch.v = color.hexAlpha;
       },
-      pickersEnabled: const <ColorPickerType, bool>{
-        ColorPickerType.both: false,
-        ColorPickerType.primary: true,
-        ColorPickerType.accent: true,
-        ColorPickerType.bw: false,
-        ColorPickerType.custom: true,
-        ColorPickerType.wheel: true,
-      },
-    ).showPickerDialog(
-      Get.context!,
-      actionsPadding: const EdgeInsets.all(16),
-      constraints: const BoxConstraints(minHeight: 480, minWidth: 375, maxWidth: 420),
     );
   }
 
@@ -413,10 +370,8 @@ class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
       animWidget = RotationTransition(
         turns: _rotateController,
         child: ShaderMask(
-          shaderCallback: (rect) => SweepGradient(
-            colors: [color, color.withValues(alpha: 0.1)],
-            stops: const [0.0, 0.85],
-          ).createShader(rect),
+          shaderCallback: (rect) =>
+              SweepGradient(colors: [color, color.withValues(alpha: 0.1)], stops: const [0.0, 0.85]).createShader(rect),
           child: Container(
             width: 28,
             height: 28,
@@ -437,10 +392,20 @@ class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
     final theme = Theme.of(context);
     final isZh = Get.locale?.languageCode == 'zh';
     final double screenWidth = MediaQuery.of(context).size.width;
+    final double textScale = MediaQuery.textScalerOf(context).scale(1);
     int crossAxisCount = 3;
     double childAspectRatio = 0.95;
 
-    if (screenWidth >= 900) {
+    if (textScale > 1.5 && screenWidth < 600) {
+      crossAxisCount = 1;
+      childAspectRatio = 1.8;
+    } else if (textScale > 1.5 && screenWidth < 900) {
+      crossAxisCount = 2;
+      childAspectRatio = 1.5;
+    } else if (textScale > 1.5) {
+      crossAxisCount = 3;
+      childAspectRatio = 1.4;
+    } else if (screenWidth >= 900) {
       crossAxisCount = 6;
       childAspectRatio = 1.05;
     } else if (screenWidth >= 600) {
@@ -453,13 +418,13 @@ class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(i18n('change_loading_style')),
+        title: Text(i18n("change_loading_style")),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: IconButton(
               icon: const Icon(Remix.arrow_go_back_line),
-              tooltip: i18n('restore_default'),
+              tooltip: i18n("restore_default"),
               onPressed: () {
                 SettingsService.to.theme.loadingStyle.v = AppConsts.defaultLoadingStyleKey;
                 SettingsService.to.theme.loadingStyleColorSwitch.v = '';
@@ -468,61 +433,59 @@ class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                context.buildGroupTitle(i18n('change_loading_color')),
-                context.buildModernCard([
-                  context.buildTile(
-                    icon: Remix.palette_line,
-                    title: i18n('change_loading_color'),
-                    subtitle: i18n('change_loading_color_subtitle'),
-                    onTap: colorPickerDialog,
-                    trailing: Obx(
-                      () => ColorIndicator(
-                        width: 28,
-                        height: 28,
-                        borderRadius: 6,
-                        color: HexColor(
-                          SettingsService.to.theme.loadingStyleColorSwitch.v.isEmpty
-                              ? theme.colorScheme.primary.hex
-                              : SettingsService.to.theme.loadingStyleColorSwitch.v,
+      body: CustomScrollView(
+        physics: const PureLiveScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  context.buildGroupTitle(i18n("change_loading_color")),
+                  context.buildModernCard([
+                    context.buildTile(
+                      icon: Remix.palette_line,
+                      title: i18n("change_loading_color"),
+                      subtitle: i18n("change_loading_color_subtitle"),
+                      onTap: colorPickerDialog,
+                      isLong: true,
+                      stackTrailingOnNarrow: true,
+                      trailing: Obx(
+                        () => ColorIndicator(
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          color: SettingsService.to.theme.loadingStyleColor ?? theme.colorScheme.primary,
+                          onSelectFocus: false,
                         ),
-                        onSelectFocus: false,
                       ),
                     ),
-                  ),
-                ]),
-              ],
+                  ]),
+                ],
+              ),
             ),
           ),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
                 childAspectRatio: childAspectRatio,
               ),
-              itemCount: AppConsts.allStyles.length,
-              itemBuilder: (context, index) {
+              delegate: SliverChildBuilderDelegate((context, index) {
                 final item = AppConsts.allStyles[index];
                 final String key = item['key']!;
                 final String displayName = isZh ? item['nameZh']! : item['nameEn']!;
 
                 return Obx(() {
-                  final bool isSelected = SettingsService.to.theme.loadingStyle.v == key;
-                  final String currentHex = SettingsService.to.theme.loadingStyleColorSwitch.v;
-                  final Color liveColor = currentHex.isEmpty
-                      ? theme.colorScheme.primary
-                      : HexColor(currentHex);
+                  final bool isSelected = SettingsService.to.theme.resolvedLoadingStyle == key;
+                  final Color liveColor = SettingsService.to.theme.loadingStyleColor ?? theme.colorScheme.primary;
 
                   return InkWell(
+                    key: ValueKey('loading-style-$key'),
                     onTap: () => SettingsService.to.theme.loadingStyle.v = key,
                     borderRadius: BorderRadius.circular(16),
                     child: AnimatedContainer(
@@ -544,24 +507,22 @@ class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
                             children: [
                               Expanded(
                                 child: Center(
-                                  child: SizedBox(
-                                    width: 36,
-                                    height: 36,
-                                    child: _buildAnim(key, liveColor, 36, theme),
-                                  ),
+                                  child: SizedBox(width: 36, height: 36, child: _buildAnim(key, liveColor, 36, theme)),
                                 ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12, left: 4, right: 4),
-                                child: Text(
-                                  displayName,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.t11Bold.copyWith(
-                                    color: isSelected
-                                        ? theme.colorScheme.primary
-                                        : theme.colorScheme.onSurface,
+                                child: Tooltip(
+                                  message: displayName,
+                                  child: Text(
+                                    displayName,
+                                    key: ValueKey('loading-style-label-$key'),
+                                    textAlign: TextAlign.center,
+                                    maxLines: textScale > 1.5 ? 2 : 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.t11Bold.copyWith(
+                                      color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -571,18 +532,14 @@ class _LoadingStyleSettingsPageState extends State<LoadingStyleSettingsPage>
                             Positioned(
                               top: 8,
                               right: 8,
-                              child: Icon(
-                                Icons.check_circle,
-                                size: 16,
-                                color: theme.colorScheme.primary,
-                              ),
+                              child: Icon(Icons.check_circle, size: 16, color: theme.colorScheme.primary),
                             ),
                         ],
                       ),
                     ),
                   );
                 });
-              },
+              }, childCount: AppConsts.allStyles.length),
             ),
           ),
         ],

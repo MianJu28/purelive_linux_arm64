@@ -18,40 +18,42 @@ class DouyuSite
         LiveSite,
         LiveSiteRoomRefresher,
         LiveSiteRecordRoomResolver,
+        LivePlayUrlResolver,
+        LivePlayRecoveryResolver,
         LivePlayUrlCursorResolver {
   @override
   String id = Sites.douyuSite;
 
   @override
-  String name = '斗鱼直播';
+  String name = "斗鱼直播";
 
   @override
-  LiveDanmaku getDanmaku() => DouyuDanmaku();
+  LiveDanmaku getDanmaku() => DouyuDanmaku(
+    filterSuspectedAutomatedMessages: () => SettingsService.to.danmaku.filterDouyuSuspectedAutomatedMessages.v,
+  );
 
   @override
   Future<List<LiveCategory>> getCategores(int page, int pageSize) async {
     List<LiveCategory> categories = [];
-    var result = await HttpClient.instance.getJson('https://m.douyu.com/api/cate/list');
-    var subCateList = result['data']['cate2Info'] as List;
-    for (var item in result['data']['cate1Info']) {
-      var cate1Id = item['cate1Id'];
-      var cate1Name = item['cate1Name'];
+    var result = await HttpClient.instance.getJson("https://m.douyu.com/api/cate/list");
+    var subCateList = result["data"]["cate2Info"] as List;
+    for (var item in result["data"]["cate1Info"]) {
+      var cate1Id = item["cate1Id"];
+      var cate1Name = item["cate1Name"];
       List<LiveArea> subCategories = [];
-      subCateList.where((x) => x['cate1Id'] == cate1Id).forEach((element) {
+      subCateList.where((x) => x["cate1Id"] == cate1Id).forEach((element) {
         subCategories.add(
           LiveArea(
-            areaPic: element['icon'].toString(),
-            areaId: element['cate2Id'].toString(),
+            areaPic: element["icon"].toString(),
+            areaId: element["cate2Id"].toString(),
             typeName: cate1Name.toString(),
             areaType: cate1Id.toString(),
             platform: Sites.douyuSite,
-            areaName: element['cate2Name'].toString(),
+            areaName: element["cate2Name"].toString(),
           ),
         );
       });
-      categories.add(
-        LiveCategory(id: cate1Id.toString(), name: cate1Name.toString(), children: subCategories),
-      );
+      categories.add(LiveCategory(id: cate1Id.toString(), name: cate1Name.toString(), children: subCategories));
     }
     categories.sort((a, b) => int.parse(a.id).compareTo(int.parse(b.id)));
 
@@ -60,25 +62,20 @@ class DouyuSite
 
   Future<List<LiveArea>> getSubCategories(LiveCategory liveCategory) async {
     var result = await HttpClient.instance.getJson(
-      'https://www.douyu.com/japi/weblist/apinc/getC2List',
-      queryParameters: {
-        'shortName': liveCategory.name,
-        'customClassId': liveCategory.id,
-        'offset': 0,
-        'limit': 200,
-      },
+      "https://www.douyu.com/japi/weblist/apinc/getC2List",
+      queryParameters: {"shortName": liveCategory.name, "customClassId": liveCategory.id, "offset": 0, "limit": 200},
     );
 
     List<LiveArea> subs = [];
-    for (var item in result['data']['list']) {
+    for (var item in result["data"]["list"]) {
       subs.add(
         LiveArea(
-          areaPic: item['squareIconUrlW'].toString(),
-          areaId: item['cid2'].toString(),
+          areaPic: item["squareIconUrlW"].toString(),
+          areaId: item["cid2"].toString(),
           typeName: liveCategory.name,
           areaType: liveCategory.id,
           platform: Sites.douyuSite,
-          areaName: item['cname2'].toString(),
+          areaName: item["cname2"].toString(),
         ),
       );
     }
@@ -87,19 +84,15 @@ class DouyuSite
   }
 
   @override
-  Future<List<LiveRoom>> getCategoryRooms(
-    LiveArea category, {
-    int page = 1,
-    int pageSize = 30,
-  }) async {
+  Future<List<LiveRoom>> getCategoryRooms(LiveArea category, {int page = 1, int pageSize = 30}) async {
     var result = await HttpClient.instance.getJson(
-      'https://www.douyu.com/gapi/rkc/directory/mixList/2_${category.areaId}/$page',
+      "https://www.douyu.com/gapi/rkc/directory/mixList/2_${category.areaId}/$page",
       queryParameters: {},
     );
 
     var items = <LiveRoom>[];
     for (var item in result['data']['rl']) {
-      if (item['type'] != 1) {
+      if (item["type"] != 1) {
         continue;
       }
       var roomItem = LiveRoom(
@@ -112,9 +105,7 @@ class DouyuSite
         nick: item['nn'].toString(),
         area: item['c2name'].toString(),
         liveStatus: LiveStatus.live,
-        avatar: item['av'].toString().isNotEmpty
-            ? 'https://apic.douyucdn.cn/upload/${item['av']}_middle.jpg'
-            : '',
+        avatar: item['av'].toString().isNotEmpty ? 'https://apic.douyucdn.cn/upload/${item['av']}_middle.jpg' : '',
         status: true,
         platform: Sites.douyuSite,
       );
@@ -129,9 +120,9 @@ class DouyuSite
     final playData = await _requestPlayData(roomId);
     final cdns = parseCdnCodes(playData);
     cdns.sort((a, b) {
-      if (a.startsWith('scdn') && !b.startsWith('scdn')) {
+      if (a.startsWith("scdn") && !b.startsWith("scdn")) {
         return 1;
-      } else if (!a.startsWith('scdn') && b.startsWith('scdn')) {
+      } else if (!a.startsWith("scdn") && b.startsWith("scdn")) {
         return -1;
       }
       return 0;
@@ -143,10 +134,7 @@ class DouyuSite
   /// opaque request code (source is commonly 0), not a bitrate; sorting it in
   /// descending numeric order reverses source and low-quality choices.
   @visibleForTesting
-  static List<LivePlayQuality> parsePlayQualities(
-    Map<String, dynamic> playData,
-    List<String> cdns,
-  ) {
+  static List<LivePlayQuality> parsePlayQualities(Map<String, dynamic> playData, List<String> cdns) {
     final qualities = <LivePlayQuality>[];
     final rates = playData['multirates'];
     if (rates is List) {
@@ -175,11 +163,7 @@ class DouyuSite
       final rate = _asInt(playData['rate']) ?? -1;
       qualities.add(
         LivePlayQuality(
-          quality: LiveQualityLabel.normalize(
-            platform: Sites.douyuSite,
-            rawLabel: 'default',
-            id: rate,
-          ),
+          quality: LiveQualityLabel.normalize(platform: Sites.douyuSite, rawLabel: 'default', id: rate),
           id: rate,
           sort: 1,
           data: DouyuPlayData(rate, List.unmodifiable(cdns)),
@@ -190,25 +174,74 @@ class DouyuSite
   }
 
   @override
-  Future<List<String>> getPlayUrls({
+  Future<List<String>> getPlayUrls({required LiveRoom detail, required LivePlayQuality quality}) async {
+    return (await resolvePlayUrlsRaw(detail: detail, quality: quality)).urls;
+  }
+
+  @override
+  Future<LivePlayUrlResolution> resolvePlayUrlsForRecoveryRaw({
     required LiveRoom detail,
     required LivePlayQuality quality,
   }) async {
+    // Both the signed URL and advertised CDN set can change while a live
+    // connection is paused. Refresh the metadata, then ask for the committed
+    // rate with those current CDNs rather than reopening the old URL cohort.
+    final qualities = await getPlayQualites(detail: detail);
+    if (qualities.isEmpty) return const LivePlayUrlResolution(urls: <String>[]);
+    final requestedId = quality.selectionId.toString();
+    final matching = qualities.where((item) => item.selectionId.toString() == requestedId).firstOrNull;
+    final freshData = qualities.first.data;
+    final requestedData = quality.data;
+    final request =
+        matching ??
+        (freshData is DouyuPlayData && requestedData is DouyuPlayData
+            ? LivePlayQuality(
+                quality: quality.quality,
+                id: quality.selectionId,
+                data: DouyuPlayData(requestedData.rate, freshData.cdns),
+              )
+            : qualities.first);
+    // A no-longer-advertised rate can still be accepted or downgraded by the
+    // server. Preserve that acknowledgement for the successful-source commit;
+    // never label a fallback using only the requested rate.
+    return resolvePlayUrlsRaw(detail: detail, quality: request);
+  }
+
+  @override
+  Future<LivePlayUrlResolution> resolvePlayUrlsRaw({required LiveRoom detail, required LivePlayQuality quality}) async {
     final rawData = quality.data;
-    if (rawData is! DouyuPlayData) return const <String>[];
+    final roomId = detail.roomId?.trim() ?? '';
+    if (rawData is! DouyuPlayData || roomId.isEmpty) return const LivePlayUrlResolution(urls: []);
     final data = rawData;
-    final urls = <String>[];
+    // Each CDN may acknowledge a different rate. A single UI quality label
+    // must not cover a mixture of source and downgraded streams. Prefer an
+    // acknowledged requested rate, otherwise the first acknowledged cohort
+    // in platform order. Unknown acknowledgements remain a separate cohort.
+    final urlsByRate = <Object?, List<String>>{};
     Object? lastError;
     for (final cdn in data.cdns) {
       try {
-        final url = await getPlayUrl(detail.roomId!, data.rate, cdn);
-        if (url.isNotEmpty && !urls.contains(url)) urls.add(url);
+        final resolution = await resolvePlayUrl(roomId, data.rate, cdn);
+        if (resolution.urls.isEmpty) continue;
+        final urls = urlsByRate.putIfAbsent(resolution.appliedQualityData, () => <String>[]);
+        for (final url in resolution.urls) {
+          if (!urls.contains(url)) urls.add(url);
+        }
       } catch (error) {
         lastError = error;
       }
     }
-    if (urls.isEmpty && lastError != null) throw lastError;
-    return urls;
+    if (urlsByRate.isEmpty) {
+      if (lastError != null) throw lastError;
+      return const LivePlayUrlResolution(urls: []);
+    }
+    final acknowledgedRates = urlsByRate.keys.whereType<int>();
+    final appliedRate = urlsByRate.containsKey(data.rate) ? data.rate : acknowledgedRates.firstOrNull;
+    return LivePlayUrlResolution(
+      urls: List<String>.unmodifiable(urlsByRate[appliedRate]!),
+      appliedQualityData: appliedRate,
+      qualityUnconfirmed: appliedRate == null,
+    );
   }
 
   @override
@@ -219,29 +252,35 @@ class DouyuSite
   }) async {
     final data = quality.data;
     if (data is! DouyuPlayData || lineIndex < 0 || lineIndex >= data.cdns.length) {
-      return LivePlayUrlResolution(urls: const <String>[], appliedQualityData: quality.selectionId);
+      return const LivePlayUrlResolution(urls: <String>[]);
     }
     final roomId = detail.roomId?.trim() ?? '';
     if (roomId.isEmpty) {
-      return LivePlayUrlResolution(urls: const <String>[], appliedQualityData: quality.selectionId);
+      return const LivePlayUrlResolution(urls: <String>[]);
     }
-    final url = await getPlayUrl(roomId, data.rate, data.cdns[lineIndex]);
-    return LivePlayUrlResolution(
-      urls: url.isEmpty ? const <String>[] : <String>[url],
-      appliedQualityData: quality.selectionId,
-    );
+    return resolvePlayUrl(roomId, data.rate, data.cdns[lineIndex]);
   }
 
   Future<String> getPlayUrl(String roomId, int rate, String cdn) async {
-    final playData = await _requestPlayData(roomId, rate: rate, cdn: cdn);
-    return parsePlayUrl(playData);
+    return (await resolvePlayUrl(roomId, rate, cdn)).urls.single;
   }
 
-  Future<Map<String, dynamic>> _requestPlayData(
-    String roomId, {
-    int rate = -1,
-    String cdn = '',
-  }) async {
+  Future<LivePlayUrlResolution> resolvePlayUrl(String roomId, int rate, String cdn) async {
+    final playData = await _requestPlayData(roomId, rate: rate, cdn: cdn);
+    final rawRate = playData['rate'];
+    // Unlike a bitrate, rate is an opaque integer identifier. Do not truncate
+    // malformed fractions (e.g. 0.5) into a false source-quality acknowledgement.
+    final appliedRate = rawRate is num && rawRate.isFinite && rawRate == rawRate.roundToDouble()
+        ? rawRate.toInt()
+        : int.tryParse(rawRate?.toString().trim() ?? '');
+    return LivePlayUrlResolution(
+      urls: List<String>.unmodifiable([parsePlayUrl(playData)]),
+      appliedQualityData: appliedRate != null && appliedRate >= 0 ? appliedRate : null,
+      qualityUnconfirmed: appliedRate == null || appliedRate < 0,
+    );
+  }
+
+  Future<Map<String, dynamic>> _requestPlayData(String roomId, {int rate = -1, String cdn = ''}) async {
     if (roomId.trim().isEmpty) {
       throw const DouyuPlayApiException('room id is empty');
     }
@@ -271,9 +310,7 @@ class DouyuSite
     final errorCode = _asInt(response['error']) ?? _asInt(response['code']) ?? -1;
     if (errorCode != 0) {
       final message = response['msg']?.toString().trim();
-      throw DouyuPlayApiException(
-        'H5 play API error $errorCode${message?.isNotEmpty == true ? ': $message' : ''}',
-      );
+      throw DouyuPlayApiException('H5 play API error $errorCode${message?.isNotEmpty == true ? ': $message' : ''}');
     }
     final rawData = response['data'];
     if (rawData is! Map) {
@@ -314,8 +351,7 @@ class DouyuSite
     for (final baseKey in const <String>['rtmp_url', 'flv_url']) {
       final base = unescape.convert(data[baseKey]?.toString().trim() ?? '');
       if (base.isEmpty || live.isEmpty) continue;
-      final combined =
-          '${base.replaceFirst(RegExp(r'/+$'), '')}/${live.replaceFirst(RegExp(r'^/+'), '')}';
+      final combined = '${base.replaceFirst(RegExp(r'/+$'), '')}/${live.replaceFirst(RegExp(r'^/+'), '')}';
       if (_isPlayableUrl(combined)) return combined;
     }
 
@@ -339,9 +375,7 @@ class DouyuSite
 
   static bool _isPlayableUrl(String value) {
     final uri = Uri.tryParse(value);
-    return uri != null &&
-        uri.host.isNotEmpty &&
-        const {'http', 'https', 'rtmp'}.contains(uri.scheme);
+    return uri != null && uri.host.isNotEmpty && const {'http', 'https', 'rtmp'}.contains(uri.scheme);
   }
 
   static bool _isDirectMediaUrl(String value) {
@@ -354,13 +388,13 @@ class DouyuSite
   Future<List<LiveRoom>> getRecommendRooms({int page = 1, int pageSize = 30}) async {
     try {
       var result = await HttpClient.instance.getJson(
-        'https://www.douyu.com/japi/weblist/apinc/allpage/6/$page',
+        "https://www.douyu.com/japi/weblist/apinc/allpage/6/$page",
         queryParameters: {},
       );
 
       var items = <LiveRoom>[];
       for (var item in result['data']['rl']) {
-        if (item['type'] != 1) {
+        if (item["type"] != 1) {
           continue;
         }
 
@@ -407,20 +441,14 @@ class DouyuSite
   }
 
   @override
-  Future<LiveRoom> getRoomDetailForRefresh({
-    required String platform,
-    required String roomId,
-  }) async {
+  Future<LiveRoom> getRoomDetailForRefresh({required String platform, required String roomId}) async {
     final roomInfo = await _fetchRoomInfo(roomId);
 
     return _buildRoom(roomInfo, roomId: roomId);
   }
 
   @override
-  Future<LiveRoom> getRoomDetailForRecording({
-    required String platform,
-    required String roomId,
-  }) async {
+  Future<LiveRoom> getRoomDetailForRecording({required String platform, required String roomId}) async {
     // Do not use getRoomDetail here: its UI fallback converts a failed betard
     // request into an offline room, which previously stopped recording before
     // Douyu signing/getH5PlayV1 was reached.
@@ -430,7 +458,7 @@ class DouyuSite
 
   Future<Map<dynamic, dynamic>> _fetchRoomInfo(String roomId) async {
     var result = await HttpClient.instance.getJson(
-      'https://www.douyu.com/betard/$roomId',
+      "https://www.douyu.com/betard/$roomId",
       queryParameters: {},
       header: {
         'referer': 'https://www.douyu.com/$roomId',
@@ -443,9 +471,9 @@ class DouyuSite
     Map roomInfo;
 
     if (result is String) {
-      roomInfo = json.decode(result)['room'];
+      roomInfo = json.decode(result)["room"];
     } else {
-      roomInfo = result['room'];
+      roomInfo = result["room"];
     }
     return roomInfo;
   }
@@ -455,23 +483,23 @@ class DouyuSite
     final replay = _asInt(roomInfo['videoLoop']) == 1;
 
     return LiveRoom(
-      cover: roomInfo['room_pic'].toString(),
-      watching: roomInfo['room_biz_all']['hot'].toString(),
-      popularity: roomInfo['room_biz_all']['hot'].toString(),
+      cover: roomInfo["room_pic"].toString(),
+      watching: roomInfo["room_biz_all"]["hot"].toString(),
+      popularity: roomInfo["room_biz_all"]["hot"].toString(),
       audienceMetricType: AudienceMetricType.popularity,
-      roomId: roomInfo['room_id'].toString(),
-      title: roomInfo['room_name'].toString(),
-      nick: roomInfo['owner_name'].toString(),
-      avatar: roomInfo['owner_avatar'].toString(),
-      introduction: roomInfo['show_details'].toString(),
-      area: roomInfo['second_lvl_name']?.toString() ?? '',
-      notice: '',
+      roomId: roomInfo["room_id"].toString(),
+      title: roomInfo["room_name"].toString(),
+      nick: roomInfo["owner_name"].toString(),
+      avatar: roomInfo["owner_avatar"].toString(),
+      introduction: roomInfo["show_details"].toString(),
+      area: roomInfo["second_lvl_name"]?.toString() ?? '',
+      notice: "",
       liveStatus: live ? LiveStatus.live : LiveStatus.offline,
       status: live,
-      danmakuData: roomInfo['room_id'].toString(),
+      danmakuData: roomInfo["room_id"].toString(),
       data: null,
       platform: Sites.douyuSite,
-      link: 'https://www.douyu.com/$roomId',
+      link: "https://www.douyu.com/$roomId",
       isRecord: replay,
     );
   }
@@ -489,8 +517,8 @@ class DouyuSite
     final headers = DouyuUtils.requestHeaders()..['referer'] = 'https://www.douyu.com/search/';
 
     var result = await HttpClient.instance.getJson(
-      'https://www.douyu.com/japi/search/api/searchShow',
-      queryParameters: {'kw': keyword, 'page': page, 'pageSize': effectivePageSize},
+      "https://www.douyu.com/japi/search/api/searchShow",
+      queryParameters: {"kw": keyword, "page": page, "pageSize": effectivePageSize},
       header: headers,
     );
 
@@ -500,27 +528,27 @@ class DouyuSite
 
     var items = <LiveRoom>[];
 
-    var queryList = result['data']['relateShow'] ?? [];
+    var queryList = result["data"]["relateShow"] ?? [];
 
     for (var item in queryList) {
-      var liveStatus = (int.tryParse(item['isLive'].toString()) ?? 0) == 1;
+      var liveStatus = (int.tryParse(item["isLive"].toString()) ?? 0) == 1;
 
-      var roomType = int.tryParse(item['roomType'].toString()) ?? 0;
+      var roomType = int.tryParse(item["roomType"].toString()) ?? 0;
 
       var isLive = liveStatus && roomType == 0;
 
       var roomItem = LiveRoom(
-        roomId: item['rid'].toString(),
-        title: item['roomName'].toString(),
-        cover: item['roomSrc'].toString(),
-        area: item['cateName'].toString(),
-        avatar: item['avatar'].toString(),
+        roomId: item["rid"].toString(),
+        title: item["roomName"].toString(),
+        cover: item["roomSrc"].toString(),
+        area: item["cateName"].toString(),
+        avatar: item["avatar"].toString(),
         liveStatus: isLive ? LiveStatus.live : LiveStatus.offline,
         status: isLive,
-        nick: item['nickName'].toString(),
+        nick: item["nickName"].toString(),
         platform: Sites.douyuSite,
-        watching: item['hot'].toString(),
-        popularity: item['hot'].toString(),
+        watching: item["hot"].toString(),
+        popularity: item["hot"].toString(),
         audienceMetricType: AudienceMetricType.popularity,
       );
 
@@ -531,36 +559,27 @@ class DouyuSite
   }
 
   @override
-  Future<List<LiveAnchorItem>> searchAnchors(
-    String keyword, {
-    int page = 1,
-    int pageSize = 30,
-  }) async {
+  Future<List<LiveAnchorItem>> searchAnchors(String keyword, {int page = 1, int pageSize = 30}) async {
     final effectivePageSize = pageSize.clamp(1, 50);
     final headers = DouyuUtils.requestHeaders()..['referer'] = 'https://www.douyu.com/search/';
 
     var result = await HttpClient.instance.getJson(
-      'https://www.douyu.com/japi/search/api/searchUser',
-      queryParameters: {
-        'kw': keyword,
-        'page': page,
-        'pageSize': effectivePageSize,
-        'filterType': 1,
-      },
+      "https://www.douyu.com/japi/search/api/searchUser",
+      queryParameters: {"kw": keyword, "page": page, "pageSize": effectivePageSize, "filterType": 1},
       header: headers,
     );
 
     var items = <LiveAnchorItem>[];
 
-    for (var item in result['data']['relateUser']) {
-      var liveStatus = (int.tryParse(item['anchorInfo']['isLive'].toString()) ?? 0) == 1;
+    for (var item in result["data"]["relateUser"]) {
+      var liveStatus = (int.tryParse(item["anchorInfo"]["isLive"].toString()) ?? 0) == 1;
 
-      var roomType = int.tryParse(item['anchorInfo']['roomType'].toString()) ?? 0;
+      var roomType = int.tryParse(item["anchorInfo"]["roomType"].toString()) ?? 0;
 
       var roomItem = LiveAnchorItem(
-        roomId: item['anchorInfo']['rid'].toString(),
-        avatar: item['anchorInfo']['avatar'].toString(),
-        userName: item['anchorInfo']['nickName'].toString(),
+        roomId: item["anchorInfo"]["rid"].toString(),
+        avatar: item["anchorInfo"]["avatar"].toString(),
+        userName: item["anchorInfo"]["nickName"].toString(),
         liveStatus: liveStatus && roomType == 0,
       );
 
@@ -578,9 +597,9 @@ class DouyuSite
 
   int parseHotNum(String hn) {
     try {
-      var num = double.parse(hn.replaceAll('万', ''));
+      var num = double.parse(hn.replaceAll("万", ""));
 
-      if (hn.contains('万')) {
+      if (hn.contains("万")) {
         num *= 10000;
       }
 
@@ -610,7 +629,5 @@ class DouyuPlayApiException implements Exception {
   final Object? cause;
 
   @override
-  String toString() => cause == null
-      ? 'DouyuPlayApiException: $message'
-      : 'DouyuPlayApiException: $message ($cause)';
+  String toString() => cause == null ? 'DouyuPlayApiException: $message' : 'DouyuPlayApiException: $message ($cause)';
 }

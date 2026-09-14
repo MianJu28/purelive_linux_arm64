@@ -8,18 +8,29 @@ void main() {
       expect(normalizeProxyHost('［::1］'), '[::1]');
     });
 
+    test('accepts only complete TCP port values', () {
+      expect(parseProxyPortInput('1'), 1);
+      expect(parseProxyPortInput(' 7897 '), 7897);
+      expect(parseProxyPortInput('65535'), 65535);
+      expect(parseProxyPortInput(''), isNull);
+      expect(parseProxyPortInput('0'), isNull);
+      expect(parseProxyPortInput('65536'), isNull);
+      expect(parseProxyPortInput('12.5'), isNull);
+    });
+
+    test('repairs stored TCP ports with the product default', () {
+      expect(normalizeStoredProxyPort(1), 1);
+      expect(normalizeStoredProxyPort(65535), 65535);
+      expect(normalizeStoredProxyPort(0), defaultProxyPort);
+      expect(normalizeStoredProxyPort(65536), defaultProxyPort);
+    });
+
     test('builds direct and proxy directives without invalid half-edited values', () {
       expect(buildProxyDirective(enabled: false, host: '127.0.0.1', port: 7897), 'DIRECT');
       expect(buildProxyDirective(enabled: true, host: '', port: 7897), 'DIRECT');
       expect(buildProxyDirective(enabled: true, host: 'localhost', port: 0), 'DIRECT');
-      expect(
-        buildProxyDirective(enabled: true, host: 'localhost', port: 7897),
-        'PROXY localhost:7897',
-      );
-      expect(
-        buildProxyDirective(enabled: true, host: '127。0。0。1', port: 7897),
-        'PROXY 127.0.0.1:7897',
-      );
+      expect(buildProxyDirective(enabled: true, host: 'localhost', port: 7897), 'PROXY localhost:7897');
+      expect(buildProxyDirective(enabled: true, host: '127。0。0。1', port: 7897), 'PROXY 127.0.0.1:7897');
       expect(buildProxyDirective(enabled: true, host: '::1', port: 7897), 'PROXY [::1]:7897');
     });
 

@@ -27,6 +27,14 @@ class RecorderContinuationPolicy {
       'muxer not found',
       'invalid data found when processing output',
       'file exists',
+      'no space left on device',
+      'disk quota exceeded',
+      'not enough space on the disk',
+      'read-only file system',
+      'could not open output',
+      'failed to open segment',
+      'error writing trailer',
+      'av_interleaved_write_frame',
     ];
     return !fatalMarkers.any(normalizedLogs.contains);
   }
@@ -92,5 +100,14 @@ class RecorderContinuationPolicy {
   static Duration leaseRotationDelay({required DateTime now, required DateTime refreshAt}) {
     final remaining = refreshAt.toUtc().difference(now.toUtc());
     return remaining > Duration.zero ? remaining : Duration.zero;
+  }
+
+  /// Keep one future credential ready without cancelling a long-lived input.
+  /// Failed/missing/already-stale metadata is rate limited to one maintenance
+  /// attempt per 30 seconds; successful future leases keep their own deadline.
+  static Duration leaseMaintenanceDelay({required DateTime now, required DateTime? refreshAt}) {
+    const minimum = Duration(seconds: 30);
+    final remaining = refreshAt == null ? minimum : leasePrefetchDelay(now: now, refreshAt: refreshAt);
+    return remaining > minimum ? remaining : minimum;
   }
 }

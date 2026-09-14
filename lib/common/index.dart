@@ -22,6 +22,9 @@ export 'package:easy_refresh/easy_refresh.dart';
 export 'package:pure_live/routes/app_pages.dart';
 export 'package:path_provider/path_provider.dart';
 export 'package:dynamic_color/dynamic_color.dart';
+
+export 'styles/dynamic_color_adapter.dart';
+
 export 'package:pure_live/routes/route_path.dart';
 export 'package:share_handler/share_handler.dart';
 export 'package:window_manager/window_manager.dart';

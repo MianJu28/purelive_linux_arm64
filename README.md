@@ -31,7 +31,7 @@
 
 > 纯粹直播（Pure Live）是一款开源的第三方多平台直播聚合播放器，使用 Flutter 构建，支持 Android、Android TV、Windows、Linux、macOS 和 iOS 等平台。
 
-- **最新稳定版**：[v3.1.1](https://github.com/liuchuancong/pure_live/releases/tag/v3.1.1)
+- **最新稳定版**：[v3.1.3](https://github.com/liuchuancong/pure_live/releases/tag/v3.1.3)
 
 ![Pure Live 界面预览](assets/images/banner.png)
 
@@ -389,7 +389,13 @@ EXE 安装向导支持选择其他磁盘，并把设置、关注、历史、IPTV
 
 ### Linux
 
-源码保留 Linux x64 构建能力。Linux 网页搜索会交给系统浏览器，原生搜索与播放继续在应用内完成；本维护分支缺少常规运行验证。
+源码保留 Linux x64 与 arm64（景嘉微 JM9100 / mwv207）构建能力。Linux 网页搜索会交给系统浏览器，原生搜索与播放继续在应用内完成。
+
+JM9100 平台已完成本机端到端验证（2026-09-14）：应用启动与画面渲染正常，并可在应用内进入 VA-API dmabuf 直通硬解。
+
+- 启动时由 `linux/jm9100_gl.{h,cc}` 探测可用的 GL 后端与窗口 visual（32 位 ARGB 优先）并设置为窗口 visual；探测失败自动回退历史 Mesa/llvmpipe 软渲染栈。`PURELIVE_JM9100_GL=hardware|software` 可强制后端，`PURELIVE_JM9100_VISUAL=0x..` 可指定 visual（排障用）。
+- 直通硬解依赖系统侧 mwv207 内核驱动与 VA-API 驱动（`LIBVA_DRIVER_NAME=jmgpu` 由应用注入）。由于厂商桌面 GL 未声明 `GL_EXT_EGL_image_storage`，应用内置 GL 兼容层向 libmpv 广告该扩展并把 `glEGLImageTargetTexStorageEXT` 重定向到厂商实现的 `glEGLImageTargetTexture2DOES`；`JMGPU_GL_COMPAT=0` 可关闭兼容层。
+- 平台限制、实测数据、坑位与遗留项见 [Linux JM9100（MWV207）硬件解码审查](docs/LINUX_JM9100_HWDECODE_AUDIT.md)。
 
 ### iOS
 

@@ -36,7 +36,8 @@ class PlatformUtil {
       return _cachedSystemVersion!;
     }
     Map<String, dynamic> args = <String, dynamic>{};
-    _cachedSystemVersion = await _channel.invokeMethod('getSystemVersion', args);
+    _cachedSystemVersion =
+        await _channel.invokeMethod('getSystemVersion', args);
     return _cachedSystemVersion!;
   }
 

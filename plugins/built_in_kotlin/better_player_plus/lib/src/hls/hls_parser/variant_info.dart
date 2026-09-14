@@ -2,13 +2,7 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 class VariantInfo {
-  const VariantInfo({
-    this.bitrate,
-    this.videoGroupId,
-    this.audioGroupId,
-    this.subtitleGroupId,
-    this.captionGroupId,
-  });
+  const VariantInfo({this.bitrate, this.videoGroupId, this.audioGroupId, this.subtitleGroupId, this.captionGroupId});
 
   /// The bitrate as declared by the EXT-X-STREAM-INF tag. */
   final int? bitrate;
@@ -42,6 +36,5 @@ class VariantInfo {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(bitrate, videoGroupId, audioGroupId, subtitleGroupId, captionGroupId);
+  int get hashCode => Object.hash(bitrate, videoGroupId, audioGroupId, subtitleGroupId, captionGroupId);
 }

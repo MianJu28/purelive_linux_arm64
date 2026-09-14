@@ -35,7 +35,10 @@ class BarcodeOverlay extends StatefulWidget {
 }
 
 class _BarcodeOverlayState extends State<BarcodeOverlay> {
-  final _textPainter = TextPainter(textAlign: TextAlign.center, textDirection: TextDirection.ltr);
+  final _textPainter = TextPainter(
+    textAlign: TextAlign.center,
+    textDirection: TextDirection.ltr,
+  );
 
   DeviceOrientation? _lastOrientation;
   int _orientationResetKey = 0;

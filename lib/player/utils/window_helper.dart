@@ -14,19 +14,13 @@ Rect resolveWindowsPipBounds({
   required List<Rect> workAreas,
   Rect? savedBounds,
 }) {
-  final availableAreas = workAreas
-      .where((area) => !area.isEmpty && area.isFinite)
-      .toList(growable: false);
+  final availableAreas = workAreas.where((area) => !area.isEmpty && area.isFinite).toList(growable: false);
 
-  final fallbackArea = primaryWorkArea.isEmpty
-      ? const Rect.fromLTWH(0, 0, 1280, 720)
-      : primaryWorkArea;
+  final fallbackArea = primaryWorkArea.isEmpty ? const Rect.fromLTWH(0, 0, 1280, 720) : primaryWorkArea;
 
   final areas = availableAreas.isEmpty ? <Rect>[fallbackArea] : availableAreas;
 
-  final validSavedBounds = savedBounds != null && savedBounds.isFinite && !savedBounds.isEmpty
-      ? savedBounds
-      : null;
+  final validSavedBounds = savedBounds != null && savedBounds.isFinite && !savedBounds.isEmpty ? savedBounds : null;
 
   Rect? targetArea;
 
@@ -58,13 +52,9 @@ Rect resolveWindowsPipBounds({
   final defaultLeft = targetArea.right - width - 20;
   final defaultTop = targetArea.bottom - height - 20;
 
-  final left = (validSavedBounds?.left ?? defaultLeft)
-      .clamp(targetArea.left, targetArea.right - width)
-      .toDouble();
+  final left = (validSavedBounds?.left ?? defaultLeft).clamp(targetArea.left, targetArea.right - width).toDouble();
 
-  final top = (validSavedBounds?.top ?? defaultTop)
-      .clamp(targetArea.top, targetArea.bottom - height)
-      .toDouble();
+  final top = (validSavedBounds?.top ?? defaultTop).clamp(targetArea.top, targetArea.bottom - height).toDouble();
 
   return Rect.fromLTWH(left, top, width, height);
 }
@@ -98,16 +88,16 @@ class WindowHelper {
     _savedPosition = await windowManager.getPosition();
 
     final displays = await screenRetriever.getAllDisplays();
+
     final primaryDisplay = await screenRetriever.getPrimaryDisplay();
 
     final currentDisplay = _findDisplayForPosition(displays, _savedPosition) ?? primaryDisplay;
 
     final safeSize = currentDisplay.visibleSize ?? currentDisplay.size;
+
     final safeOffset = currentDisplay.visiblePosition ?? Offset.zero;
 
     final ratio = videoRatio.isFinite && videoRatio > 0 ? videoRatio : 16 / 9;
-
-    final isPortrait = ratio < 0.95;
 
     double w;
     double h;
@@ -140,27 +130,22 @@ class WindowHelper {
     }
 
     final windowSettings = SettingsService.to.window;
+
     final pip = windowSettings.windowsPip;
+
     final rememberPosition = windowSettings.rememberPipPosition.value;
-
-    final savedDisplayId = isPortrait ? pip.portraitDisplayId.value : pip.displayId.value;
-
-    final savedHasValidBounds = isPortrait ? pip.portraitIsValid : pip.isValid;
-
-    final savedWidth = isPortrait ? pip.portraitWidth.value : pip.windowsPipWidth.value;
-
-    final savedHeight = isPortrait ? pip.portraitHeight.value : pip.windowsPipHeight.value;
-
-    final savedX = isPortrait ? pip.portraitX.value : pip.windowsPipX.value;
-
-    final savedY = isPortrait ? pip.portraitY.value : pip.windowsPipY.value;
 
     Rect? savedBounds;
 
-    final savedDisplayMatches = savedDisplayId.isEmpty || savedDisplayId == currentDisplay.id;
+    final savedDisplayMatches = pip.displayId.value.isEmpty || pip.displayId.value == currentDisplay.id;
 
-    if (rememberPosition && savedHasValidBounds && savedDisplayMatches) {
-      savedBounds = Rect.fromLTWH(savedX, savedY, savedWidth, savedHeight);
+    if (rememberPosition && pip.hasValidBounds && savedDisplayMatches) {
+      savedBounds = Rect.fromLTWH(
+        pip.windowsPipX.value,
+        pip.windowsPipY.value,
+        pip.windowsPipWidth.value,
+        pip.windowsPipHeight.value,
+      );
     }
 
     final workAreas = displays
@@ -189,12 +174,7 @@ class WindowHelper {
 
     if (rememberPosition) {
       final resolvedDisplay = _findDisplayForPosition(displays, bounds.topLeft) ?? currentDisplay;
-
-      if (isPortrait) {
-        pip.updatePortrait(bounds.size, bounds.topLeft, resolvedDisplay.id);
-      } else {
-        pip.update(bounds.size, bounds.topLeft, resolvedDisplay.id);
-      }
+      pip.update(bounds.size, bounds.topLeft, resolvedDisplay.id);
     }
   }
 
@@ -217,7 +197,7 @@ class WindowHelper {
     await windowManager.setAlwaysOnTop(value);
   }
 
-  Future<void> capturePiPGeometry({double? videoRatio}) async {
+  Future<void> capturePiPGeometry() async {
     if (!Platform.isWindows || currentMode != WindowLayoutMode.pip) {
       return;
     }
@@ -233,20 +213,9 @@ class WindowHelper {
 
     final displays = await screenRetriever.getAllDisplays();
 
-    final display =
-        _findDisplayForPosition(displays, position) ?? await screenRetriever.getPrimaryDisplay();
+    final display = _findDisplayForPosition(displays, position) ?? await screenRetriever.getPrimaryDisplay();
 
-    final ratio = videoRatio != null && videoRatio.isFinite && videoRatio > 0
-        ? videoRatio
-        : size.width / size.height;
-
-    final isPortrait = ratio < 0.95;
-
-    if (isPortrait) {
-      windowSettings.windowsPip.updatePortrait(size, position, display.id);
-    } else {
-      windowSettings.windowsPip.update(size, position, display.id);
-    }
+    windowSettings.windowsPip.update(size, position, display.id);
   }
 
   Display? _findDisplayForPosition(List<Display> displays, Offset position) {
@@ -258,10 +227,7 @@ class WindowHelper {
       final right = offset.dx + size.width;
       final bottom = offset.dy + size.height;
 
-      if (position.dx >= offset.dx &&
-          position.dx < right &&
-          position.dy >= offset.dy &&
-          position.dy < bottom) {
+      if (position.dx >= offset.dx && position.dx < right && position.dy >= offset.dy && position.dy < bottom) {
         return display;
       }
     }
@@ -274,10 +240,7 @@ class WindowHelper {
       final right = offset.dx + size.width;
       final bottom = offset.dy + size.height;
 
-      if (position.dx < right &&
-          position.dx + 1 > offset.dx &&
-          position.dy < bottom &&
-          position.dy + 1 > offset.dy) {
+      if (position.dx < right && position.dx + 1 > offset.dx && position.dy < bottom && position.dy + 1 > offset.dy) {
         return display;
       }
     }

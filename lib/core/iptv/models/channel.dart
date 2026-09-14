@@ -13,6 +13,11 @@ class Channel extends Equatable {
   final int? channelNumber;
   final String streamUrl;
   final StreamType streamType;
+  final String? catchupMode;
+  final String? catchupSource;
+  final double? catchupDays;
+  final double? catchupCorrectionHours;
+  final Map<String, String> httpHeaders;
   final bool isFavorite;
 
   const Channel({
@@ -27,6 +32,11 @@ class Channel extends Equatable {
     this.channelNumber,
     required this.streamUrl,
     this.streamType = StreamType.live,
+    this.catchupMode,
+    this.catchupSource,
+    this.catchupDays,
+    this.catchupCorrectionHours,
+    this.httpHeaders = const <String, String>{},
     this.isFavorite = false,
   });
 
@@ -46,6 +56,11 @@ class Channel extends Equatable {
       channelNumber: channelNumber ?? this.channelNumber,
       streamUrl: streamUrl,
       streamType: streamType,
+      catchupMode: catchupMode,
+      catchupSource: catchupSource,
+      catchupDays: catchupDays,
+      catchupCorrectionHours: catchupCorrectionHours,
+      httpHeaders: httpHeaders,
       isFavorite: isFavorite ?? this.isFavorite,
     );
   }

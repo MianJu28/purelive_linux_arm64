@@ -1,6 +1,5 @@
 import '../../../get.dart';
 import '../router_report.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -172,10 +171,8 @@ class ConfigData {
       defaultOpaqueRoute: defaultOpaqueRoute ?? this.defaultOpaqueRoute,
       defaultTransitionDuration: defaultTransitionDuration ?? this.defaultTransitionDuration,
       defaultTransitionCurve: defaultTransitionCurve ?? this.defaultTransitionCurve,
-      defaultDialogTransitionCurve:
-          defaultDialogTransitionCurve ?? this.defaultDialogTransitionCurve,
-      defaultDialogTransitionDuration:
-          defaultDialogTransitionDuration ?? this.defaultDialogTransitionDuration,
+      defaultDialogTransitionCurve: defaultDialogTransitionCurve ?? this.defaultDialogTransitionCurve,
+      defaultDialogTransitionDuration: defaultDialogTransitionDuration ?? this.defaultDialogTransitionDuration,
       routing: routing ?? this.routing,
       parameters: parameters ?? this.parameters,
     );
@@ -358,21 +355,12 @@ class GetRootState extends State<GetRoot> with WidgetsBindingObserver {
     if (config.routerDelegate == null) {
       final newDelegate = GetDelegate.createDelegate(
         pages:
-            config.getPages ??
-            [
-              GetPage(
-                name: cleanRouteName('/${config.home.runtimeType}'),
-                page: () => config.home!,
-              ),
-            ],
+            config.getPages ?? [GetPage(name: cleanRouteName("/${config.home.runtimeType}"), page: () => config.home!)],
         notFoundRoute: config.unknownRoute,
         navigatorKey: config.navigatorKey,
         navigatorObservers: (config.navigatorObservers == null
             ? <NavigatorObserver>[GetObserver(config.routingCallback, Get.routing)]
-            : <NavigatorObserver>[
-                GetObserver(config.routingCallback, config.routing),
-                ...config.navigatorObservers!,
-              ]),
+            : <NavigatorObserver>[GetObserver(config.routingCallback, config.routing), ...config.navigatorObservers!]),
       );
       config = config.copyWith(routerDelegate: newDelegate);
     }
@@ -380,9 +368,7 @@ class GetRootState extends State<GetRoot> with WidgetsBindingObserver {
     if (config.routeInformationParser == null) {
       final newRouteInformationParser = GetInformationParser.createInformationParser(
         initialRoute:
-            config.initialRoute ??
-            config.getPages?.first.name ??
-            cleanRouteName('/${config.home.runtimeType}'),
+            config.initialRoute ?? config.getPages?.first.name ?? cleanRouteName("/${config.home.runtimeType}"),
       );
 
       config = config.copyWith(routeInformationParser: newRouteInformationParser);
@@ -415,7 +401,7 @@ class GetRootState extends State<GetRoot> with WidgetsBindingObserver {
     // defaultTransitionDuration =
     //     config.transitionDuration ?? Duration(milliseconds: 300);
 
-    Future(onReady);
+    Future(() => onReady());
   }
 
   set parameters(Map<String, String?> newParameters) {

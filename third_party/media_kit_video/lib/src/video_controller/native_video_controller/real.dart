@@ -1,18 +1,19 @@
-import 'dart:io';
-import 'dart:async';
-import 'dart:collection';
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:synchronized/synchronized.dart';
-import 'package:media_kit_video/src/utils/query_decoders.dart';
-import 'package:media_kit_video/src/video_controller/platform_video_controller.dart';
-
 /// This file is a part of media_kit (https://github.com/media-kit/media-kit).
 ///
 /// Copyright © 2021 & onwards, Hitesh Kumar Saini <saini123hitesh@gmail.com>.
 /// All rights reserved.
 /// Use of this source code is governed by MIT license that can be found in the LICENSE file.
+import 'dart:io';
+import 'dart:async';
+import 'dart:collection';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:synchronized/synchronized.dart';
+
+import 'package:media_kit/media_kit.dart';
+
+import 'package:media_kit_video/src/utils/query_decoders.dart';
+import 'package:media_kit_video/src/video_controller/platform_video_controller.dart';
 
 /// {@template native_video_controller}
 ///
@@ -29,7 +30,10 @@ import 'package:media_kit_video/src/video_controller/platform_video_controller.d
 class NativeVideoController extends PlatformVideoController {
   /// Whether [NativeVideoController] is supported on the current platform or not.
   static bool get supported =>
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS || Platform.isIOS;
+      Platform.isWindows ||
+      Platform.isLinux ||
+      Platform.isMacOS ||
+      Platform.isIOS;
 
   /// Fixed width of the video output.
   int? width;
@@ -76,30 +80,37 @@ class NativeVideoController extends PlatformVideoController {
 
         final int handle = await player.handle;
 
-        final int width;
-        final int height;
+        final int sourceWidth;
+        final int sourceHeight;
         if (event.rotate == 0 || event.rotate == 180) {
-          width = event.dw ?? 0;
-          height = event.dh ?? 0;
+          sourceWidth = event.dw ?? 0;
+          sourceHeight = event.dh ?? 0;
         } else {
           // width & height are swapped for 90 or 270 degrees rotation.
-          width = event.dh ?? 0;
-          height = event.dw ?? 0;
+          sourceWidth = event.dh ?? 0;
+          sourceHeight = event.dw ?? 0;
         }
 
-        if (videoParamsWidth == width && videoParamsHeight == height) {
+        if (videoParamsWidth == sourceWidth &&
+            videoParamsHeight == sourceHeight) {
           return;
         }
 
-        videoParamsWidth = width;
-        videoParamsHeight = height;
+        videoParamsWidth = sourceWidth;
+        videoParamsHeight = sourceHeight;
+
+        // Respect an application-provided viewport size. Previously every
+        // video-parameter event overwrote setSize(), recreating a source-sized
+        // BGRA texture even when the visible Windows viewport was much smaller.
+        final outputWidth = this.width ?? sourceWidth;
+        final outputHeight = this.height ?? sourceHeight;
 
         await _channel.invokeMethod(
           'VideoOutputManager.SetSize',
           {
             'handle': handle.toString(),
-            'width': width.toString(),
-            'height': height.toString(),
+            'width': outputWidth.toString(),
+            'height': outputHeight.toString(),
           },
         );
       }),
@@ -177,7 +188,8 @@ class NativeVideoController extends PlatformVideoController {
         'configuration': {
           'width': configuration.width.toString(),
           'height': configuration.height.toString(),
-          'enableHardwareAcceleration': configuration.enableHardwareAcceleration,
+          'enableHardwareAcceleration':
+              configuration.enableHardwareAcceleration,
         },
       },
     );
@@ -199,9 +211,10 @@ class NativeVideoController extends PlatformVideoController {
   Future<void> setSize({
     int? width,
     int? height,
+    bool force = false,
   }) async {
     final handle = await player.handle;
-    if (this.width == width && this.height == height) {
+    if (!force && this.width == width && this.height == height) {
       // No need to resize if the requested size is same as the current size.
       return;
     }
@@ -249,44 +262,55 @@ class NativeVideoController extends PlatformVideoController {
   static final _controllers = HashMap<int, NativeVideoController>();
 
   /// [MethodChannel] for invoking platform specific native implementation.
-  static final _channel = const MethodChannel('com.alexmercerind/media_kit_video')
-    ..setMethodCallHandler(
-      (MethodCall call) async {
-        try {
-          debugPrint(call.method.toString());
-          debugPrint(call.arguments.toString());
-          switch (call.method) {
-            case 'VideoOutput.Resize':
-              {
-                // Notify about updated texture ID & [Rect].
-                final int handle = call.arguments['handle'];
-                final Rect rect = Rect.fromLTWH(
-                  call.arguments['rect']['left'] * 1.0,
-                  call.arguments['rect']['top'] * 1.0,
-                  call.arguments['rect']['width'] * 1.0,
-                  call.arguments['rect']['height'] * 1.0,
-                );
-                final int id = call.arguments['id'];
-                _controllers[handle]?.rect.value = rect;
-                _controllers[handle]?.id.value = id;
-                // Notify about the first frame being rendered.
-                if (rect.width > 0 && rect.height > 0) {
-                  final completer = _controllers[handle]?.waitUntilFirstFrameRenderedCompleter;
-                  if (!(completer?.isCompleted ?? true)) {
-                    completer?.complete();
+  static final _channel =
+      const MethodChannel('com.alexmercerind/media_kit_video')
+        ..setMethodCallHandler(
+          (MethodCall call) async {
+            try {
+              debugPrint(call.method.toString());
+              debugPrint(call.arguments.toString());
+              switch (call.method) {
+                case 'VideoOutput.Resize':
+                  {
+                    // Notify about updated texture ID & [Rect].
+                    final int handle = call.arguments['handle'];
+                    final Rect rect = Rect.fromLTWH(
+                      call.arguments['rect']['left'] * 1.0,
+                      call.arguments['rect']['top'] * 1.0,
+                      call.arguments['rect']['width'] * 1.0,
+                      call.arguments['rect']['height'] * 1.0,
+                    );
+                    final int id = call.arguments['id'];
+                    _controllers[handle]?.rect.value = rect;
+                    _controllers[handle]?.id.value = id;
+                    // Notify about the first frame being rendered.
+                    if (rect.width > 0 && rect.height > 0) {
+                      final completer = _controllers[handle]
+                          ?.waitUntilFirstFrameRenderedCompleter;
+                      if (!(completer?.isCompleted ?? true)) {
+                        completer?.complete();
+                      }
+                    }
+                    break;
                   }
-                }
-                break;
+                case 'VideoOutput.Frame':
+                  {
+                    final int handle = call.arguments['handle'];
+                    final controller = _controllers[handle];
+                    if (controller != null) {
+                      controller.frameRevision.value++;
+                    }
+                    break;
+                  }
+                default:
+                  {
+                    break;
+                  }
               }
-            default:
-              {
-                break;
-              }
-          }
-        } catch (exception, stacktrace) {
-          debugPrint(exception.toString());
-          debugPrint(stacktrace.toString());
-        }
-      },
-    );
+            } catch (exception, stacktrace) {
+              debugPrint(exception.toString());
+              debugPrint(stacktrace.toString());
+            }
+          },
+        );
 }

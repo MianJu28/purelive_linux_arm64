@@ -13,11 +13,12 @@ extension ParseDeviceOrientation on String {
       'PORTRAIT_DOWN' => DeviceOrientation.portraitDown,
       'LANDSCAPE_LEFT' => DeviceOrientation.landscapeLeft,
       'LANDSCAPE_RIGHT' => DeviceOrientation.landscapeRight,
-      _ => throw ArgumentError.value(
-        this,
-        'deviceOrientation',
-        'Received an invalid device orientation',
-      ),
+      _ =>
+        throw ArgumentError.value(
+          this,
+          'deviceOrientation',
+          'Received an invalid device orientation',
+        ),
     };
   }
 }

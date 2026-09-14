@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
-
 import './tars_struct.dart';
 import './tars_encode_exception.dart';
-
 import 'package:pure_live/core/common/log.dart';
 
 class BinaryWriter {
@@ -249,7 +247,7 @@ class TarsOutputStream {
     return Uint8List.fromList(bw.buffer);
   }
 
-  String sServerEncoding = 'UTF-8';
+  String sServerEncoding = "UTF-8";
 
   int setServerEncoding(String se) {
     sServerEncoding = se;

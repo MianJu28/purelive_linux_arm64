@@ -37,10 +37,7 @@ void main() {
 
     test('prefers an explicit refresh-rate mode over the legacy switch', () {
       final config = AppSettingsController.extractConfig({
-        'app': {
-          'refreshRateMode': AppRefreshRateMode.performance.storageValue,
-          'enableHighRefreshRate': false,
-        },
+        'app': {'refreshRateMode': AppRefreshRateMode.performance.storageValue, 'enableHighRefreshRate': false},
       });
 
       expect(config['refreshRateMode'], AppRefreshRateMode.performance.storageValue);
@@ -84,10 +81,31 @@ void main() {
 
     test('normalizes concurrent platform ids and includes SOOP for new installs', () {
       expect(AppSettingsController.defaultRealOnlinePlatforms, contains('soop'));
-      expect(
-        AppSettingsController.normalizeRealOnlinePlatforms(['DOUYIN', ' soop ', 'YY', 'SOOP']),
-        ['douyin', 'soop'],
-      );
+      expect(AppSettingsController.normalizeRealOnlinePlatforms(['DOUYIN', ' soop ', 'YY', 'SOOP']), [
+        'douyin',
+        'soop',
+      ]);
+    });
+
+    test('normalizes navigation ids and keeps one usable fallback tab', () {
+      expect(AppSettingsController.normalizeMenuIds([' popular ', 'missing', 'favorites', 'popular']), [
+        'popular',
+        'favorites',
+      ]);
+      expect(AppSettingsController.normalizeMenuIds(const []), ['favorites']);
+
+      final parsed = AppSettingsController.parseConfig({
+        'savedMenuIds': [' areas ', 'missing', 'areas'],
+      });
+      expect(parsed['savedMenuIds'], ['areas']);
+      expect(AppSettingsController.parseConfig({'savedMenuIds': const []})['savedMenuIds'], ['favorites']);
+
+      final config = AppSettingsController.extractConfig({
+        'app': {
+          'savedMenuIds': ['record', 'unknown', 'record', 'areas'],
+        },
+      });
+      expect(config['savedMenuIds'], ['record', 'areas']);
     });
   });
 }

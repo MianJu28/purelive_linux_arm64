@@ -94,12 +94,7 @@ class HomeTabletView extends StatelessWidget {
                       Obx(
                         () => SettingsService.to.app.enableMultiView.v
                             ? Padding(
-                                padding: const EdgeInsets.only(
-                                  top: 0,
-                                  bottom: 12,
-                                  left: 12,
-                                  right: 12,
-                                ),
+                                padding: const EdgeInsets.only(top: 0, bottom: 12, left: 12, right: 12),
                                 child: IconButton(
                                   onPressed: AppNavigator.toMultiview,
                                   tooltip: i18n('multiview_title'),

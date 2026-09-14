@@ -3,11 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/modules/live_play/widgets/danmaku/danmaku_tab.dart';
 import 'package:pure_live/modules/live_play/widgets/content_first_panel_layout.dart';
 import 'package:pure_live/modules/live_play/widgets/video_player/video_controller_panel.dart';
+import 'package:pure_live/modules/live_play/states/ui_state.dart';
 
 void main() {
-  testWidgets('portrait danmaku section tabs fill the row and stay horizontally fixed', (
-    tester,
-  ) async {
+  testWidgets('portrait danmaku section tabs fill the row and stay horizontally fixed', (tester) async {
     const tabs = <String>['弹幕列表', '醒目留言', '弹幕设置', '屏蔽管理'];
     await tester.pumpWidget(
       const MaterialApp(
@@ -31,42 +30,78 @@ void main() {
     final before = tester.getRect(finder);
     await tester.drag(finder, const Offset(220, 0));
     await tester.pumpAndSettle();
-    expect(
-      tester.getRect(finder),
-      before,
-      reason: 'the section row itself must not pan horizontally',
-    );
+    expect(tester.getRect(finder), before, reason: 'the section row itself must not pan horizontally');
   });
 
   test('Android fullscreen places time and battery beside Back after swapping PiP', () {
-    expect(
-      resolveTopActionLeadingSlots(fullscreen: true, android: true),
-      const <TopActionLeadingSlot>[
-        TopActionLeadingSlot.back,
-        TopActionLeadingSlot.datetime,
-        TopActionLeadingSlot.battery,
-      ],
-    );
-    expect(
-      resolveTopActionLeadingSlots(fullscreen: true, android: false),
-      const <TopActionLeadingSlot>[TopActionLeadingSlot.back],
-    );
+    expect(resolveTopActionLeadingSlots(fullscreen: true, android: true), const <TopActionLeadingSlot>[
+      TopActionLeadingSlot.back,
+      TopActionLeadingSlot.datetime,
+      TopActionLeadingSlot.battery,
+    ]);
+    expect(resolveTopActionLeadingSlots(fullscreen: true, android: false), const <TopActionLeadingSlot>[
+      TopActionLeadingSlot.back,
+    ]);
     expect(resolveTopActionLeadingSlots(fullscreen: false, android: true), isEmpty);
   });
 
   test('Android keeps audio, cast and PiP in the same trailing order in every orientation', () {
     for (final fullscreen in <bool>[false, true]) {
-      final slots = resolveTopActionTrailingSlots(
-        fullscreen: fullscreen,
-        android: true,
-        windows: false,
-      );
+      final slots = resolveTopActionTrailingSlots(fullscreen: fullscreen, android: true, windows: false);
       expect(slots.sublist(slots.length - 3), const <TopActionTrailingSlot>[
         TopActionTrailingSlot.audioOnly,
         TopActionTrailingSlot.cast,
         TopActionTrailingSlot.pip,
       ]);
     }
+  });
+
+  test('player expansion controls expose stable accessibility action labels', () {
+    expect(fullscreenActionLabelKey(false), 'enter_fullscreen');
+    expect(fullscreenActionLabelKey(true), 'exit_fullscreen');
+    expect(playerWindowActionLabelKey(false), 'expand_player_window');
+    expect(playerWindowActionLabelKey(true), 'collapse_player_window');
+  });
+
+  test('visible playback bars reserve their hit area from danmaku interactions', () {
+    const size = Size(800, 450);
+
+    expect(
+      shouldHandleVideoSurfaceTap(localPosition: const Offset(400, 20), surfaceSize: size, controlsVisible: true),
+      isFalse,
+      reason: 'top actions such as audio, cast and PiP must keep the tap',
+    );
+    expect(
+      shouldHandleVideoSurfaceTap(localPosition: const Offset(400, 430), surfaceSize: size, controlsVisible: true),
+      isFalse,
+      reason: 'bottom playback actions must keep the tap',
+    );
+    expect(
+      shouldHandleVideoSurfaceTap(localPosition: const Offset(400, 225), surfaceSize: size, controlsVisible: true),
+      isTrue,
+    );
+    expect(
+      shouldHandleVideoSurfaceTap(localPosition: const Offset(400, 20), surfaceSize: size, controlsVisible: false),
+      isTrue,
+      reason: 'hidden bars leave the whole video surface interactive',
+    );
+  });
+
+  test('portrait fullscreen reserves a two-row bottom controller while other modes keep one row', () {
+    expect(resolveBottomActionBarHeight(VideoMode.portraitFullscreen), portraitFullscreenBottomBarHeight);
+    expect(resolveBottomActionBarHeight(VideoMode.normal), 56);
+
+    const size = Size(360, 780);
+    expect(
+      shouldHandleVideoSurfaceTap(
+        localPosition: const Offset(300, 700),
+        surfaceSize: size,
+        controlsVisible: true,
+        controlBarHeight: resolveBottomActionBarHeight(VideoMode.portraitFullscreen),
+      ),
+      isFalse,
+      reason: 'both portrait controller rows must receive taps instead of the video/danmaku layer',
+    );
   });
 
   test('landscape playback panels occupy the compact right half of a phone viewport', () {
@@ -81,11 +116,7 @@ void main() {
     expect(style.size.width / viewport.width, inInclusiveRange(.47, .51));
     expect(style.size.height / viewport.height, greaterThan(.9));
     expect(streams.splitContent, isFalse);
-    expect(
-      style.splitContent,
-      isTrue,
-      reason: 'phone landscape keeps preview left and controls right',
-    );
+    expect(style.splitContent, isTrue, reason: 'phone landscape keeps preview left and controls right');
     expect(resolveStreamChoiceColumns(streams.size.width - 24), 3);
 
     final roomGridSize = Size(rooms.size.width, rooms.size.height - 36 - 30 - 1);
@@ -97,11 +128,7 @@ void main() {
     expect(resolveStreamChoiceColumns(420), 3);
     expect(resolveStreamChoiceColumns(260), 2);
     expect(resolveStreamChoiceColumns(180), 1);
-    expect(
-      resolveStreamChoiceColumns(420, itemCount: 4),
-      2,
-      reason: 'four qualities form a balanced 2 x 2',
-    );
+    expect(resolveStreamChoiceColumns(420, itemCount: 4), 2, reason: 'four qualities form a balanced 2 x 2');
     expect(resolveStreamChoiceColumns(420, itemCount: 6), 3);
     expect(resolveStreamChoiceColumns(420, itemCount: 1), 1);
   });
@@ -123,11 +150,7 @@ void main() {
       lineCount: 1,
       splitContent: false,
     );
-    expect(
-      shortLists.dialogHeight,
-      211,
-      reason: 'one quality and one line must not leave a full-height blank dialog',
-    );
+    expect(shortLists.dialogHeight, 211, reason: 'one quality and one line must not leave a full-height blank dialog');
 
     final manyChoices = resolveStreamSelectorPanelLayout(
       maximumDialogSize: const Size(449.5, 396),
@@ -156,6 +179,11 @@ void main() {
     final style = resolveContentFirstPanelLayout(viewport, ContentFirstPanelKind.localDanmakuStyle);
     expect(style.splitContent, isTrue);
     expect(style.size.width / viewport.width, inInclusiveRange(.47, .51));
+  });
+
+  test('fullscreen local composer follows the global interaction switch', () {
+    expect(shouldShowFullscreenLocalDanmakuComposer(false), isFalse);
+    expect(shouldShowFullscreenLocalDanmakuComposer(true), isTrue);
   });
 
   test('large landscape windows keep dense panels split internally', () {

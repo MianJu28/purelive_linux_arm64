@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:io';
-
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,6 +9,7 @@ import 'package:pure_live/modules/backup/scan_page.dart';
 import 'package:pure_live/modules/auth/auth_controller.dart';
 import 'package:pure_live/plugins/backup_recovery_service.dart';
 import 'package:pure_live/common/services/settings/log_controller.dart';
+
 
 class BackupPage extends StatefulWidget {
   const BackupPage({super.key});
@@ -40,34 +41,30 @@ class _BackupPageState extends State<BackupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(i18n('backup_recover'))),
+      appBar: AppBar(title: Text(i18n("backup_recover"))),
       body: Obx(() {
         final auth = Get.find<AuthController>();
         return ListView(
           physics: const PureLiveScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
-            context.buildGroupTitle(i18n('cloud_backup')),
+            context.buildGroupTitle(i18n("cloud_backup")),
             context.buildModernCard([
               context.buildTile(
                 iconWidget: auth.isConnecting
                     ? RotationTransition(
                         turns: const AlwaysStoppedAnimation(0.5),
-                        child: Icon(
-                          Remix.refresh_line,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 22,
-                        ),
+                        child: Icon(Remix.refresh_line, color: Theme.of(context).colorScheme.primary, size: 22),
                       )
                     : Icon(
                         Remix.account_circle_line,
                         color: auth.isInitSuccess ? null : Theme.of(context).colorScheme.error,
                         size: 22,
                       ),
-                isLong: !auth.isInitSuccess,
-                subtitleColor: auth.isInitSuccess
-                    ? null
-                    : Theme.of(context).colorScheme.error.withValues(alpha: 0.8),
+                isLong: true,
+                stackTrailingOnNarrow: auth.isConnecting,
+                showNavigationChevronWhenStacked: false,
+                subtitleColor: auth.isInitSuccess ? null : Theme.of(context).colorScheme.error.withValues(alpha: 0.8),
                 title: auth.isConnecting
                     ? i18n('firebase_connecting_title')
                     : (auth.isInitSuccess
@@ -76,9 +73,7 @@ class _BackupPageState extends State<BackupPage> {
                 subtitle: auth.isConnecting
                     ? i18n('firebase_connecting_desc')
                     : (auth.isInitSuccess
-                          ? (auth.isLogin
-                                ? i18n('firebase_logged_in_desc')
-                                : i18n('firebase_login_desc'))
+                          ? (auth.isLogin ? i18n('firebase_logged_in_desc') : i18n('firebase_login_desc'))
                           : i18n('firebase_init_failed_desc')),
                 trailing: auth.isConnecting
                     ? SizedBox(
@@ -86,9 +81,7 @@ class _BackupPageState extends State<BackupPage> {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Theme.of(context).colorScheme.primary,
-                          ),
+                          valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                         ),
                       )
                     : null,
@@ -120,8 +113,9 @@ class _BackupPageState extends State<BackupPage> {
 
               context.buildTile(
                 icon: Remix.cloud_line,
-                title: i18n('webdav'),
-                subtitle: i18n('backup_to_webdav'),
+                title: i18n("webdav"),
+                subtitle: i18n("backup_to_webdav"),
+                isLong: true,
                 onTap: () => Get.toNamed(RoutePath.kWebDavPage),
               ),
               context.buildTile(
@@ -133,73 +127,94 @@ class _BackupPageState extends State<BackupPage> {
               if (Platform.isAndroid || Platform.isIOS)
                 context.buildTile(
                   icon: Remix.qr_code_line,
-                  title: i18n('sync_tv_data'),
-                  subtitle: i18n('sync_tv_data_subtitle'),
+                  title: i18n("sync_tv_data"),
+                  subtitle: i18n("sync_tv_data_subtitle"),
+                  isLong: true,
                   onTap: () => Get.to(() => const ScanCodePage()),
                 ),
             ]),
             const SizedBox(height: 20),
-            context.buildGroupTitle(i18n('local_backup')),
+            context.buildGroupTitle(i18n("local_backup")),
             context.buildModernCard([
               context.buildTile(
                 icon: Remix.file_download_line,
-                title: i18n('create_backup'),
-                subtitle: i18n('create_backup_subtitle'),
+                title: i18n("create_backup"),
+                subtitle: i18n("create_backup_subtitle"),
+                isLong: true,
                 onTap: () async {
-                  if (backupDirectory.isEmpty) {
-                    ToastUtil.show(i18n('please_set_backup_directory'));
-                    return;
-                  }
+                  // The export flow chooses a directory and remembers the first
+                  // successful choice; no separate first-run settings step.
                   await BackupRecoveryService().createAppSettingsBackup(backupDirectory);
                 },
               ),
               context.buildTile(
                 icon: Remix.file_upload_line,
-                title: i18n('recover_backup'),
-                subtitle: i18n('recover_backup_subtitle'),
+                title: i18n("recover_backup"),
+                subtitle: i18n("recover_backup_subtitle"),
+                isLong: true,
                 onTap: () => BackupRecoveryService().recoverSettingsFromFile(),
               ),
             ]),
             const SizedBox(height: 20),
-            context.buildGroupTitle(i18n('backup_settings')),
+            context.buildGroupTitle(i18n("backup_settings")),
             context.buildModernCard([
               context.buildTile(
                 icon: Remix.folder_open_line,
-                title: i18n('backup_directory'),
-                subtitle: backupDirectory.isEmpty
-                    ? i18n('please_set_backup_directory')
-                    : backupDirectory,
+                title: i18n("backup_directory"),
+                subtitle: backupDirectory.isEmpty ? i18n('please_set_backup_directory') : backupDirectory,
+                isLong: true,
                 onTap: () async {
                   await BackupRecoveryService().updateBackupDirectory();
                 },
               ),
             ]),
             const SizedBox(height: 20),
-            context.buildGroupTitle(i18n('log_manage')),
+            context.buildGroupTitle(i18n("log_manage")),
             context.buildModernCard([
-              context.buildTile(
-                icon: Remix.file_text_line,
-                title: i18n('enable_local_log'),
-                subtitle: i18n('enable_local_log_desc'),
-                trailing: Switch(
-                  value: logController.storedEnableLog.v,
-                  onChanged: (val) => logController.storedEnableLog.v = val,
-                ),
-                onTap: () => logController.storedEnableLog.v = !logController.storedEnableLog.v,
-              ),
               Obx(() {
-                if (logController.serverPort.value == 0) return const SizedBox.shrink();
-                final String displayAddress = logController.serverAddress.value == '0.0.0.0'
-                    ? 'localhost'
-                    : logController.serverAddress.value;
-                final String urlStr = 'http://$displayAddress:${logController.serverPort.value}';
+                final applying = logController.isApplyingLogStatus.v;
+                final statusKey = logController.logStatusKey.v;
+                final subtitleKey = applying
+                    ? 'local_log_applying'
+                    : statusKey.isNotEmpty
+                    ? statusKey
+                    : 'enable_local_log_desc';
+                return context.buildTile(
+                  icon: Remix.file_text_line,
+                  title: i18n("enable_local_log"),
+                  subtitle: i18n(subtitleKey),
+                  subtitleColor: statusKey.isNotEmpty && !applying ? Theme.of(context).colorScheme.error : null,
+                  isLong: true,
+                  stackTrailingOnNarrow: true,
+                  showNavigationChevronWhenStacked: false,
+                  trailing: Switch(
+                    key: const ValueKey('local-log-switch'),
+                    value: logController.storedEnableLog.v,
+                    onChanged: applying ? null : (value) => unawaited(logController.setLoggingEnabled(value)),
+                  ),
+                  onTap: applying
+                      ? null
+                      : () => unawaited(logController.setLoggingEnabled(!logController.storedEnableLog.v)),
+                );
+              }),
+              Obx(() {
+                if (!logController.enableLog ||
+                    logController.isApplyingLogStatus.v ||
+                    logController.serverPort.value == 0) {
+                  return const SizedBox.shrink();
+                }
+                final uri = Uri(
+                  scheme: 'http',
+                  host: logController.serverAddress.value,
+                  port: logController.serverPort.value,
+                );
                 return context.buildTile(
                   icon: Remix.global_line,
-                  title: i18n('view_logs_in_browser'),
-                  subtitle: urlStr,
+                  title: i18n("view_logs_in_browser"),
+                  subtitle: uri.toString(),
+                  isLong: true,
                   trailing: const Icon(Remix.arrow_right_s_line),
                   onTap: () async {
-                    final Uri uri = Uri.parse(urlStr);
                     if (await canLaunchUrl(uri)) {
                       await launchUrl(uri, mode: LaunchMode.externalApplication);
                     }
@@ -209,8 +224,9 @@ class _BackupPageState extends State<BackupPage> {
 
               context.buildTile(
                 icon: Remix.folder_open_line,
-                title: i18n('open_log_dir'),
-                subtitle: i18n('open_log_dir_desc'),
+                title: i18n("open_log_dir"),
+                subtitle: i18n("open_log_dir_desc"),
+                isLong: true,
                 onTap: _openLogDirectory,
               ),
             ]),

@@ -1,9 +1,70 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/common/models/live_room.dart';
-import 'package:pure_live/recorder/models/record_status.dart';
 import 'package:pure_live/recorder/models/live_record_task.dart';
+import 'package:pure_live/recorder/models/record_status.dart';
 
 void main() {
+  test('observed input gaps persist across retries and clear only for a new recording', () {
+    final task = LiveRecordTask.fromJson({'roomId': 'fixture', 'platform': 'picarto'});
+    expect(task.inputCoverageIncomplete, false);
+    task.inputCoverageIncomplete = true;
+    task.clearFailure();
+    task.beginNewAttempt();
+    final restored = LiveRecordTask.fromJson(task.toJson());
+    expect(restored.inputCoverageIncomplete, true);
+    expect(restored.inputTailDiscarded, false);
+    restored.beginNewRecording();
+    expect(LiveRecordTask.fromJson(restored.toJson()).inputCoverageIncomplete, false);
+  });
+  test('discarded input survives restore and retry but resets for a new recording', () {
+    final task = LiveRecordTask.fromJson({'roomId': 'fixture', 'platform': 'picarto'});
+    expect(task.inputTailDiscarded, false);
+    task.inputTailDiscarded = true;
+    task.clearFailure();
+    task.beginNewAttempt();
+    final restored = LiveRecordTask.fromJson(task.toJson());
+    expect(restored.inputTailDiscarded, true);
+    restored.beginNewRecording();
+    expect(restored.inputTailDiscarded, false);
+    expect(LiveRecordTask.fromJson(restored.toJson()).inputTailDiscarded, false);
+  });
+
+  test('input packet damage survives pending-attempt persistence and duplicate order', () {
+    for (final reversed in [false, true]) {
+      final damaged = {'directoryPath': '/recording', 'filePrefix': 'attempt', 'inputIntegrityError': true};
+      final clean = {'directoryPath': '/recording', 'filePrefix': 'attempt'};
+      final task = LiveRecordTask.fromJson({
+        'roomId': 'fixture',
+        'platform': 'picarto',
+        'pendingAttempts': reversed ? [damaged, clean] : [clean, damaged],
+      });
+      task.queuePendingAttempt(directoryPath: '/recording', filePrefix: 'attempt');
+      final stored = task.toJson()['pendingAttempts'] as List;
+      expect(stored, hasLength(1));
+      expect(stored.single['inputIntegrityError'], true);
+      task.beginNewRecording();
+      expect((task.toJson()['pendingAttempts'] as List).single['inputIntegrityError'], true);
+    }
+  });
+  test('legacy attempts stay unflagged and damage never leaks to a different attempt', () {
+    final task = LiveRecordTask.fromJson({
+      'roomId': 'fixture',
+      'platform': 'picarto',
+      'schemaVersion': 7,
+      'pendingAttempts': [
+        {'directoryPath': '/recording', 'filePrefix': 'legacy'},
+      ],
+    });
+    expect(task.pendingAttempts.single.inputIntegrityError, false);
+    task.queuePendingAttempt(directoryPath: '/recording', filePrefix: 'damaged', inputIntegrityError: true);
+    task.queuePendingAttempt(directoryPath: '/recording', filePrefix: 'fresh');
+    expect(task.pendingAttempts.map((a) => a.inputIntegrityError), [false, true, false]);
+    expect(LiveRecordTask.fromJson(task.toJson()).pendingAttempts.map((a) => a.inputIntegrityError), [
+      false,
+      true,
+      false,
+    ]);
+  });
   test('record task schema survives numeric drift and prefers enum names', () {
     final task = LiveRecordTask.fromJson(<String, dynamic>{
       'taskId': 'douyin_1',
@@ -81,7 +142,7 @@ void main() {
     );
 
     final json = task.toJson();
-    expect(json['schemaVersion'], 7);
+    expect(json['schemaVersion'], 9);
     expect(json['lastErrorStage'], 'ffmpeg');
     expect(json['lastError'], contains('[stream-url]'));
     expect(json['lastError'], isNot(contains('secret')));
@@ -176,9 +237,7 @@ void main() {
   });
 
   test('recorder retry keeps the user session start while rotating attempt prefixes', () {
-    final task = LiveRecordTask.fromRoom(
-      LiveRoom(roomId: '1', platform: 'huya', title: 'title', nick: 'nick'),
-    );
+    final task = LiveRecordTask.fromRoom(LiveRoom(roomId: '1', platform: 'huya', title: 'title', nick: 'nick'));
     final sessionStart = DateTime.parse('2026-09-01T08:42:24.483');
     final retryStart = DateTime.parse('2026-09-01T08:44:07.901');
 
@@ -200,9 +259,8 @@ void main() {
   test('recording session start survives persistence and resets on explicit restart', () {
     final firstStart = DateTime.parse('2026-09-01T08:42:24.483');
     final secondStart = DateTime.parse('2026-09-01T09:00:00.001');
-    final task = LiveRecordTask.fromRoom(
-      LiveRoom(roomId: '1', platform: 'huya', title: 'title', nick: 'nick'),
-    )..beginNewRecording(now: firstStart);
+    final task = LiveRecordTask.fromRoom(LiveRoom(roomId: '1', platform: 'huya', title: 'title', nick: 'nick'))
+      ..beginNewRecording(now: firstStart);
 
     final restored = LiveRecordTask.fromJson(task.toJson());
     expect(restored.recordingStartedAt, firstStart);
@@ -225,10 +283,7 @@ void main() {
     );
 
     expect(task.audienceMetricType, AudienceMetricType.popularity);
-    expect(
-      LiveRecordTask.fromJson(task.toJson()).audienceMetricType,
-      AudienceMetricType.popularity,
-    );
+    expect(LiveRecordTask.fromJson(task.toJson()).audienceMetricType, AudienceMetricType.popularity);
 
     final onlineTask = LiveRecordTask.fromRoom(
       LiveRoom(

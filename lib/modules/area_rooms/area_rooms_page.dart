@@ -1,9 +1,10 @@
 import 'package:pure_live/common/index.dart';
+import 'package:pure_live/common/utils/category_artwork.dart';
+import 'package:pure_live/modules/area_rooms/area_rooms_controller.dart';
 import 'package:pure_live/plugins/cache_manager.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pure_live/common/widgets/keep_alive_wrapper.dart';
-import 'package:pure_live/modules/settings/pages/room_card_settings/room_card_config_controller.dart';
 
 class AreasRoomPage extends StatefulWidget {
   final Site site;
@@ -17,9 +18,7 @@ class AreasRoomPage extends StatefulWidget {
 
 class _AreasRoomPageState extends State<AreasRoomPage> {
   BasePageScrollAndStateBone<LiveRoom> get controller =>
-      Get.find<BasePageScrollAndStateBone<LiveRoom>>(
-        tag: '${widget.site.id}_${widget.subCategory.areaId}',
-      );
+      Get.find<BasePageScrollAndStateBone<LiveRoom>>(tag: areaRoomsControllerTag(widget.site, widget.subCategory));
 
   @override
   void initState() {
@@ -29,9 +28,11 @@ class _AreasRoomPageState extends State<AreasRoomPage> {
 
   @override
   Widget build(BuildContext context) {
+    final rawAreaName = widget.subCategory.areaName?.trim() ?? '';
+    final areaName = rawAreaName.isEmpty ? i18n('unnamed_area') : rawAreaName;
     return KeepAliveWrapper(
       child: Scaffold(
-        appBar: AppBar(title: Text(widget.subCategory.areaName!)),
+        appBar: AppBar(title: Text(areaName)),
         body: BasePageView<BasePageScrollAndStateBone<LiveRoom>, LiveRoom>(
           controller: controller,
           enableRefresh: true,
@@ -41,8 +42,7 @@ class _AreasRoomPageState extends State<AreasRoomPage> {
           showScrollToTopBtn: SettingsService.to.page.showScrollToTopBtn.v,
           showPageSizeSelector: SettingsService.to.page.showPageSizeSelector.v,
           pageSizeOptions: SettingsService.to.page.pageSizeOptions,
-          emptyBuilder: (context) =>
-              EmptyView(icon: Icons.live_tv_rounded, title: i18n('no_data'), subtitle: ''),
+          emptyBuilder: (context) => EmptyView(icon: Icons.live_tv_rounded, title: i18n('no_data'), subtitle: ''),
           contentBuilder: (context, list, scrollController) {
             return LayoutBuilder(
               builder: (context, constraint) {
@@ -59,20 +59,14 @@ class _AreasRoomPageState extends State<AreasRoomPage> {
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: spacing,
                     mainAxisSpacing: SettingsService.to.theme.mainAxisSpacing.v,
-                    mainAxisExtent: RoomCardConfigController.to.calculateCardHeight(
-                      itemWidth: itemWidth,
-                    ),
+                    mainAxisExtent: itemWidth * 9 / 16 + 72,
                   ),
                   padding: const EdgeInsets.fromLTRB(6, 6, 6, 80),
                   controller: scrollController,
                   itemCount: list.length,
                   itemBuilder: (context, index) {
                     final room = list[index];
-                    return RoomCard(
-                      key: ValueKey('${room.platform}:${room.roomId}'),
-                      room: room,
-                      dense: true,
-                    );
+                    return RoomCard(key: ValueKey('${room.platform}:${room.roomId}'), room: room, dense: true);
                   },
                 );
               },
@@ -92,9 +86,9 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
 
   Widget _buildAvatar(BuildContext context) {
     final theme = Theme.of(context);
-    final String firstChar = (area.areaName?.isNotEmpty ?? false)
-        ? area.areaName!.substring(0, 1)
-        : '';
+    final rawAreaName = area.areaName?.trim() ?? '';
+    final displayName = rawAreaName.isEmpty ? i18n('unnamed_area') : rawAreaName;
+    final firstChar = String.fromCharCode(displayName.runes.first);
     final pictureUrl = normalizeNetworkImageUrl(area.areaPic);
     final bool hasPic = pictureUrl.isNotEmpty;
 
@@ -112,6 +106,7 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
                 width: 32,
                 height: 32,
                 fit: BoxFit.cover,
+                alignment: categoryArtworkAlignment(pictureUrl),
                 memCacheWidth: 64,
                 // maxWidthDiskCache: 128,
                 fadeInDuration: Duration.zero,
@@ -120,9 +115,7 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
                   return Center(
                     child: Text(
                       firstChar,
-                      style: AppTextStyles.t12Bold.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
+                      style: AppTextStyles.t12Bold.copyWith(color: theme.colorScheme.onPrimaryContainer),
                     ),
                   );
                 },
@@ -130,9 +123,7 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
             : Center(
                 child: Text(
                   firstChar,
-                  style: AppTextStyles.t12Bold.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                  ),
+                  style: AppTextStyles.t12Bold.copyWith(color: theme.colorScheme.onPrimaryContainer),
                 ),
               ),
       ),
@@ -142,21 +133,21 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final isFavorite = SettingsService.to.fav.favoriteAreas.v.any((e) => e.areaId == area.areaId);
+      final isFavorite = SettingsService.to.fav.isFavoriteArea(area);
+      final rawAreaName = area.areaName?.trim() ?? '';
+      final displayName = rawAreaName.isEmpty ? i18n('unnamed_area') : rawAreaName;
 
       return Padding(
         padding: EdgeInsets.only(
           bottom: Get.width > 680
               ? 24
-              : (MediaQuery.paddingOf(context).bottom > 0
-                    ? MediaQuery.paddingOf(context).bottom
-                    : 12),
+              : (MediaQuery.paddingOf(context).bottom > 0 ? MediaQuery.paddingOf(context).bottom : 12),
           right: 0,
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOutCubic,
-          height: 48,
+          constraints: const BoxConstraints(minHeight: 48),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.95),
             borderRadius: BorderRadius.circular(isFavorite ? 24 : 16),
@@ -167,11 +158,7 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
               width: 1,
             ),
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4)),
             ],
           ),
           child: ClipRRect(
@@ -185,34 +172,27 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
                     showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: Text(i18n('unfollow')),
-                        content: Text(i18n('unfollow_message', args: {'name': area.areaName!})),
+                        title: Text(i18n("unfollow")),
+                        content: Text(i18n("unfollow_message", args: {"name": displayName})),
                         actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: Text(i18n('cancel')),
-                          ),
+                          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(i18n("cancel"))),
                           ElevatedButton(
                             onPressed: () => Navigator.of(context).pop(true),
-                            child: Text(i18n('confirm')),
+                            child: Text(i18n("confirm")),
                           ),
                         ],
                       ),
                     ).then((value) {
                       if (value == true) {
-                        final list = List<LiveArea>.from(SettingsService.to.fav.favoriteAreas.v);
-                        list.removeWhere((e) => e.areaId == area.areaId);
-                        SettingsService.to.fav.favoriteAreas.v = list;
+                        SettingsService.to.fav.removeArea(area);
                       }
                     });
                   } else {
-                    final list = List<LiveArea>.from(SettingsService.to.fav.favoriteAreas.v)
-                      ..add(area);
-                    SettingsService.to.fav.favoriteAreas.v = list;
+                    SettingsService.to.fav.addArea(area);
                   }
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -232,19 +212,15 @@ class FavoriteAreaFloatingButton extends StatelessWidget {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        i18n('follow'),
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).hintColor,
-                                          height: 1.1,
-                                        ),
+                                        i18n("follow"),
+                                        style: Theme.of(context).textTheme.bodySmall
+                                            ?.copyWith(color: Theme.of(context).hintColor, height: 1.1),
                                       ),
                                       const SizedBox(height: 1),
                                       ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxWidth: Get.width > 680 ? 120 : 80,
-                                        ),
+                                        constraints: BoxConstraints(maxWidth: Get.width > 680 ? 120 : 80),
                                         child: Text(
-                                          area.areaName!,
+                                          displayName,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: AppTextStyles.t12Bold.copyWith(

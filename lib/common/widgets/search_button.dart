@@ -5,10 +5,7 @@ class SearchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: () => Get.toNamed(RoutePath.kSearch),
-      icon: const Icon(CustomIcons.search),
-    );
+    return IconButton(onPressed: () => Get.toNamed(RoutePath.kSearch), icon: const Icon(CustomIcons.search));
   }
 }
 
@@ -17,9 +14,6 @@ class LinkButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: () => Get.toNamed(RoutePath.kToolbox),
-      icon: const Icon(Icons.link),
-    );
+    return IconButton(onPressed: () => Get.toNamed(RoutePath.kToolbox), icon: const Icon(Icons.link));
   }
 }

@@ -5,6 +5,7 @@ import 'package:pure_live/routes/app_navigation.dart';
 import 'package:pure_live/recorder/models/record_status.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:pure_live/recorder/models/live_record_task.dart';
+import 'package:pure_live/recorder/models/recorder_task_ordering.dart';
 import 'package:pure_live/recorder/widgets/recorder_bounded_scroll.dart';
 import 'package:pure_live/recorder/pages/recorder/recorder_controller.dart';
 
@@ -12,15 +13,15 @@ class RecorderPage extends GetView<RecorderController> {
   const RecorderPage({super.key});
 
   static const tabs = [
-    'recorder_tab_all',
-    'recorder_tab_recording',
-    'recorder_tab_waiting',
-    'recorder_tab_queue',
-    'recorder_tab_reconnecting',
-    'recorder_tab_processing',
-    'recorder_tab_completed',
-    'recorder_tab_failed',
-    'recorder_tab_stopped',
+    "recorder_tab_all",
+    "recorder_tab_recording",
+    "recorder_tab_waiting",
+    "recorder_tab_queue",
+    "recorder_tab_reconnecting",
+    "recorder_tab_processing",
+    "recorder_tab_completed",
+    "recorder_tab_failed",
+    "recorder_tab_stopped",
   ];
 
   @override
@@ -32,18 +33,18 @@ class RecorderPage extends GetView<RecorderController> {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(i18n('recorder_title')),
+          title: Text(i18n("recorder_title")),
           centerTitle: true,
           leading: canGoBack ? const BackButton() : (showAction ? const MenuButton() : null),
 
           actions: [
             IconButton(
-              tooltip: i18n('recorder_open_folder'),
+              tooltip: i18n("recorder_open_folder"),
               icon: const Icon(Remix.folder_video_line, size: 22),
               onPressed: controller.openFileDir,
             ),
             IconButton(
-              tooltip: i18n('settings_title'),
+              tooltip: i18n("settings_title"),
               icon: const Icon(Remix.settings_5_line, size: 22),
               onPressed: () => Get.toNamed(RoutePath.kRecordSettings),
             ),
@@ -58,7 +59,7 @@ class RecorderPage extends GetView<RecorderController> {
               child: TabBarView(
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  const _TaskList(filter: null),
+                  _TaskList(filter: null),
                   _TaskList(filter: (e) => e.status == RecordStatus.running),
                   _TaskList(filter: (e) => e.status == RecordStatus.waitingLive),
                   _TaskList(filter: (e) => e.status == RecordStatus.queued),
@@ -81,47 +82,12 @@ class _TaskList extends GetView<RecorderController> {
   const _TaskList({this.filter});
   final bool Function(LiveRecordTask task)? filter;
 
-  // 状态权重，数字越小排序越靠前
-  int _getStatusPriority(RecordStatus status) {
-    switch (status) {
-      case RecordStatus.running:
-        return 0;
-      case RecordStatus.reconnecting:
-        return 1;
-      case RecordStatus.preparing:
-        return 2;
-      case RecordStatus.waitingLive:
-        return 3;
-      case RecordStatus.queued:
-        return 4;
-      case RecordStatus.processing:
-        return 5;
-      case RecordStatus.completed:
-        return 6;
-      case RecordStatus.stopped:
-        return 7;
-      case RecordStatus.failed:
-        return 8;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      List<LiveRecordTask> list = controller.tasks;
-      if (filter != null) {
-        list = list.where(filter!).toList();
-      } else {
-        list = List.from(list);
-        list.sort((a, b) {
-          final prioA = _getStatusPriority(a.status);
-          final prioB = _getStatusPriority(b.status);
-          if (prioA != prioB) {
-            return prioA.compareTo(prioB);
-          }
-          return b.createTime.compareTo(a.createTime);
-        });
-      }
+      final source = controller.tasks;
+
+      final list = filter != null ? source.where(filter!).toList() : RecorderTaskOrdering.forDisplay(source);
 
       if (list.isEmpty) {
         return const _EmptyView();
@@ -175,31 +141,57 @@ class _TaskCard extends GetView<RecorderController> {
   String _statusText() {
     switch (task.status) {
       case RecordStatus.running:
-        return i18n('recorder_status_recording');
+        return i18n("recorder_status_recording");
 
       case RecordStatus.preparing:
-        return i18n('recorder_status_preparing');
+        return i18n("recorder_status_preparing");
 
       case RecordStatus.queued:
-        return i18n('recorder_status_queue');
+        return i18n("recorder_status_queue");
 
       case RecordStatus.waitingLive:
-        return i18n('recorder_status_waiting');
+        return i18n("recorder_status_waiting");
 
       case RecordStatus.reconnecting:
-        return i18n('recorder_status_reconnecting');
+        return i18n("recorder_status_reconnecting");
 
       case RecordStatus.processing:
-        return i18n('recorder_status_processing');
+        return i18n("recorder_status_processing");
 
       case RecordStatus.completed:
-        return i18n('recorder_status_completed');
+        return i18n("recorder_status_completed");
 
       case RecordStatus.failed:
-        return i18n('recorder_status_failed');
+        return i18n("recorder_status_failed");
 
       case RecordStatus.stopped:
-        return i18n('recorder_status_stopped');
+        return i18n("recorder_status_stopped");
+    }
+  }
+
+  Color _platformColor() {
+    switch (task.platform.toLowerCase()) {
+      case Sites.bilibiliSite:
+        return const Color(0xFFFB7299);
+
+      case Sites.douyuSite:
+        return const Color(0xFFFF7700);
+
+      case Sites.huyaSite:
+        return const Color(0xFFFFB000);
+
+      case Sites.douyinSite:
+        return const Color(0xFF000000);
+      case Sites.ccSite:
+        return const Color.fromARGB(253, 13, 145, 233);
+      case Sites.iptvSite:
+        return const Color.fromARGB(255, 204, 71, 9);
+      case Sites.twitchSite:
+        return const Color(0xFF9146FF);
+      case Sites.soopSite:
+        return const Color(0xFF0675E8);
+      default:
+        return const Color.fromARGB(255, 11, 223, 117);
     }
   }
 
@@ -208,7 +200,7 @@ class _TaskCard extends GetView<RecorderController> {
 
     String two(int n) => n.toString().padLeft(2, '0');
 
-    return '${two(d.inHours)}:${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
+    return "${two(d.inHours)}:${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}";
   }
 
   String _formatFileSize(int bytes) {
@@ -252,6 +244,7 @@ class _TaskCard extends GetView<RecorderController> {
       'merge' => i18n('recorder_stage_merge'),
       'scheduler' => i18n('recorder_stage_scheduler'),
       'status' => i18n('recorder_stage_status'),
+      'background' => i18n('recorder_stage_background'),
       _ => i18n('recorder_stage_unknown'),
     };
   }
@@ -295,10 +288,7 @@ class _TaskCard extends GetView<RecorderController> {
                   ),
                   child: Text(
                     _statusText(),
-                    style: AppTextStyles.t12.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTextStyles.t12.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -315,11 +305,10 @@ class _TaskCard extends GetView<RecorderController> {
       children: [
         Icon(icon, size: 13, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: AppTextStyles.t11.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            label,
+            style: AppTextStyles.t11.copyWith(color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
           ),
         ),
       ],
@@ -331,18 +320,17 @@ class _TaskCard extends GetView<RecorderController> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: c),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: AppTextStyles.t12.copyWith(fontWeight: FontWeight.w600, color: c),
+          Flexible(
+            child: Text(
+              label,
+              style: AppTextStyles.t12.copyWith(fontWeight: FontWeight.w600, color: c),
+            ),
           ),
         ],
       ),
@@ -382,17 +370,14 @@ class _TaskCard extends GetView<RecorderController> {
             context: Get.context!,
             builder: (context) {
               return AlertDialog(
-                title: Text(i18n('recorder_cancel_monitor')),
-                content: Text(i18n('recorder_cancel_monitor_confirm')),
+                title: Text(i18n("recorder_cancel_monitor")),
+                content: Text(i18n("recorder_cancel_monitor_confirm")),
                 actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text(i18n('cancel')),
-                  ),
+                  TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(i18n("cancel"))),
                   FilledButton(
                     style: FilledButton.styleFrom(backgroundColor: Colors.red),
                     onPressed: () => Navigator.of(context).pop(true),
-                    child: Text(i18n('confirm')),
+                    child: Text(i18n("confirm")),
                   ),
                 ],
               );
@@ -403,7 +388,7 @@ class _TaskCard extends GetView<RecorderController> {
             await controller.unRecorder(task);
           }
         },
-        child: Text(i18n('remove'), style: AppTextStyles.t15.copyWith(color: Colors.red)),
+        child: Text(i18n("remove"), style: AppTextStyles.t15.copyWith(color: Colors.red)),
       );
     }
 
@@ -418,71 +403,65 @@ class _TaskCard extends GetView<RecorderController> {
     };
 
     if (isWorking.contains(task.status)) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
+      return Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 6,
+        runSpacing: 4,
         children: [
           deleteButton(),
-          const SizedBox(width: 6),
           FilledButton(
             style: dangerStyle,
             onPressed: () => controller.stopTask(task),
-            child: Text(i18n('recorder_stop')),
+            child: Text(i18n("recorder_stop")),
           ),
         ],
       );
     }
 
     if (task.status == RecordStatus.queued) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
+      return Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 6,
+        runSpacing: 4,
         children: [
           deleteButton(),
-          const SizedBox(width: 6),
           FilledButton(
             style: primaryStyle,
             onPressed: () => controller.forceStartTask(task),
-            child: Text(i18n('recorder_start')),
+            child: Text(i18n("recorder_start")),
           ),
-          const SizedBox(width: 6),
-          OutlinedButton(
-            style: outlineStyle,
-            onPressed: () => controller.stopTask(task),
-            child: Text(i18n('cancel')),
-          ),
+          OutlinedButton(style: outlineStyle, onPressed: () => controller.stopTask(task), child: Text(i18n("cancel"))),
         ],
       );
     }
 
     if (canRestart.contains(task.status)) {
-      String text = i18n('recorder_start');
+      String text = i18n("recorder_start");
 
       switch (task.status) {
         case RecordStatus.failed:
-          text = i18n('retry');
+          text = i18n("retry");
           break;
 
         case RecordStatus.waitingLive:
-          text = i18n('recorder_check_now');
+          text = i18n("recorder_check_now");
           break;
 
         case RecordStatus.completed:
-          text = i18n('recorder_restart_record');
+          text = i18n("recorder_restart_record");
           break;
 
         default:
           break;
       }
 
-      return Row(
-        mainAxisSize: MainAxisSize.min,
+      return Wrap(
+        alignment: WrapAlignment.end,
+        spacing: 6,
+        runSpacing: 4,
         children: [
           deleteButton(),
-          const SizedBox(width: 6),
-          FilledButton(
-            style: primaryStyle,
-            onPressed: () => controller.forceStartTask(task),
-            child: Text(text),
-          ),
+          FilledButton(style: primaryStyle, onPressed: () => controller.forceStartTask(task), child: Text(text)),
         ],
       );
     }
@@ -520,10 +499,7 @@ class _TaskCard extends GetView<RecorderController> {
         }.contains(task.status) ||
         task.recordedSeconds > 0 ||
         task.fileSize > 0;
-    final isTransitioning = {
-      RecordStatus.reconnecting,
-      RecordStatus.preparing,
-    }.contains(task.status);
+    final isTransitioning = {RecordStatus.reconnecting, RecordStatus.preparing}.contains(task.status);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -532,13 +508,7 @@ class _TaskCard extends GetView<RecorderController> {
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 18, offset: const Offset(0, 6))],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -563,68 +533,72 @@ class _TaskCard extends GetView<RecorderController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCoverImage(color),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.t16.copyWith(
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                            letterSpacing: 0.1,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final details = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        task.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.t16.copyWith(fontWeight: FontWeight.w700, height: 1.2, letterSpacing: 0.1),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundImage: normalizeNetworkImageUrl(task.avatar).isNotEmpty
+                                ? NetworkImage(normalizeNetworkImageUrl(task.avatar))
+                                : null,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 12,
-                              backgroundImage: normalizeNetworkImageUrl(task.avatar).isNotEmpty
-                                  ? NetworkImage(normalizeNetworkImageUrl(task.avatar))
-                                  : null,
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                task.nick,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTextStyles.t14.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              task.nick,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.t14.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            context.buildPlatformTag(task.platform),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 14,
-                          runSpacing: 6,
-                          children: [
-                            _miniInfo(
-                              Icons.high_quality_rounded,
-                              task.selectedQuality ?? i18n('recorder_auto'),
-                              theme,
-                            ),
-                            if (task.selectedLine?.isNotEmpty == true)
-                              _miniInfo(Icons.alt_route_rounded, task.selectedLine!, theme),
-                            _miniInfo(audienceIcon, audienceText, theme),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 6,
+                        children: [
+                          _Tag(text: task.platform.toUpperCase(), icon: Remix.plant_fill, color: _platformColor()),
+                          _miniInfo(Icons.high_quality_rounded, task.selectedQuality ?? i18n("recorder_auto"), theme),
+                          if (task.selectedLine?.isNotEmpty == true)
+                            _miniInfo(Icons.alt_route_rounded, task.selectedLine!, theme),
+                          _miniInfo(audienceIcon, audienceText, theme),
+                        ],
+                      ),
+                    ],
+                  );
+                  // Keep metadata readable instead of squeezing it beside a
+                  // fixed-width cover on phones or with enlarged text.
+                  final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+                  if (constraints.maxWidth < 480 * textScale) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [_buildCoverImage(color), const SizedBox(height: 12), details],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCoverImage(color),
+                      const SizedBox(width: 14),
+                      Expanded(child: details),
+                    ],
+                  );
+                },
               ),
               if (showRecordingStats) ...[
                 const SizedBox(height: 14),
@@ -641,17 +615,9 @@ class _TaskCard extends GetView<RecorderController> {
                         spacing: 16,
                         runSpacing: 10,
                         children: [
-                          _statItem(
-                            theme,
-                            Icons.timer_outlined,
-                            _formatDuration(task.recordedSeconds),
-                          ),
+                          _statItem(theme, Icons.timer_outlined, _formatDuration(task.recordedSeconds)),
                           _statItem(theme, Icons.storage_rounded, _formatFileSize(task.fileSize)),
-                          _statItem(
-                            theme,
-                            Icons.speed_rounded,
-                            '${task.recordSpeed.toStringAsFixed(1)}x',
-                          ),
+                          _statItem(theme, Icons.speed_rounded, "${task.recordSpeed.toStringAsFixed(1)}x"),
                           _statItem(theme, Icons.graphic_eq_rounded, _formatBitrate(task.bitrate)),
                         ],
                       ),
@@ -684,10 +650,37 @@ class _TaskCard extends GetView<RecorderController> {
                       Expanded(
                         child: Text(
                           _statusText(),
-                          style: AppTextStyles.t12.copyWith(
-                            color: color,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: AppTextStyles.t12.copyWith(color: color, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (task.inputTailDiscarded || task.inputCoverageIncomplete) ...[
+                const SizedBox(height: 12),
+                Container(
+                  key: ValueKey(
+                    task.inputCoverageIncomplete ? 'recorder-input-coverage-warning' : 'recorder-input-tail-warning',
+                  ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 17, color: theme.colorScheme.onTertiaryContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          [
+                            if (task.inputCoverageIncomplete) i18n('recorder_input_coverage_incomplete'),
+                            if (task.inputTailDiscarded) i18n('recorder_input_tail_discarded'),
+                          ].join('\n'),
+                          style: AppTextStyles.t12.copyWith(color: theme.colorScheme.onTertiaryContainer, height: 1.3),
                         ),
                       ),
                     ],
@@ -710,16 +703,10 @@ class _TaskCard extends GetView<RecorderController> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          i18n(
-                            'recorder_last_error',
-                            args: {'stage': _failureStageText(), 'error': task.lastError!},
-                          ),
+                          i18n('recorder_last_error', args: {'stage': _failureStageText(), 'error': task.lastError!}),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.t12.copyWith(
-                            color: theme.colorScheme.onErrorContainer,
-                            height: 1.3,
-                          ),
+                          style: AppTextStyles.t12.copyWith(color: theme.colorScheme.onErrorContainer, height: 1.3),
                         ),
                       ),
                     ],
@@ -727,24 +714,49 @@ class _TaskCard extends GetView<RecorderController> {
                 ),
               ],
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Icon(Icons.schedule_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 5),
-                  Text(
-                    task.displayStartTime.toString().substring(5, 16),
-                    style: AppTextStyles.t12.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const Spacer(),
-                  _buildActionButton(),
-                ],
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    _miniInfo(Icons.schedule_rounded, task.displayStartTime.toString().substring(5, 16), theme),
+                    _buildActionButton(),
+                  ],
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  const _Tag({required this.text, required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: AppTextStyles.t11.copyWith(fontWeight: FontWeight.bold, color: color, letterSpacing: 0.2),
+          ),
+        ],
       ),
     );
   }
@@ -764,27 +776,17 @@ class _EmptyView extends StatelessWidget {
           Container(
             width: 92,
             height: 92,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.video_collection_outlined,
-              size: 42,
-              color: theme.colorScheme.primary,
-            ),
+            decoration: BoxDecoration(color: theme.colorScheme.primary.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: Icon(Icons.video_collection_outlined, size: 42, color: theme.colorScheme.primary),
           ),
           const SizedBox(height: 24),
           Text(
-            i18n('recorder_empty_title'),
-            style: AppTextStyles.t16.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
+            i18n("recorder_empty_title"),
+            style: AppTextStyles.t16.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
           ),
           const SizedBox(height: 8),
           Text(
-            i18n('recorder_empty_subtitle'),
+            i18n("recorder_empty_subtitle"),
             style: AppTextStyles.t13.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],

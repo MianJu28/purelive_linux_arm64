@@ -39,6 +39,7 @@ class LiveRouteObserver extends RouteObserver<PageRoute<dynamic>> {
 
   void _onLivePlayEnter() {
     final playerManager = GlobalPlayerService.instance.player;
+    playerManager.setVideoPresentationVisible(true);
     unawaited(playerManager.closeAppFloating());
   }
 
@@ -78,6 +79,11 @@ class LiveRouteObserver extends RouteObserver<PageRoute<dynamic>> {
   void _setVideoLayerVisible(bool visible) {
     final controller = _findLivePlayController();
     if (controller == null) return;
+    // Windows removes the Texture subtree while this opaque route is visible.
+    // Stop presentation-only stall supervision before that intentional
+    // teardown so a long stay in recorder centre does not reopen a healthy
+    // Huya transport in the background.
+    GlobalPlayerService.instance.player.setVideoPresentationVisible(visible);
 
     SchedulerBinding.instance.addPostFrameCallback((_) async {
       if (!controller.isClosed) {
@@ -99,6 +105,11 @@ class LiveRouteObserver extends RouteObserver<PageRoute<dynamic>> {
         final controller = _findLivePlayController();
         if (controller != null && !controller.isClosed) {
           controller.updateUI(displayVideoLayer: true);
+          // Let the rebuilt Texture publish its viewport before presentation
+          // supervision resumes. The first mounted layout force-reasserts the
+          // Windows native size even when it equals the previous viewport.
+          await SchedulerBinding.instance.endOfFrame;
+          GlobalPlayerService.instance.player.setVideoPresentationVisible(true);
         }
       }),
     );

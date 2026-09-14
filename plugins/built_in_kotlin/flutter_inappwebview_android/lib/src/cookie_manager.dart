@@ -11,7 +11,8 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
 /// value to avoid breaking changes. See [PlatformCookieManagerCreationParams] for
 /// more information.
 @immutable
-class AndroidCookieManagerCreationParams extends PlatformCookieManagerCreationParams {
+class AndroidCookieManagerCreationParams
+    extends PlatformCookieManagerCreationParams {
   /// Creates a new [AndroidCookieManagerCreationParams] instance.
   const AndroidCookieManagerCreationParams(
     // This parameter prevents breaking changes later.
@@ -27,15 +28,18 @@ class AndroidCookieManagerCreationParams extends PlatformCookieManagerCreationPa
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformCookieManager}
-class AndroidCookieManager extends PlatformCookieManager with ChannelController {
+class AndroidCookieManager extends PlatformCookieManager
+    with ChannelController {
   /// Creates a new [AndroidCookieManager].
   AndroidCookieManager(PlatformCookieManagerCreationParams params)
       : super.implementation(
           params is AndroidCookieManagerCreationParams
               ? params
-              : AndroidCookieManagerCreationParams.fromPlatformCookieManagerCreationParams(params),
+              : AndroidCookieManagerCreationParams
+                  .fromPlatformCookieManagerCreationParams(params),
         ) {
-    channel = const MethodChannel('com.pichillilorenzo/flutter_inappwebview_cookiemanager');
+    channel = const MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_cookiemanager');
     handler = handleMethod;
     initMethodCallHandler();
   }
@@ -48,8 +52,8 @@ class AndroidCookieManager extends PlatformCookieManager with ChannelController 
   }
 
   static AndroidCookieManager _init() {
-    _instance = AndroidCookieManager(
-        AndroidCookieManagerCreationParams(const PlatformCookieManagerCreationParams()));
+    _instance = AndroidCookieManager(AndroidCookieManagerCreationParams(
+        const PlatformCookieManagerCreationParams()));
     return _instance!;
   }
 
@@ -102,7 +106,8 @@ class AndroidCookieManager extends PlatformCookieManager with ChannelController 
 
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent('url', () => url.toString());
-    List<dynamic> cookieListMap = await channel?.invokeMethod<List>('getCookies', args) ?? [];
+    List<dynamic> cookieListMap =
+        await channel?.invokeMethod<List>('getCookies', args) ?? [];
     cookieListMap = cookieListMap.cast<Map<dynamic, dynamic>>();
 
     cookieListMap.forEach((cookieMap) {
@@ -112,7 +117,8 @@ class AndroidCookieManager extends PlatformCookieManager with ChannelController 
           expiresDate: cookieMap["expiresDate"],
           isSessionOnly: cookieMap["isSessionOnly"],
           domain: cookieMap["domain"],
-          sameSite: HTTPCookieSameSitePolicy.fromNativeValue(cookieMap["sameSite"]),
+          sameSite:
+              HTTPCookieSameSitePolicy.fromNativeValue(cookieMap["sameSite"]),
           isSecure: cookieMap["isSecure"],
           isHttpOnly: cookieMap["isHttpOnly"],
           path: cookieMap["path"]));
@@ -132,7 +138,8 @@ class AndroidCookieManager extends PlatformCookieManager with ChannelController 
 
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent('url', () => url.toString());
-    List<dynamic> cookies = await channel?.invokeMethod<List>('getCookies', args) ?? [];
+    List<dynamic> cookies =
+        await channel?.invokeMethod<List>('getCookies', args) ?? [];
     cookies = cookies.cast<Map<dynamic, dynamic>>();
     for (var i = 0; i < cookies.length; i++) {
       cookies[i] = cookies[i].cast<String, dynamic>();
@@ -143,7 +150,8 @@ class AndroidCookieManager extends PlatformCookieManager with ChannelController 
             expiresDate: cookies[i]["expiresDate"],
             isSessionOnly: cookies[i]["isSessionOnly"],
             domain: cookies[i]["domain"],
-            sameSite: HTTPCookieSameSitePolicy.fromNativeValue(cookies[i]["sameSite"]),
+            sameSite: HTTPCookieSameSitePolicy.fromNativeValue(
+                cookies[i]["sameSite"]),
             isSecure: cookies[i]["isSecure"],
             isHttpOnly: cookies[i]["isHttpOnly"],
             path: cookies[i]["path"]);
@@ -197,7 +205,8 @@ class AndroidCookieManager extends PlatformCookieManager with ChannelController 
   @override
   Future<bool> removeSessionCookies() async {
     Map<String, dynamic> args = <String, dynamic>{};
-    return await channel?.invokeMethod<bool>('removeSessionCookies', args) ?? false;
+    return await channel?.invokeMethod<bool>('removeSessionCookies', args) ??
+        false;
   }
 
   @override

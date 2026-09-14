@@ -21,14 +21,51 @@ void main() {
   test('history timestamp survives JSON and detail refresh', () {
     final stored = LiveRoom(roomId: '1', platform: 'test', title: 'Old', lastWatchedAt: 123456);
     final decoded = LiveRoom.fromJson(stored.toJson());
-    final refreshed = preserveHistoryMetadata(
-      LiveRoom(roomId: '1', platform: 'test', title: 'Fresh'),
-      decoded,
-    );
+    final refreshed = preserveHistoryMetadata(LiveRoom(roomId: '1', platform: 'test', title: 'Fresh'), decoded);
 
     expect(decoded.lastWatchedAt, 123456);
     expect(refreshed.title, 'Fresh');
     expect(refreshed.lastWatchedAt, 123456);
+  });
+
+  test('IPTV provider catch-up policy survives room JSON without accepting non-finite numbers', () {
+    final stored = LiveRoom(
+      roomId: 'iptv-1',
+      platform: 'iptv',
+      catchUpMode: 'append',
+      catchUpSource: '&start={utc}',
+      catchUpDays: 3.5,
+      catchUpCorrectionHours: -2.5,
+    );
+    final decoded = LiveRoom.fromJson(stored.toJson());
+
+    expect(decoded.catchUpMode, 'append');
+    expect(decoded.catchUpSource, '&start={utc}');
+    expect(decoded.catchUpDays, 3.5);
+    expect(decoded.catchUpCorrectionHours, -2.5);
+    expect(LiveRoom.fromJson({'catchUpDays': 'NaN'}).catchUpDays, isNull);
+    expect(LiveRoom.fromJson({'catchUpCorrectionHours': double.infinity}).catchUpCorrectionHours, isNull);
+  });
+
+  test('IPTV HTTP headers survive room JSON with normalized names and no control characters', () {
+    final decoded = LiveRoom.fromJson(
+      LiveRoom(
+        roomId: 'iptv-headers',
+        platform: 'iptv',
+        httpHeaders: const {
+          'User-Agent': 'Channel Agent',
+          'Referrer': 'https://fixture/room',
+          'X-Token': 'line-one\r\nline-two',
+          'bad name': 'discarded',
+        },
+      ).toJson(),
+    );
+
+    expect(decoded.httpHeaders, {
+      'user-agent': 'Channel Agent',
+      'referer': 'https://fixture/room',
+      'x-token': 'line-one line-two',
+    });
   });
 
   test('history list keeps newest fifty entries', () {
@@ -74,10 +111,7 @@ void main() {
   });
 
   test('history backup extraction preserves and enforces the configured limit', () {
-    final rooms = List.generate(
-      4,
-      (index) => LiveRoom(roomId: '$index', platform: 'test').toJson(),
-    );
+    final rooms = List.generate(4, (index) => LiveRoom(roomId: '$index', platform: 'test').toJson());
     final extracted = HistoryController.extractConfig({
       'history': {'historyLimit': 2, 'historyRooms': rooms},
     });
@@ -87,10 +121,7 @@ void main() {
   });
 
   test('unlimited backup extraction preserves every history entry', () {
-    final rooms = List.generate(
-      620,
-      (index) => LiveRoom(roomId: '$index', platform: 'test').toJson(),
-    );
+    final rooms = List.generate(620, (index) => LiveRoom(roomId: '$index', platform: 'test').toJson());
     final extracted = HistoryController.extractConfig({
       'history': {'historyLimit': unlimitedHistoryLimit, 'historyRooms': rooms},
     });

@@ -1,9 +1,6 @@
 import 'const.dart';
-
 import 'dart:typed_data';
-
 import 'uni_packet.dart';
-
 import 'package:pure_live/core/common/log.dart';
 
 class TarsUniPacket extends UniPacket {
@@ -103,7 +100,7 @@ class TarsUniPacket extends UniPacket {
   /// 获取调用tars的返回描述
   String getTarsResultDesc() {
     String? rdesc = package.status?[Const.STATUS_RESULT_DESC];
-    String result = rdesc ?? '';
+    String result = rdesc ?? "";
     return result;
   }
 }

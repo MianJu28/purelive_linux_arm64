@@ -8,16 +8,22 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
   final Map<int, List<T>> _slicedSmallCache = {};
   Future<void>? _activeLoad;
   bool _refreshPending = false;
+  int? _pendingPageSize;
 
   ServerFixedPageController({required this.fixedServerPageSize}) : super();
 
   Future<List<T>> fetchFixedNetworkData(int bigPage, int fixedSize);
 
   @override
+  Future<void>? get activePageOperation => _activeLoad;
+
+  @override
   Future<void> refreshData() async {
+    if (isClosed) return;
     _refreshPending = true;
-    final active = _activeLoad;
-    if (active != null) await active;
+    while (_activeLoad != null && !isClosed) {
+      await _activeLoad;
+    }
     if (!_refreshPending || isClosed) return;
     _refreshPending = false;
     _bigPageCache.clear();
@@ -28,7 +34,7 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
 
   @override
   Future<void> goToPage(int page) async {
-    if (_activeLoad != null || page < 1) return;
+    if (isClosed || _activeLoad != null || page < 1) return;
     if (!usesDesktopPagination) return;
     currentPage = page;
     await loadData();
@@ -36,6 +42,20 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
 
   @override
   void setPageSize(int? newSize) {
+    if (isClosed || newSize == null || newSize < 1) return;
+    // Keep request dimensions stable until its snapshot is committed. A later
+    // selection replaces the pending intent, including selecting the old size.
+    _pendingPageSize = newSize;
+    unawaited(_applyPendingPageSize());
+  }
+
+  Future<void> _applyPendingPageSize() async {
+    while (_activeLoad != null && !isClosed) {
+      await _activeLoad;
+    }
+    if (isClosed) return;
+    final newSize = _pendingPageSize;
+    _pendingPageSize = null;
     if (newSize == null || pageSize.value == newSize) return;
     if (!usesDesktopPagination) {
       pageSize.value = newSize;
@@ -45,14 +65,23 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
     pageSize.value = newSize;
     currentPage = (currentFirstItemIndex ~/ newSize) + 1;
     _slicedSmallCache.clear();
-    loadData();
+    await _startLoad();
   }
 
   @override
   Future<void> loadData() async {
     final active = _activeLoad;
     if (active != null) return active;
+    if (isClosed) return;
     return _startLoad();
+  }
+
+  @override
+  Future<void> loadMoreData() async {
+    if (isClosed) return;
+    final active = _activeLoad;
+    if (active != null) return active;
+    await super.loadMoreData();
   }
 
   Future<void> _startLoad({bool replaceMobileSnapshot = false}) {
@@ -74,14 +103,13 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
       list.assignAll(cachedData);
       canLoadMore.value = cachedData.length >= pageSize.value;
       pageEmpty.value = list.isEmpty;
-      finishRefreshControllers(
-        canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-      );
+      finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
       scrollToTopImmediate();
       return;
     }
 
     final bool isNetworkSafe = await checkNetworkBeforeRequest();
+    if (isClosed) return;
     if (!isNetworkSafe) {
       finishRefreshControllers(IndicatorResult.fail);
       return;
@@ -109,7 +137,17 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
         if (_bigPageCache.containsKey(serverBigPage)) {
           bigPageData = _bigPageCache[serverBigPage]!;
         } else {
-          bigPageData = await fetchFixedNetworkData(serverBigPage, fixedServerPageSize);
+          try {
+            bigPageData = await fetchFixedNetworkData(serverBigPage, fixedServerPageSize);
+            if (isClosed) return;
+          } catch (_) {
+            if (isClosed) return;
+            // Keep an already assembled partial client page when only a later
+            // server page fails. Throwing here would replace valid cards with
+            // a full-page error even though the first request succeeded.
+            if (combinedData.isEmpty) rethrow;
+            break;
+          }
           _bigPageCache[serverBigPage] = bigPageData;
         }
 
@@ -139,9 +177,7 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
         _slicedSmallCache[currentPage] = combinedData;
         list.assignAll(combinedData);
         pageEmpty.value = list.isEmpty;
-        finishRefreshControllers(
-          canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-        );
+        finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
         scrollToTopImmediate();
       } else {
         canLoadMore.value = combinedData.length >= pageSize.value;
@@ -151,17 +187,18 @@ abstract class ServerFixedPageController<T> extends BasePageScrollAndStateBone<T
           list.addAll(combinedData);
         }
         pageEmpty.value = list.isEmpty;
-        finishRefreshControllers(
-          canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-        );
+        finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
       }
     } catch (e) {
+      if (isClosed) return;
       currentPage = previousPageSnapshot;
       handleError(e, showPageError: list.isEmpty);
       finishRefreshControllers(IndicatorResult.fail);
     } finally {
-      loadding.value = false;
-      pageLoadding.value = false;
+      if (!isClosed) {
+        loadding.value = false;
+        pageLoadding.value = false;
+      }
     }
   }
 }

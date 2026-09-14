@@ -38,7 +38,8 @@ class VideoStateInheritedWidget extends InheritedWidget {
         );
 
   static VideoStateInheritedWidget? maybeOf(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<VideoStateInheritedWidget>();
+    return context
+        .dependOnInheritedWidgetOfExactType<VideoStateInheritedWidget>();
   }
 
   static VideoStateInheritedWidget of(BuildContext context) {
@@ -52,7 +53,8 @@ class VideoStateInheritedWidget extends InheritedWidget {
 
   @override
   bool updateShouldNotify(VideoStateInheritedWidget oldWidget) =>
-      identical(state, oldWidget.state) && identical(contextNotifier, oldWidget.contextNotifier);
+      identical(state, oldWidget.state) &&
+      identical(contextNotifier, oldWidget.contextNotifier);
 }
 
 /// {@template video_state_inherited_widget_context_notifier}

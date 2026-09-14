@@ -56,22 +56,14 @@ class JsonEpgParser {
     if (item is! Map<String, dynamic>) {
       return null;
     }
-    final channelId =
-        item['id']?.toString() ?? item['channelId']?.toString() ?? item['name']?.toString();
+    final channelId = item['id']?.toString() ?? item['channelId']?.toString() ?? item['name']?.toString();
     if (channelId == null || channelId.isEmpty) {
       return null;
     }
     final displayName = item['displayName']?.toString() ?? item['name']?.toString() ?? channelId;
-    final iconUrl =
-        item['icon']?.toString() ?? item['iconUrl']?.toString() ?? item['logo']?.toString();
+    final iconUrl = item['icon']?.toString() ?? item['iconUrl']?.toString() ?? item['logo']?.toString();
     final number = item['number']?.toString() ?? item['channelNumber']?.toString();
-    return EpgChannel(
-      id: channelId,
-      sourceId: sourceId,
-      displayNames: [displayName],
-      iconUrl: iconUrl,
-      number: number,
-    );
+    return EpgChannel(id: channelId, sourceId: sourceId, displayNames: [displayName], iconUrl: iconUrl, number: number);
   }
 
   // =========================================================
@@ -89,16 +81,13 @@ class JsonEpgParser {
       return null;
     }
 
-    final title =
-        item['title']?.toString() ?? item['name']?.toString() ?? item['programme']?.toString();
+    final title = item['title']?.toString() ?? item['name']?.toString() ?? item['programme']?.toString();
 
     if (title == null || title.isEmpty) {
       return null;
     }
 
-    final start = _parseDate(
-      item['startTime'] ?? item['start'] ?? item['starttime'] ?? item['time'],
-    );
+    final start = _parseDate(item['startTime'] ?? item['start'] ?? item['starttime'] ?? item['time']);
 
     if (start == null) {
       return null;
@@ -119,14 +108,15 @@ class JsonEpgParser {
       stop = start.add(Duration(minutes: minutes));
     }
 
-    final description =
-        item['description']?.toString() ?? item['desc']?.toString() ?? item['summary']?.toString();
+    final description = item['description']?.toString() ?? item['desc']?.toString() ?? item['summary']?.toString();
 
     final subtitle = item['subtitle']?.toString() ?? item['subTitle']?.toString();
 
     final episodeNum = item['episodeNum']?.toString() ?? item['episode']?.toString();
 
     final category = item['category']?.toString() ?? item['genre']?.toString();
+
+    final catchupId = item['catchupId']?.toString() ?? item['catchup-id']?.toString();
 
     return EpgProgramme(
       channelId: channelId,
@@ -136,6 +126,7 @@ class JsonEpgParser {
       subtitle: subtitle,
       episodeNum: episodeNum,
       category: category,
+      catchupId: catchupId,
       start: start,
       stop: stop,
     );

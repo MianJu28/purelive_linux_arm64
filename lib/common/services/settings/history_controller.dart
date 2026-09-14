@@ -33,9 +33,7 @@ List<LiveRoom> upsertHistoryRoom(
 }
 
 LiveRoom preserveHistoryMetadata(LiveRoom refreshed, LiveRoom previous) {
-  return refreshed
-      .withAudienceFallbackFrom(previous)
-      .copyWith(lastWatchedAt: previous.lastWatchedAt);
+  return refreshed.withAudienceFallbackFrom(previous).copyWith(lastWatchedAt: previous.lastWatchedAt);
 }
 
 class HistoryController extends GetxController {
@@ -80,8 +78,7 @@ class HistoryController extends GetxController {
   }
 
   void removeRoomFromHistory(LiveRoom room) {
-    historyRooms.v = List<LiveRoom>.from(historyRooms.v)
-      ..removeWhere((entry) => entry.hasSameIdentity(room));
+    historyRooms.v = List<LiveRoom>.from(historyRooms.v)..removeWhere((entry) => entry.hasSameIdentity(room));
   }
 
   void removeRoomFromHistoryAt(int index) {
@@ -93,20 +90,36 @@ class HistoryController extends GetxController {
     historyRooms.v = <LiveRoom>[];
   }
 
+  void applyRefreshedRooms(List<LiveRoom> snapshot, List<LiveRoom?> refreshed) {
+    // LiveRoom equality compares room identity, not the particular watch/import.
+    // Only replace the exact entries still owned by this refresh snapshot.
+    final replacements = Map<LiveRoom, LiveRoom>.identity();
+    for (var i = 0; i < snapshot.length && i < refreshed.length; i++) {
+      final updated = refreshed[i];
+      if (updated != null) replacements[snapshot[i]] = updated;
+    }
+    historyRooms.v = applyHistoryLimit(historyRooms.v.map((room) => replacements[room] ?? room), historyLimit.v);
+  }
+
   Map<String, dynamic> toJson() {
-    return {
-      'historyRooms': historyRooms.v.map((e) => e.toJson()).toList(),
-      historyLimitKey: historyLimit.v,
-    };
+    return {'historyRooms': historyRooms.v.map((e) => e.toJson()).toList(), historyLimitKey: historyLimit.v};
   }
 
   void fromJson(Map<String, dynamic> json) {
+    final parsed = parseConfig(json);
+    historyLimit.v = parsed[historyLimitKey];
+    historyRooms.v = parsed['historyRooms'];
+  }
+
+  static Map<String, dynamic> parseConfig(Map<String, dynamic> json) {
     final limit = normalizeHistoryLimit(json[historyLimitKey]);
-    historyLimit.v = limit;
-    historyRooms.v = applyHistoryLimit(
-      BackupMigrationUtil.parseObjectList(json['historyRooms'], LiveRoom.fromJson),
-      limit,
-    );
+    return {
+      historyLimitKey: limit,
+      'historyRooms': applyHistoryLimit(
+        BackupMigrationUtil.parseObjectList(json['historyRooms'], LiveRoom.fromJson, strict: true),
+        limit,
+      ),
+    };
   }
 
   static Map<String, dynamic> extractConfig(Map<String, dynamic>? rootConfig) {
@@ -115,16 +128,10 @@ class HistoryController extends GetxController {
     final list = BackupMigrationUtil.parseObjectList(history['historyRooms'], LiveRoom.fromJson);
 
     final limit = normalizeHistoryLimit(history[historyLimitKey]);
-    return {
-      'historyRooms': applyHistoryLimit(list, limit).map((e) => e.toJson()).toList(),
-      historyLimitKey: limit,
-    };
+    return {'historyRooms': applyHistoryLimit(list, limit).map((e) => e.toJson()).toList(), historyLimitKey: limit};
   }
 
-  static Map<String, dynamic> mergeConfig(
-    Map<String, dynamic> rootConfig,
-    Map<String, dynamic> updateFields,
-  ) {
+  static Map<String, dynamic> mergeConfig(Map<String, dynamic> rootConfig, Map<String, dynamic> updateFields) {
     final history = Map<String, dynamic>.from(rootConfig['history'] ?? {});
 
     updateFields.forEach((k, v) => history[k] = v);

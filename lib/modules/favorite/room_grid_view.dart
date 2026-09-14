@@ -1,13 +1,9 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
-import 'package:pure_live/modules/settings/pages/room_card_settings/room_card_config_controller.dart';
 
 @visibleForTesting
-bool shouldWrapFavoritePullToRefresh({
-  required double viewportWidth,
-  required bool isMobilePlatform,
-}) {
+bool shouldWrapFavoritePullToRefresh({required double viewportWidth, required bool isMobilePlatform}) {
   // A wide Android/iOS tablet still uses the touch-first home shell and must
   // keep pull-to-refresh. Width alone only selects the responsive grid; it is
   // not a reliable desktop-platform signal.
@@ -78,10 +74,7 @@ class RoomGridView extends GetView<FavoriteController> {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: spacing,
                 mainAxisSpacing: mainAxisSpacing,
-                mainAxisExtent: RoomCardConfigController.to.calculateCardHeight(
-                  itemWidth: itemWidth,
-                  denseOverride: dense,
-                ),
+                mainAxisExtent: itemWidth * 9 / 16 + (dense ? 72 : 84),
               ),
               itemCount: displayList.length,
               itemBuilder: (context, index) {
@@ -99,13 +92,8 @@ class RoomGridView extends GetView<FavoriteController> {
             );
           }
 
-          if (!shouldWrapFavoritePullToRefresh(
-            viewportWidth: width,
-            isMobilePlatform: PlatformUtils.isMobile,
-          )) {
-            return buildScrollable(
-              const PureLiveScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-            );
+          if (!shouldWrapFavoritePullToRefresh(viewportWidth: width, isMobilePlatform: PlatformUtils.isMobile)) {
+            return buildScrollable(const PureLiveScrollPhysics(parent: AlwaysScrollableScrollPhysics()));
           }
 
           // EasyRefresh must own the exact physics installed on the vertical

@@ -69,8 +69,6 @@ class BilibiliEmojiModel {
 
   static Map<String, BilibiliEmojiModel> parseEmojiRegistry(String rawJsonStr) {
     final Map<String, dynamic> decoded = jsonDecode(rawJsonStr);
-    return decoded.map(
-      (key, value) => MapEntry(key, BilibiliEmojiModel.fromJson(value as Map<String, dynamic>)),
-    );
+    return decoded.map((key, value) => MapEntry(key, BilibiliEmojiModel.fromJson(value as Map<String, dynamic>)));
   }
 }

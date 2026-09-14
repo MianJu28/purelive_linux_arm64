@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:pure_live/common/utils/category_artwork.dart';
 import 'package:pure_live/model/live_category.dart';
 import 'package:string_similarity/string_similarity.dart';
 import 'package:pure_live/common/utils/hive_pref_util.dart';
@@ -42,7 +43,8 @@ class AreaPicMapper {
       if (jsonStr != null && jsonStr.isNotEmpty) {
         final Map<String, dynamic> decoded = jsonDecode(jsonStr);
         decoded.forEach((key, value) {
-          _picMap[key] = value.toString();
+          final picture = value.toString();
+          if (!isCategoryIconSprite(picture)) _picMap[key] = picture;
         });
       }
     } catch (_) {}
@@ -55,6 +57,7 @@ class AreaPicMapper {
     for (var cat in categories) {
       if (cat.children.isNotEmpty) {
         for (var area in cat.children) {
+          if (isCategoryIconSprite(area.areaPic)) continue;
           if (area.areaName != null && area.areaPic != null && area.areaPic!.isNotEmpty) {
             if (_picMap[area.areaName!] != area.areaPic!) {
               _picMap[area.areaName!] = area.areaPic!;
@@ -144,11 +147,7 @@ class AreaPicMapper {
   }
 
   static List<String> _tokenizeQuery(String query) {
-    return query
-        .toLowerCase()
-        .split(RegExp(r'[\s,;|：:_—\-]+'))
-        .where((t) => t.isNotEmpty && t.length > 1)
-        .toList();
+    return query.toLowerCase().split(RegExp(r'[\s,;|：:_—\-]+')).where((t) => t.isNotEmpty && t.length > 1).toList();
   }
 
   static String _buildSearchBlob(List<String?> fields) {

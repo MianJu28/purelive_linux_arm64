@@ -9,7 +9,8 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
 /// value to avoid breaking changes. See [PlatformProxyControllerCreationParams] for
 /// more information.
 @immutable
-class AndroidProxyControllerCreationParams extends PlatformProxyControllerCreationParams {
+class AndroidProxyControllerCreationParams
+    extends PlatformProxyControllerCreationParams {
   /// Creates a new [AndroidProxyControllerCreationParams] instance.
   const AndroidProxyControllerCreationParams(
     // This parameter prevents breaking changes later.
@@ -25,16 +26,18 @@ class AndroidProxyControllerCreationParams extends PlatformProxyControllerCreati
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformProxyController}
-class AndroidProxyController extends PlatformProxyController with ChannelController {
+class AndroidProxyController extends PlatformProxyController
+    with ChannelController {
   /// Creates a new [AndroidProxyController].
   AndroidProxyController(PlatformProxyControllerCreationParams params)
       : super.implementation(
           params is AndroidProxyControllerCreationParams
               ? params
-              : AndroidProxyControllerCreationParams.fromPlatformProxyControllerCreationParams(
-                  params),
+              : AndroidProxyControllerCreationParams
+                  .fromPlatformProxyControllerCreationParams(params),
         ) {
-    channel = const MethodChannel('com.pichillilorenzo/flutter_inappwebview_proxycontroller');
+    channel = const MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_proxycontroller');
     handler = handleMethod;
     initMethodCallHandler();
   }
@@ -47,8 +50,8 @@ class AndroidProxyController extends PlatformProxyController with ChannelControl
   }
 
   static AndroidProxyController _init() {
-    _instance = AndroidProxyController(
-        AndroidProxyControllerCreationParams(const PlatformProxyControllerCreationParams()));
+    _instance = AndroidProxyController(AndroidProxyControllerCreationParams(
+        const PlatformProxyControllerCreationParams()));
     return _instance!;
   }
 

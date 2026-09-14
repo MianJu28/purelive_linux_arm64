@@ -15,13 +15,30 @@ class AreasListController extends ServerAllPageController<LiveArea> {
 
   bool get isFlatten => site.id == Sites.douyinSite;
 
+  @override
+  bool get showInlineError => site.id == Sites.ccSite;
+
+  @override
+  int get localItemCount => _getCurrentTabAllChildren().length;
+
   AreasListController(this.site);
 
   @override
   Future<List<LiveArea>> fetchAllServerData() async {
+    if (isClosed) return [];
     var result = await site.liveSite.getCategores(1, 1000);
-    var channels = result.map(AppLiveCategory.fromLiveCategory).toList();
+    if (isClosed) return [];
+    // Read the latest selection after the request; a tab click while loading
+    // belongs to the user, not to the request's earlier snapshot.
+    final selectedId = tabIndex.value >= 0 && tabIndex.value < categories.length ? categories[tabIndex.value].id : null;
+    var channels = result.map((e) => AppLiveCategory.fromLiveCategory(e)).toList();
     AreaPicMapper.updateAreaListMaps(channels);
+
+    // A refreshed taxonomy may remove or reorder a parent (for example CC's
+    // four legacy tabs becoming live categories plus official entry points).
+    // Keep identity where possible; an obsolete index must not hide valid rows.
+    final selectedIndex = channels.indexWhere((category) => category.id == selectedId);
+    tabIndex.value = selectedIndex < 0 ? 0 : selectedIndex;
 
     _serverRawBackup.clear();
 
@@ -57,14 +74,20 @@ class AreasListController extends ServerAllPageController<LiveArea> {
   /// reactive frames. Category contents are local at this point, so update the
   /// active slice synchronously and keep the finger-to-page transition linear.
   void selectCategory(int index) {
-    if (isFlatten || index < 0 || index >= categories.length || tabIndex.value == index) return;
+    if (isClosed || isFlatten || index < 0 || index >= categories.length || tabIndex.value == index) return;
     tabIndex.value = index;
     currentPage = 1;
-    processLocalPaging();
+    processLocalPaging(finishRefresh: !hasActiveLoad);
   }
 
   @override
-  void processLocalPaging() {
+  void processLocalPaging({bool finishRefresh = true}) {
+    if (isClosed) return;
+    // Selecting cached rows is not completion of a pending server snapshot.
+    void finish(IndicatorResult result) {
+      if (finishRefresh) finishRefreshControllers(result);
+    }
+
     if (isFlatten) {
       final allItems = _flattenRawAllData;
       totalCount.value = allItems.length;
@@ -73,7 +96,7 @@ class AreasListController extends ServerAllPageController<LiveArea> {
         list.clear();
         canLoadMore.value = false;
         pageEmpty.value = true;
-        finishRefreshControllers(IndicatorResult.noMore);
+        finish(IndicatorResult.noMore);
         return;
       }
 
@@ -91,9 +114,7 @@ class AreasListController extends ServerAllPageController<LiveArea> {
         list.assignAll(newData);
         canLoadMore.value = endIndex < allItems.length;
         pageEmpty.value = list.isEmpty;
-        finishRefreshControllers(
-          canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-        );
+        finish(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
         if (currentPage == 1) {
           scrollToTopImmediate();
         }
@@ -101,7 +122,7 @@ class AreasListController extends ServerAllPageController<LiveArea> {
         list.assignAll(allItems);
         canLoadMore.value = false;
         pageEmpty.value = list.isEmpty;
-        finishRefreshControllers(IndicatorResult.noMore);
+        finish(IndicatorResult.noMore);
       }
       return;
     }
@@ -111,7 +132,7 @@ class AreasListController extends ServerAllPageController<LiveArea> {
       list.clear();
       canLoadMore.value = false;
       pageEmpty.value = true;
-      finishRefreshControllers(IndicatorResult.noMore);
+      finish(IndicatorResult.noMore);
       return;
     }
 
@@ -127,7 +148,7 @@ class AreasListController extends ServerAllPageController<LiveArea> {
         currentCategory.children.clear();
         categories.refresh();
       }
-      finishRefreshControllers(IndicatorResult.noMore);
+      finish(IndicatorResult.noMore);
       return;
     }
 
@@ -143,27 +164,32 @@ class AreasListController extends ServerAllPageController<LiveArea> {
 
       final newData = allItems.sublist(startIndex, endIndex);
       list.assignAll(newData);
-      currentCategory.children.assignAll(newData);
+      // This is an owned plain List, not RxList: the vendored assignAll
+      // extension appends to plain lists instead of replacing their contents.
+      currentCategory.children
+        ..clear()
+        ..addAll(newData);
       canLoadMore.value = endIndex < allItems.length;
       pageEmpty.value = list.isEmpty;
       if (currentPage == 1) {
         scrollToTopImmediate();
       }
-      finishRefreshControllers(
-        canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-      );
+      finish(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
       categories.refresh();
     } else {
       list.assignAll(allItems);
       canLoadMore.value = false;
       pageEmpty.value = list.isEmpty;
-      finishRefreshControllers(IndicatorResult.noMore);
+      finish(IndicatorResult.noMore);
     }
   }
 }
 
 class AppLiveCategory extends LiveCategory {
-  AppLiveCategory({required super.id, required super.name, required super.children});
+  // UI pagination mutates this list. Never alias an adapter's cached,
+  // fixed-size or unmodifiable catalogue.
+  AppLiveCategory({required super.id, required super.name, required List<LiveArea> children})
+    : super(children: List<LiveArea>.of(children));
 
   factory AppLiveCategory.fromLiveCategory(LiveCategory item) {
     return AppLiveCategory(children: item.children, id: item.id, name: item.name);

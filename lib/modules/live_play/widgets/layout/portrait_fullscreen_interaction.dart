@@ -5,6 +5,8 @@ import 'package:pure_live/common/index.dart';
 enum PortraitPanelDragDisposition { restorePanel, enterFullscreen }
 
 const double portraitFullscreenRestoreGestureZone = 96;
+// Shared by the controls and entry guidance so their layout cannot drift.
+const double portraitFullscreenControlsHeight = 104;
 
 PortraitPanelDragDisposition resolvePortraitPanelDragEnd({
   required bool entryEnabled,
@@ -30,18 +32,65 @@ bool canEnterPortraitPanelFullscreen({
   required bool compatibilityLayout,
   required bool mobilePlatform,
 }) {
-  return mobilePlatform &&
-      isPortraitSource &&
-      adaptationEnabled &&
-      adaptiveHeightEnabled &&
-      !compatibilityLayout;
+  return mobilePlatform && isPortraitSource && adaptationEnabled && adaptiveHeightEnabled && !compatibilityLayout;
 }
 
-bool shouldRestorePortraitPanelFromSwipe({
-  required double upwardDistance,
-  required double velocity,
-}) {
+bool shouldRestorePortraitPanelFromSwipe({required double upwardDistance, required double velocity}) {
   return upwardDistance >= 64 || (velocity <= -850 && upwardDistance >= 24);
+}
+
+/// Keeps the portrait-fullscreen restore gesture reachable while the visible
+/// bottom controller bar is on top of the full-surface brightness/volume
+/// gesture layer. Child buttons still receive taps; a deliberate upward drag
+/// wins the gesture arena and restores the room panel.
+class PortraitFullscreenRestoreGestureRegion extends StatefulWidget {
+  const PortraitFullscreenRestoreGestureRegion({
+    super.key,
+    required this.enabled,
+    required this.onRestore,
+    required this.child,
+  });
+
+  final bool enabled;
+  final VoidCallback onRestore;
+  final Widget child;
+
+  @override
+  State<PortraitFullscreenRestoreGestureRegion> createState() => _PortraitFullscreenRestoreGestureRegionState();
+}
+
+class _PortraitFullscreenRestoreGestureRegionState extends State<PortraitFullscreenRestoreGestureRegion> {
+  double _upwardDistance = 0;
+
+  void _reset() {
+    _upwardDistance = 0;
+  }
+
+  void _update(DragUpdateDetails details) {
+    _upwardDistance = (_upwardDistance - details.delta.dy).clamp(0.0, double.infinity).toDouble();
+  }
+
+  void _finish(DragEndDetails details) {
+    final shouldRestore = shouldRestorePortraitPanelFromSwipe(
+      upwardDistance: _upwardDistance,
+      velocity: details.primaryVelocity ?? 0,
+    );
+    _reset();
+    if (shouldRestore) widget.onRestore();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragStart: (_) => _reset(),
+      onVerticalDragUpdate: _update,
+      onVerticalDragEnd: _finish,
+      onVerticalDragCancel: _reset,
+      child: widget.child,
+    );
+  }
 }
 
 /// Transient guidance shown only after the dedicated portrait fullscreen mode
@@ -91,7 +140,7 @@ class _PortraitFullscreenEntryHintState extends State<PortraitFullscreenEntryHin
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: SafeArea(
-        minimum: const EdgeInsets.only(bottom: 18),
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, portraitFullscreenControlsHeight + 12),
         child: Align(
           alignment: Alignment.bottomCenter,
           child: AnimatedOpacity(
@@ -112,13 +161,12 @@ class _PortraitFullscreenEntryHintState extends State<PortraitFullscreenEntryHin
                   children: [
                     const Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white, size: 20),
                     const SizedBox(width: 6),
-                    Text(
-                      i18n('portrait_fullscreen_restore_hint'),
-                      key: const ValueKey('portrait-fullscreen-entry-hint'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    Flexible(
+                      child: Text(
+                        i18n('portrait_fullscreen_restore_hint'),
+                        key: const ValueKey('portrait-fullscreen-entry-hint'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],

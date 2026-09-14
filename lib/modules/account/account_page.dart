@@ -24,8 +24,12 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/bilibili_2.png',
-                title: i18n('site_bilibili'),
-                subtitle: isLogined ? accountName : i18n('not_logged_in'),
+                title: i18n("site_bilibili"),
+                subtitle: isLogined
+                    ? accountName.trim().isEmpty
+                          ? i18n('account_verifying')
+                          : accountName
+                    : i18n("not_logged_in"),
                 isLogined: isLogined,
                 onTap: () => isLogined ? _showLogoutDialog(context) : controller.bilibiliTap(),
               );
@@ -36,11 +40,11 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/huya.png',
-                title: i18n('site_huya'),
-                subtitle: isLogined ? i18n('logined') : i18n('set_cookie'),
+                title: i18n("site_huya"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
                 isLogined: isLogined,
                 onTap: () => isLogined
-                    ? _showPlatformLogoutDialog(context, () => cookie.huyaCookie.v = '')
+                    ? _showPlatformLogoutDialog(context, () => cookie.huyaCookie.v = "")
                     : Get.toNamed(RoutePath.kHuyaCookie),
               );
             }),
@@ -49,11 +53,11 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/yy.png',
-                title: i18n('site_yy'),
-                subtitle: isLogined ? i18n('logined') : i18n('set_cookie'),
+                title: i18n("site_yy"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
                 isLogined: isLogined,
                 onTap: () => isLogined
-                    ? _showPlatformLogoutDialog(context, () => cookie.yyCookie.v = '')
+                    ? _showPlatformLogoutDialog(context, () => cookie.yyCookie.v = "")
                     : Get.toNamed(RoutePath.kYyCookie),
               );
             }),
@@ -62,16 +66,16 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/douyin.png',
-                title: i18n('site_douyin'),
+                title: i18n("site_douyin"),
                 subtitle: isLogined
                     ? controller.douyinNickName.value.isNotEmpty
                           ? controller.douyinNickName.value
-                          : i18n('logined')
-                    : i18n('set_cookie'),
+                          : i18n("logined")
+                    : i18n("set_cookie"),
                 isLogined: isLogined,
                 onTap: () => isLogined
-                    ? _showPlatformLogoutDialog(context, () => cookie.douyinCookie.v = '')
-                    : Get.toNamed(RoutePath.kDouyuCookie),
+                    ? _showPlatformLogoutDialog(context, () => cookie.douyinCookie.v = "")
+                    : Get.toNamed(RoutePath.kDouyinCookie),
               );
             }),
 
@@ -80,11 +84,11 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/kuaishou.png',
-                title: i18n('site_kuaishou'),
-                subtitle: isLogined ? i18n('logined') : i18n('set_cookie'),
+                title: i18n("site_kuaishou"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
                 isLogined: isLogined,
                 onTap: () => isLogined
-                    ? _showPlatformLogoutDialog(context, () => cookie.kuaishouCookie.v = '')
+                    ? _showPlatformLogoutDialog(context, () => cookie.kuaishouCookie.v = "")
                     : Get.toNamed(RoutePath.kKuaishouCookie),
               );
             }),
@@ -93,11 +97,11 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/twitch.png',
-                title: i18n('site_twitch'),
-                subtitle: isLogined ? i18n('logined') : i18n('set_cookie'),
+                title: i18n("site_twitch"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
                 isLogined: isLogined,
                 onTap: () => isLogined
-                    ? _showPlatformLogoutDialog(context, () => cookie.twitchCookie.v = '')
+                    ? _showPlatformLogoutDialog(context, () => cookie.twitchCookie.v = "")
                     : Get.toNamed(RoutePath.kTwitchCookie),
               );
             }),
@@ -106,22 +110,21 @@ class AccountPage extends GetView<AccountController> {
               return _buildAccountTile(
                 context,
                 logo: 'assets/images/soop.png',
-                title: i18n('site_soop'),
-                subtitle: isLogined ? i18n('logined') : i18n('set_cookie'),
+                title: i18n("site_soop"),
+                subtitle: isLogined ? i18n("logined") : i18n("set_cookie"),
                 isLogined: isLogined,
                 onTap: () => isLogined
-                    ? _showPlatformLogoutDialog(context, () => cookie.soopCookie.v = '')
+                    ? _showPlatformLogoutDialog(context, () => cookie.soopCookie.v = "")
                     : Get.toNamed(RoutePath.kSoop),
               );
             }),
             _buildAccountTile(
               context,
               logo: 'assets/images/douyu.png',
-              title: i18n('site_douyu'),
-              subtitle: i18n('set_cookie'),
+              title: i18n("site_douyu"),
+              subtitle: i18n("disabled"),
               isLogined: false,
               isEnabled: false,
-              onTap: () => Get.toNamed(RoutePath.kDouyuCookie),
             ),
           ]),
           const SizedBox(height: 32),
@@ -136,52 +139,55 @@ class AccountPage extends GetView<AccountController> {
     required String title,
     required String subtitle,
     required bool isLogined,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     bool isEnabled = true,
   }) {
     final theme = Theme.of(context);
-    return ListTile(
-      enabled: isEnabled,
-      leading: Image.asset(logo, width: 24, height: 24),
-      title: Text(
-        title,
-        style: AppTextStyles.t15.copyWith(
-          fontWeight: FontWeight.w600,
-          color: isEnabled ? null : theme.disabledColor,
-        ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Text(
-          subtitle,
-          style: AppTextStyles.t12.copyWith(
-            color: isLogined ? theme.colorScheme.primary : theme.hintColor.withValues(alpha: 0.75),
-            fontWeight: isLogined ? FontWeight.w500 : FontWeight.normal,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      trailing: isLogined
-          ? GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  Remix.logout_box_r_line,
-                  color: theme.colorScheme.error.withValues(alpha: 0.8),
-                  size: 18,
-                ),
-              ),
-            )
-          : Icon(
-              Icons.chevron_right_rounded,
-              color: theme.hintColor.withValues(alpha: 0.4),
-              size: 20,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final expandedText = constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.5;
+        return ListTile(
+          enabled: isEnabled,
+          leading: Image.asset(logo, width: 24, height: 24),
+          title: Text(
+            title,
+            style: AppTextStyles.t15.copyWith(
+              fontWeight: FontWeight.w600,
+              color: isEnabled ? null : theme.disabledColor,
             ),
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              subtitle,
+              style: AppTextStyles.t12.copyWith(
+                color: isLogined ? theme.colorScheme.primary : theme.hintColor.withValues(alpha: 0.75),
+                fontWeight: isLogined ? FontWeight.w500 : FontWeight.normal,
+              ),
+              maxLines: expandedText ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          trailing: !isEnabled
+              ? null
+              : isLogined
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Remix.logout_box_r_line,
+                      color: theme.colorScheme.error.withValues(alpha: 0.8),
+                      size: 18,
+                    ),
+                  ),
+                )
+              : Icon(Icons.chevron_right_rounded, color: theme.hintColor.withValues(alpha: 0.4), size: 20),
+          onTap: isEnabled ? onTap : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        );
+      },
     );
   }
 
@@ -189,16 +195,18 @@ class AccountPage extends GetView<AccountController> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(i18n('logout')),
-        content: Text(i18n('confirm_logout')),
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        title: Text(i18n("logout")),
+        content: Text(i18n("confirm_logout")),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n("cancel"))),
           TextButton(
             onPressed: () {
               BiliBiliAccountService.instance.logout();
               Navigator.pop(context);
             },
-            child: Text(i18n('confirm'), style: const TextStyle(color: Colors.red)),
+            child: Text(i18n("confirm"), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -209,16 +217,18 @@ class AccountPage extends GetView<AccountController> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(i18n('logout')),
-        content: Text(i18n('confirm_logout')),
+        scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        title: Text(i18n("logout")),
+        content: Text(i18n("confirm_logout")),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n('cancel'))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(i18n("cancel"))),
           TextButton(
             onPressed: () {
               onConfirm();
               Navigator.pop(context);
             },
-            child: Text(i18n('confirm'), style: const TextStyle(color: Colors.red)),
+            child: Text(i18n("confirm"), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

@@ -1,5 +1,4 @@
 import 'dart:developer' as developer;
-
 import 'get_main.dart';
 
 ///VoidCallback from logs

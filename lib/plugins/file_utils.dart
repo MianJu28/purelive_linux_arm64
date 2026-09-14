@@ -8,7 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:android_intent_plus/android_intent.dart';
 
 class FileUtils {
-  static const String systemHotProviderId = '88888';
+  static const String systemHotProviderId = "88888";
 
   /// 获取文件路径中的纯文件名
   static String getFileName(String fullPath) {
@@ -28,25 +28,32 @@ class FileUtils {
     return result.toString();
   }
 
-  /// 验证是否为合法 URL 链接
-  static bool isValidUrl(String value) {
-    final urlRegExp = RegExp(
-      r'((https?:www\.)|(https?:\/\/)|(www\.))[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}(\/[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)?',
-    );
-    return urlRegExp.allMatches(value).isNotEmpty;
+  static Uri? parseHttpUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || RegExp(r'\s').hasMatch(trimmed)) return null;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
+    final scheme = uri.scheme.toLowerCase();
+    if ((scheme != 'http' && scheme != 'https') || uri.host.isEmpty) return null;
+
+    try {
+      if (uri.hasPort && (uri.port < 1 || uri.port > 65535)) return null;
+    } on FormatException {
+      return null;
+    }
+    return uri.scheme == scheme ? uri : uri.replace(scheme: scheme);
   }
 
-  /// 验证是否包含 Host 域名的 URL 链接
-  static bool isHostUrl(String value) {
-    final urlRegExp = RegExp(
-      r'((https?:www\.)|(https?:\/\/))[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}(\/[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)?',
-    );
-    return urlRegExp.allMatches(value).isNotEmpty;
-  }
+  /// Only complete HTTP(S) URLs are accepted. Substrings and schemeless host
+  /// names must stay on the local-path branch instead of reaching a launcher.
+  static bool isValidUrl(String value) => parseHttpUrl(value) != null;
+
+  static bool isHostUrl(String value) => parseHttpUrl(value) != null;
 
   /// 验证字符串是否为纯数字（端口号校验）
   static bool isNumericPort(String value) {
-    return RegExp(r'^\d+$').hasMatch(value);
+    return RegExp(r"^\d+$").hasMatch(value);
   }
 
   /// 请求外部存储管理权限
@@ -62,7 +69,7 @@ class FileUtils {
 
   static Future<File> convertPhysicalFile(String shareContent) async {
     if (shareContent.isEmpty) {
-      throw const FileSystemException('Shared data string content stream is fully empty');
+      throw const FileSystemException("Shared data string content stream is fully empty");
     }
     if (shareContent.startsWith('file://')) {
       return File(Uri.parse(shareContent).toFilePath());
@@ -72,21 +79,42 @@ class FileUtils {
     if (await fileRef.exists()) {
       return fileRef;
     }
-    throw FileSystemException(
-      'Shared media target path cannot be verified on flash drive storage',
-      shareContent,
-    );
+    throw FileSystemException("Shared media target path cannot be verified on flash drive storage", shareContent);
+  }
+
+  static Future<bool> cleanupOwnedSharedMediaFile(File file, {Directory? temporaryDirectory}) async {
+    final resolvedTemporaryDirectory = temporaryDirectory ?? await getTemporaryDirectory();
+    final root = p.normalize(resolvedTemporaryDirectory.absolute.path);
+    final filePath = p.normalize(file.absolute.path);
+    if (!p.isWithin(root, filePath)) return false;
+
+    final relativeParts = p.split(p.relative(filePath, from: root));
+    if (relativeParts.length != 3 || relativeParts.first != 'share_handler') return false;
+
+    final attachmentDirectory = file.parent;
+    final stagingRoot = attachmentDirectory.parent;
+    try {
+      if (await file.exists()) await file.delete();
+      if (await attachmentDirectory.exists() && (await attachmentDirectory.list().isEmpty)) {
+        await attachmentDirectory.delete();
+      }
+      if (await stagingRoot.exists() && (await stagingRoot.list().isEmpty)) await stagingRoot.delete();
+      return true;
+    } catch (error) {
+      debugPrint('Shared media temporary cleanup failed: $error');
+      return false;
+    }
   }
 
   static Future<bool> openFileOrUrl(String pathOrUrl) async {
     final trimmedPath = pathOrUrl.trim();
     if (trimmedPath.isEmpty) return false;
 
-    if (isValidUrl(trimmedPath)) {
+    final remoteUri = parseHttpUrl(trimmedPath);
+    if (remoteUri != null) {
       try {
-        final Uri uri = Uri.parse(trimmedPath);
-        if (await canLaunchUrl(uri)) {
-          return await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (await canLaunchUrl(remoteUri)) {
+          return await launchUrl(remoteUri, mode: LaunchMode.externalApplication);
         }
       } catch (_) {
         return false;
@@ -104,9 +132,7 @@ class FileUtils {
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
       try {
         if (Platform.isWindows) {
-          await Process.start('explorer.exe', [
-            p.context.canonicalize(trimmedPath),
-          ], mode: ProcessStartMode.detached);
+          await Process.start('explorer.exe', [p.context.canonicalize(trimmedPath)], mode: ProcessStartMode.detached);
         } else if (Platform.isMacOS) {
           final result = await Process.run('open', [trimmedPath]);
           if (result.exitCode != 0) return false;
@@ -139,9 +165,7 @@ class FileUtils {
     } catch (_) {
       if (!Platform.isAndroid) {
         try {
-          final String cleanPath = trimmedPath.startsWith('file://')
-              ? trimmedPath
-              : 'file://$trimmedPath';
+          final String cleanPath = trimmedPath.startsWith('file://') ? trimmedPath : 'file://$trimmedPath';
           final Uri fileUri = Uri.parse(cleanPath);
           if (await canLaunchUrl(fileUri)) {
             return await launchUrl(fileUri);
@@ -151,20 +175,5 @@ class FileUtils {
     }
 
     return false;
-  }
-
-  Future<String> getTempPath() async {
-    final directory = await getTemporaryDirectory();
-    return directory.path;
-  }
-
-  String buildShadersAbsolutePath(String baseDirectory, List<String> shaders) {
-    final absolutePaths = shaders.map((shader) {
-      return p.join(baseDirectory, shader);
-    }).toList();
-    if (Platform.isWindows) {
-      return absolutePaths.join(';');
-    }
-    return absolutePaths.join(':');
   }
 }

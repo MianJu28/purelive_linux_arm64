@@ -40,15 +40,40 @@ void main() {
 
     final directory = await service.getRecordDir();
 
-    expect(
-      p.equals(directory.path, p.join(selectedParent.path, CacheService.managedFolderName)),
-      isTrue,
-    );
+    expect(p.equals(directory.path, p.join(selectedParent.path, CacheService.managedFolderName)), isTrue);
+  });
+
+  test('candidate preparation verifies write access without changing the configured root', () async {
+    final service = serviceFor(null);
+    final candidate = Directory(p.join(sandbox.path, 'candidate'));
+
+    final prepared = await service.prepareRecordDir(candidate.path);
+
+    expect(p.equals(prepared.path, p.join(candidate.path, CacheService.managedFolderName)), isTrue);
+    expect(File(p.join(prepared.path, CacheService.ownershipMarkerName)).existsSync(), isTrue);
+    expect(p.equals((await service.getRecordDir()).path, defaultDirectory.path), isTrue);
+
+    final blockedParent = await File(p.join(sandbox.path, 'not-a-directory')).writeAsString('fixture');
+    await expectLater(service.prepareRecordDir(blockedParent.path), throwsA(isA<FileSystemException>()));
+    expect(p.equals((await service.getRecordDir()).path, defaultDirectory.path), isTrue);
+  });
+
+  test('concurrent write checks own isolated probes and leave no temporary entries', () async {
+    final service = serviceFor(null);
+
+    final results = await Future.wait(List.generate(24, (_) => service.canWriteRecordDir()));
+
+    expect(results, everyElement(isTrue));
+    final directory = await service.getRecordDir();
+    final leftovers = await directory
+        .list(followLinks: false)
+        .where((entity) => p.basename(entity.path).startsWith('.pure_live_write_probe_'))
+        .toList();
+    expect(leftovers, isEmpty);
   });
 
   test('selecting the managed child does not create a duplicate nesting level', () async {
-    final managed = await Directory(p.join(sandbox.path, CacheService.managedFolderName))
-        .create(recursive: true);
+    final managed = await Directory(p.join(sandbox.path, CacheService.managedFolderName)).create(recursive: true);
     await File(p.join(managed.path, CacheService.ownershipMarkerName)).writeAsString('owned');
     final service = serviceFor(managed.path);
 
@@ -58,8 +83,7 @@ void main() {
   });
 
   test('an unmarked folder with the managed name is still treated as a parent', () async {
-    final unmarked = await Directory(p.join(sandbox.path, CacheService.managedFolderName))
-        .create(recursive: true);
+    final unmarked = await Directory(p.join(sandbox.path, CacheService.managedFolderName)).create(recursive: true);
     final unrelated = await File(p.join(unmarked.path, 'notes.txt')).writeAsString('keep');
     final service = serviceFor(unmarked.path);
 
@@ -71,15 +95,12 @@ void main() {
   });
 
   test('clearAll preserves unrelated files next to the managed recording directory', () async {
-    final selectedParent = await Directory(p.join(sandbox.path, 'Downloads'))
-        .create(recursive: true);
-    final unrelated = await File(p.join(selectedParent.path, 'family-photo.jpg'))
-        .writeAsString('keep');
+    final selectedParent = await Directory(p.join(sandbox.path, 'Downloads')).create(recursive: true);
+    final unrelated = await File(p.join(selectedParent.path, 'family-photo.jpg')).writeAsString('keep');
     final service = serviceFor(selectedParent.path);
     final managed = await service.getRecordDir();
     final nested = await Directory(p.join(managed.path, 'douyu', 'room')).create(recursive: true);
-    final recording = await File(p.join(nested.path, 'segment.ts'))
-        .writeAsBytes(List<int>.filled(32, 1));
+    final recording = await File(p.join(nested.path, 'segment.ts')).writeAsBytes(List<int>.filled(32, 1));
 
     await service.clearAll();
 
@@ -91,12 +112,9 @@ void main() {
   test('recursive oldest deletion sees nested recording segments', () async {
     final service = serviceFor(null);
     final managed = await service.getRecordDir();
-    final nested = await Directory(p.join(managed.path, 'bilibili', 'room'))
-        .create(recursive: true);
-    final oldest = await File(p.join(nested.path, '001.ts'))
-        .writeAsBytes(List<int>.filled(1024, 1));
-    final newest = await File(p.join(nested.path, '002.ts'))
-        .writeAsBytes(List<int>.filled(1024, 2));
+    final nested = await Directory(p.join(managed.path, 'bilibili', 'room')).create(recursive: true);
+    final oldest = await File(p.join(nested.path, '001.ts')).writeAsBytes(List<int>.filled(1024, 1));
+    final newest = await File(p.join(nested.path, '002.ts')).writeAsBytes(List<int>.filled(1024, 2));
     await oldest.setLastModified(DateTime(2024));
     await newest.setLastModified(DateTime(2025));
 
@@ -112,12 +130,9 @@ void main() {
 
     await service.enforceLimit(maxMB: 0).timeout(const Duration(seconds: 2));
 
-    final nested = await Directory(p.join(managed.path, 'kuaishou', 'room'))
-        .create(recursive: true);
-    final oldest = await File(p.join(nested.path, '001.ts'))
-        .writeAsBytes(List<int>.filled(2048, 1));
-    final newest = await File(p.join(nested.path, '002.ts'))
-        .writeAsBytes(List<int>.filled(2048, 2));
+    final nested = await Directory(p.join(managed.path, 'kuaishou', 'room')).create(recursive: true);
+    final oldest = await File(p.join(nested.path, '001.ts')).writeAsBytes(List<int>.filled(2048, 1));
+    final newest = await File(p.join(nested.path, '002.ts')).writeAsBytes(List<int>.filled(2048, 2));
     await oldest.setLastModified(DateTime(2024));
     await newest.setLastModified(DateTime(2025));
 
@@ -130,14 +145,10 @@ void main() {
   test('clear and size enforcement preserve an active recording directory', () async {
     final service = serviceFor(null);
     final managed = await service.getRecordDir();
-    final activeDirectory = await Directory(p.join(managed.path, 'douyin', 'active'))
-        .create(recursive: true);
-    final oldDirectory = await Directory(p.join(managed.path, 'douyin', 'old'))
-        .create(recursive: true);
-    final active = await File(p.join(activeDirectory.path, 'active.ts'))
-        .writeAsBytes(List<int>.filled(4096, 1));
-    final old = await File(p.join(oldDirectory.path, 'old.mp4'))
-        .writeAsBytes(List<int>.filled(4096, 2));
+    final activeDirectory = await Directory(p.join(managed.path, 'douyin', 'active')).create(recursive: true);
+    final oldDirectory = await Directory(p.join(managed.path, 'douyin', 'old')).create(recursive: true);
+    final active = await File(p.join(activeDirectory.path, 'active.ts')).writeAsBytes(List<int>.filled(4096, 1));
+    final old = await File(p.join(oldDirectory.path, 'old.mp4')).writeAsBytes(List<int>.filled(4096, 2));
     await old.setLastModified(DateTime(2020));
     service.protectDirectory(activeDirectory.path);
 
@@ -152,6 +163,24 @@ void main() {
     service.releaseDirectory(activeDirectory.path);
     await service.clearAll();
     expect(await active.exists(), isFalse);
+  });
+
+  test('cache limit counts active bytes while deleting only completed recordings', () async {
+    final service = serviceFor(null);
+    final managed = await service.getRecordDir();
+    final activeDirectory = await Directory(p.join(managed.path, 'bilibili', 'active')).create(recursive: true);
+    final completedDirectory = await Directory(p.join(managed.path, 'bilibili', 'completed')).create(recursive: true);
+    final active = await File(p.join(activeDirectory.path, 'active.ts')).writeAsBytes(List<int>.filled(4096, 1));
+    final completed = await File(p.join(completedDirectory.path, 'completed.mp4'))
+        .writeAsBytes(List<int>.filled(4096, 2));
+    service.protectDirectory(activeDirectory.path);
+
+    // The active file alone fits under this limit, but active + completed do
+    // not. The completed file must be reclaimed without touching live output.
+    await service.enforceLimit(maxMB: 0.005);
+
+    expect(await active.exists(), isTrue);
+    expect(await completed.exists(), isFalse);
   });
 
   test('active-directory protection is reference counted', () async {
@@ -189,48 +218,21 @@ void main() {
     expect(PathHelper.toSafeComponent('anything', maxRunes: 0), 'unknown');
   });
 
-  test(
-    'Android private-path detection covers every user profile without external false positives',
-    () {
-      expect(
-        CacheService.isAndroidPrivatePath(
-          '/data/user/0/com.example/app_flutter/RECORDS',
-          androidPlatform: true,
-        ),
-        isTrue,
-      );
-      expect(
-        CacheService.isAndroidPrivatePath(
-          '/data/user/17/com.example/files/RECORDS',
-          androidPlatform: true,
-        ),
-        isTrue,
-      );
-      expect(
-        CacheService.isAndroidPrivatePath(
-          '/data/user_de/11/com.example/files/RECORDS',
-          androidPlatform: true,
-        ),
-        isTrue,
-      );
-      expect(
-        CacheService.isAndroidPrivatePath(
-          '/data/data/com.example/files/RECORDS',
-          androidPlatform: true,
-        ),
-        isTrue,
-      );
-      expect(
-        CacheService.isAndroidPrivatePath(
-          '/storage/emulated/0/app_flutter/Recordings',
-          androidPlatform: true,
-        ),
-        isFalse,
-      );
-      expect(
-        CacheService.isAndroidPrivatePath('/data/user/not-a-profile/app', androidPlatform: true),
-        isFalse,
-      );
-    },
-  );
+  test('Android private-path detection covers every user profile without external false positives', () {
+    expect(
+      CacheService.isAndroidPrivatePath('/data/user/0/com.example/app_flutter/RECORDS', androidPlatform: true),
+      isTrue,
+    );
+    expect(CacheService.isAndroidPrivatePath('/data/user/17/com.example/files/RECORDS', androidPlatform: true), isTrue);
+    expect(
+      CacheService.isAndroidPrivatePath('/data/user_de/11/com.example/files/RECORDS', androidPlatform: true),
+      isTrue,
+    );
+    expect(CacheService.isAndroidPrivatePath('/data/data/com.example/files/RECORDS', androidPlatform: true), isTrue);
+    expect(
+      CacheService.isAndroidPrivatePath('/storage/emulated/0/app_flutter/Recordings', androidPlatform: true),
+      isFalse,
+    );
+    expect(CacheService.isAndroidPrivatePath('/data/user/not-a-profile/app', androidPlatform: true), isFalse);
+  });
 }

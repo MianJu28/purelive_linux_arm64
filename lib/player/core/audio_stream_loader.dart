@@ -3,7 +3,6 @@ import 'dart:developer';
 
 import 'package:pure_live/recorder/ffmpeg/ffmpeg_types.dart';
 import 'package:pure_live/recorder/ffmpeg/ffmpeg_event.dart';
-import 'package:pure_live/recorder/ffmpeg/ffmpeg_manager.dart';
 import 'package:pure_live/recorder/services/ffmpeg_service.dart';
 import 'package:pure_live/recorder/ffmpeg/ffmpeg_command_builder.dart';
 import 'package:pure_live/recorder/services/ffmpeg_header_factory.dart';
@@ -30,25 +29,25 @@ class AudioStreamLoader {
     required Function(String audioUrl) onAudioReady,
     Function(FFmpegEvent event)? onFFmpegEvent,
     required String platform, // 用于构建FFmpeg请求头
+    Map<String, String> roomHeaders = const <String, String>{},
   }) async {
     if (_currentTaskId != null) {
       stop();
     }
 
-    _currentTaskId = 'audio_only_$uniqueId';
+    _currentTaskId = "audio_only_$uniqueId";
 
     int port = await _getAvailablePort();
-    _currentAudioUrl = 'http://localhost:$port/live.ts';
+    _currentAudioUrl = "http://localhost:$port/live.ts";
 
     log('AudioStreamLoader: 分配空闲端口 -> $port, URL -> $_currentAudioUrl');
 
-    final headers = await FFmpegHeaderFactory.build(platform: platform);
+    final headers = await FFmpegHeaderFactory.build(platform: platform, roomHeaders: roomHeaders);
 
     final arguments = FFmpegCommandBuilder.buildAudioStreamArguments(
       headers: headers,
       remoteStreamUrl: remoteStreamUrl,
       port: port,
-      caFile: FFmpegManager.to.caFilePath,
     );
     await FFmpegService.to.start(
       taskId: _currentTaskId!,

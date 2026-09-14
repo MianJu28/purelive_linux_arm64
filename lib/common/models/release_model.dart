@@ -71,11 +71,7 @@ class AuthorModel {
   AuthorModel({required this.name, required this.avatar, required this.profile});
 
   factory AuthorModel.fromJson(Map<String, dynamic> json) {
-    return AuthorModel(
-      name: json['name'] ?? '',
-      avatar: json['avatar'] ?? '',
-      profile: json['profile'] ?? '',
-    );
+    return AuthorModel(name: json['name'] ?? '', avatar: json['avatar'] ?? '', profile: json['profile'] ?? '');
   }
 
   Map<String, dynamic> toJson() {
@@ -89,12 +85,7 @@ class ReleaseFileModel {
   final int downloads;
   final String url;
 
-  ReleaseFileModel({
-    required this.name,
-    required this.size,
-    required this.downloads,
-    required this.url,
-  });
+  ReleaseFileModel({required this.name, required this.size, required this.downloads, required this.url});
 
   factory ReleaseFileModel.fromJson(Map<String, dynamic> json) {
     return ReleaseFileModel(

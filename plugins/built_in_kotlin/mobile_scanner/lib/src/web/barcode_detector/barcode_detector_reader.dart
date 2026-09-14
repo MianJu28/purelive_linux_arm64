@@ -79,7 +79,9 @@ final class BarcodeDetectorReader extends PollingBarcodeReader {
     }
 
     return NativeBarcodeDetector.withOptions(
-      BarcodeDetectorInit(formats: strs.map((s) => s.toJS).toList().toJS),
+      BarcodeDetectorInit(
+        formats: strs.map((s) => s.toJS).toList().toJS,
+      ),
     );
   }
 

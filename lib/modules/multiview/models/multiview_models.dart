@@ -1,12 +1,15 @@
-import 'package:pure_live/common/index.dart';
+import 'package:pure_live/player/core/playback_source.dart';
+import 'package:pure_live/core/common/hls_source_query_policy.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+
+import 'package:pure_live/common/index.dart';
 import 'package:pure_live/model/live_play_quality.dart';
 
 /// 多画面布局枚举。
 ///
 /// 每个布局隐含固定的行列划分，用于把屏幕物理像素均分给每个格子，
 /// 作为该格 media_kit 渲染输出（VideoControllerConfiguration.width/height）
-/// 的固定分辨率依据。注意行列划分只服务于渲染分辨率计算，
+/// 的初始分辨率依据。注意行列划分只服务于初始渲染分辨率计算，
 /// focus 布局的视觉排布（左大右小列）由 UI 层决定。
 enum MultiviewLayout {
   /// 单画面（1 行 x 1 列）。
@@ -20,10 +23,8 @@ enum MultiviewLayout {
 
   /// 一大多小（1 大 + 3 小）。
   ///
-  /// 渲染分辨率复用 quad 的 2x2 均分数学：大格上采样、小格下采样的
-  /// 画质取舍已接受。
-  // TODO: 晋升大画面时重设该格渲染分辨率（VideoController.setSize），
-  // 大格按整屏均分、小格按剩余区域均分，消除上采样模糊。
+  /// 新播放器的初始渲染分辨率复用 quad 的 2x2 均分数学；Windows 视图
+  /// 挂载后会按大格/小格的实际物理 viewport 重设输出，晋升时同步交换。
   focus;
 
   /// 当前布局可容纳的格子数量。
@@ -90,8 +91,7 @@ class MultiviewRoomOffline implements Exception {
   final LiveRoom room;
 
   @override
-  String toString() =>
-      'MultiviewRoomOffline(${room.identityKey}, ${room.effectiveLiveStatus.name})';
+  String toString() => 'MultiviewRoomOffline(${room.identityKey}, ${room.effectiveLiveStatus.name})';
 }
 
 /// 单格失败种类。
@@ -127,7 +127,24 @@ class MultiviewStreamSource {
     this.qualityLoader,
     this.lines = const <String>[],
     this.lineIndex = 0,
-  });
+    this.sourceQueryPolicies = const <String, HlsSourceQueryPolicy>{},
+  }) : ownedSource = null;
+
+  const MultiviewStreamSource.owned({
+    required OwnedPlaybackSource source,
+    this.qualities = const <LivePlayQuality>[],
+    this.qualityIndex = 0,
+    this.qualityLoader,
+  }) : ownedSource = source,
+       url = '',
+       headers = const {},
+       lines = const [],
+       lineIndex = 0,
+       sourceQueryPolicies = const {};
+
+  /// A public factory; the private URI stays inside the per-cell transport.
+  final OwnedPlaybackSource? ownedSource;
+  int get lineCount => ownedSource == null ? lines.length : 1;
 
   /// 可直接交给播放内核的媒体地址。
   final String url;
@@ -149,6 +166,8 @@ class MultiviewStreamSource {
 
   /// 当前线路下标；lines 非空时 [url] 恒等于 lines[lineIndex]。
   final int lineIndex;
+
+  final Map<String, HlsSourceQueryPolicy> sourceQueryPolicies;
 }
 
 /// multiview 单格的不可变状态快照。
@@ -169,6 +188,8 @@ class MultiviewCellState {
     this.headers = const <String, String>{},
     this.lines = const <String>[],
     this.lineIndex = 0,
+    this.sourceQueryPolicies = const <String, HlsSourceQueryPolicy>{},
+    this.ownedSource,
   });
 
   /// 该格在当前布局中的固定下标（0 起）。
@@ -210,6 +231,11 @@ class MultiviewCellState {
   /// 当前线路下标；lines 非空时画面即 lines[lineIndex]。
   final int lineIndex;
 
+  final Map<String, HlsSourceQueryPolicy> sourceQueryPolicies;
+
+  final OwnedPlaybackSource? ownedSource;
+  int get lineCount => ownedSource == null ? lines.length : 1;
+
   /// 构造一个空白格状态。
   factory MultiviewCellState.empty(int index) => MultiviewCellState(index: index);
 
@@ -229,9 +255,13 @@ class MultiviewCellState {
     Map<String, String>? headers,
     List<String>? lines,
     int? lineIndex,
+    Map<String, HlsSourceQueryPolicy>? sourceQueryPolicies,
+    OwnedPlaybackSource? ownedSource,
+    bool clearOwnedSource = false,
   }) {
     return MultiviewCellState(
       index: index,
+      ownedSource: clearQuality || clearOwnedSource ? null : ownedSource ?? (lines == null ? this.ownedSource : null),
       room: clearRoom ? null : (room ?? this.room),
       status: status ?? this.status,
       errorKind: clearError ? null : (errorKind ?? this.errorKind),
@@ -243,6 +273,11 @@ class MultiviewCellState {
       headers: clearQuality ? const <String, String>{} : (headers ?? this.headers),
       lines: clearQuality ? const <String>[] : (lines ?? this.lines),
       lineIndex: clearQuality ? 0 : (lineIndex ?? this.lineIndex),
+      sourceQueryPolicies: Map.unmodifiable(
+        clearQuality
+            ? <String, HlsSourceQueryPolicy>{}
+            : (sourceQueryPolicies ?? (lines == null ? this.sourceQueryPolicies : <String, HlsSourceQueryPolicy>{})),
+      ),
     );
   }
 }

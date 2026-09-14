@@ -11,7 +11,8 @@ import '../in_app_webview/in_app_webview_controller.dart';
 /// more information.
 class AndroidWebStorageCreationParams extends PlatformWebStorageCreationParams {
   /// Creates a new [AndroidWebStorageCreationParams] instance.
-  AndroidWebStorageCreationParams({required super.localStorage, required super.sessionStorage});
+  AndroidWebStorageCreationParams(
+      {required super.localStorage, required super.sessionStorage});
 
   /// Creates a [AndroidWebStorageCreationParams] instance based on [PlatformWebStorageCreationParams].
   factory AndroidWebStorageCreationParams.fromPlatformWebStorageCreationParams(
@@ -19,7 +20,8 @@ class AndroidWebStorageCreationParams extends PlatformWebStorageCreationParams {
       // ignore: avoid_unused_constructor_parameters
       PlatformWebStorageCreationParams params) {
     return AndroidWebStorageCreationParams(
-        localStorage: params.localStorage, sessionStorage: params.sessionStorage);
+        localStorage: params.localStorage,
+        sessionStorage: params.sessionStorage);
   }
 }
 
@@ -30,7 +32,8 @@ class AndroidWebStorage extends PlatformWebStorage {
       : super.implementation(
           params is AndroidWebStorageCreationParams
               ? params
-              : AndroidWebStorageCreationParams.fromPlatformWebStorageCreationParams(params),
+              : AndroidWebStorageCreationParams
+                  .fromPlatformWebStorageCreationParams(params),
         );
 
   @override
@@ -53,7 +56,8 @@ class AndroidWebStorage extends PlatformWebStorage {
 /// more information.
 class AndroidStorageCreationParams extends PlatformStorageCreationParams {
   /// Creates a new [AndroidStorageCreationParams] instance.
-  AndroidStorageCreationParams({required super.controller, required super.webStorageType});
+  AndroidStorageCreationParams(
+      {required super.controller, required super.webStorageType});
 
   /// Creates a [AndroidStorageCreationParams] instance based on [PlatformStorageCreationParams].
   factory AndroidStorageCreationParams.fromPlatformStorageCreationParams(
@@ -114,7 +118,8 @@ abstract mixin class AndroidStorage implements PlatformStorage {
   Future<List<WebStorageItem>> getItems() async {
     var webStorageItems = <WebStorageItem>[];
 
-    List<Map<dynamic, dynamic>>? items = (await controller?.evaluateJavascript(source: """
+    List<Map<dynamic, dynamic>>? items =
+        (await controller?.evaluateJavascript(source: """
 (function() {
   var webStorageItems = [];
   for(var i = 0; i < window.$webStorageType.length; i++){
@@ -135,7 +140,8 @@ abstract mixin class AndroidStorage implements PlatformStorage {
     }
 
     for (var item in items) {
-      webStorageItems.add(WebStorageItem(key: item["key"], value: item["value"]));
+      webStorageItems
+          .add(WebStorageItem(key: item["key"], value: item["value"]));
     }
 
     return webStorageItems;
@@ -167,7 +173,8 @@ abstract mixin class AndroidStorage implements PlatformStorage {
 /// When adding additional fields make sure they can be null or have a default
 /// value to avoid breaking changes. See [PlatformLocalStorageCreationParams] for
 /// more information.
-class AndroidLocalStorageCreationParams extends PlatformLocalStorageCreationParams {
+class AndroidLocalStorageCreationParams
+    extends PlatformLocalStorageCreationParams {
   /// Creates a new [AndroidLocalStorageCreationParams] instance.
   AndroidLocalStorageCreationParams(super.params);
 
@@ -187,15 +194,17 @@ class AndroidLocalStorage extends PlatformLocalStorage with AndroidStorage {
       : super.implementation(
           params is AndroidLocalStorageCreationParams
               ? params
-              : AndroidLocalStorageCreationParams.fromPlatformLocalStorageCreationParams(params),
+              : AndroidLocalStorageCreationParams
+                  .fromPlatformLocalStorageCreationParams(params),
         );
 
   /// Default storage
   factory AndroidLocalStorage.defaultStorage(
       {required PlatformInAppWebViewController? controller}) {
-    return AndroidLocalStorage(AndroidLocalStorageCreationParams(PlatformLocalStorageCreationParams(
-        PlatformStorageCreationParams(
-            controller: controller, webStorageType: WebStorageType.LOCAL_STORAGE))));
+    return AndroidLocalStorage(AndroidLocalStorageCreationParams(
+        PlatformLocalStorageCreationParams(PlatformStorageCreationParams(
+            controller: controller,
+            webStorageType: WebStorageType.LOCAL_STORAGE))));
   }
 
   @override
@@ -208,7 +217,8 @@ class AndroidLocalStorage extends PlatformLocalStorage with AndroidStorage {
 /// When adding additional fields make sure they can be null or have a default
 /// value to avoid breaking changes. See [PlatformSessionStorageCreationParams] for
 /// more information.
-class AndroidSessionStorageCreationParams extends PlatformSessionStorageCreationParams {
+class AndroidSessionStorageCreationParams
+    extends PlatformSessionStorageCreationParams {
   /// Creates a new [AndroidSessionStorageCreationParams] instance.
   AndroidSessionStorageCreationParams(super.params);
 
@@ -228,8 +238,8 @@ class AndroidSessionStorage extends PlatformSessionStorage with AndroidStorage {
       : super.implementation(
           params is AndroidSessionStorageCreationParams
               ? params
-              : AndroidSessionStorageCreationParams.fromPlatformSessionStorageCreationParams(
-                  params),
+              : AndroidSessionStorageCreationParams
+                  .fromPlatformSessionStorageCreationParams(params),
         );
 
   /// Default storage
@@ -237,7 +247,8 @@ class AndroidSessionStorage extends PlatformSessionStorage with AndroidStorage {
       {required PlatformInAppWebViewController? controller}) {
     return AndroidSessionStorage(AndroidSessionStorageCreationParams(
         PlatformSessionStorageCreationParams(PlatformStorageCreationParams(
-            controller: controller, webStorageType: WebStorageType.SESSION_STORAGE))));
+            controller: controller,
+            webStorageType: WebStorageType.SESSION_STORAGE))));
   }
 
   @override

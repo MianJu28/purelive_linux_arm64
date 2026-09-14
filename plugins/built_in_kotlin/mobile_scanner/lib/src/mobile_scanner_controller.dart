@@ -38,8 +38,12 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     this.invertImage = false,
     this.autoZoom = false,
     this.initialZoom,
-  }) : detectionTimeoutMs = detectionSpeed == DetectionSpeed.normal ? detectionTimeoutMs : 0,
-       assert(detectionTimeoutMs >= 0, 'The detection timeout must be greater than or equal to 0.'),
+  }) : detectionTimeoutMs =
+           detectionSpeed == DetectionSpeed.normal ? detectionTimeoutMs : 0,
+       assert(
+         detectionTimeoutMs >= 0,
+         'The detection timeout must be greater than or equal to 0.',
+       ),
        assert(
          facing != CameraFacing.unknown,
          'CameraFacing.unknown is not a valid camera direction.',
@@ -131,7 +135,8 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
   final double? initialZoom;
 
   /// The internal barcode controller, that listens for detected barcodes.
-  final StreamController<BarcodeCapture> _barcodesController = StreamController.broadcast();
+  final StreamController<BarcodeCapture> _barcodesController =
+      StreamController.broadcast();
 
   /// Get the stream of scanned barcodes.
   ///
@@ -183,54 +188,56 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
   }
 
   void _setupListeners() {
-    _barcodesSubscription = MobileScannerPlatform.instance.barcodesStream.listen(
-      (barcode) {
-        if (_barcodesController.isClosed || barcode == null) {
-          return;
-        }
+    _barcodesSubscription = MobileScannerPlatform.instance.barcodesStream
+        .listen(
+          (barcode) {
+            if (_barcodesController.isClosed || barcode == null) {
+              return;
+            }
 
-        _barcodesController.add(barcode);
-      },
-      onError: (Object error) {
-        if (_barcodesController.isClosed) {
-          return;
-        }
+            _barcodesController.add(barcode);
+          },
+          onError: (Object error) {
+            if (_barcodesController.isClosed) {
+              return;
+            }
 
-        _barcodesController.addError(error);
-      },
-      // Errors are handled gracefully by forwarding them.
-      cancelOnError: false,
-    );
+            _barcodesController.addError(error);
+          },
+          // Errors are handled gracefully by forwarding them.
+          cancelOnError: false,
+        );
 
-    _torchStateSubscription = MobileScannerPlatform.instance.torchStateStream.listen((torchState) {
-      if (_isDisposed) {
-        return;
-      }
+    _torchStateSubscription = MobileScannerPlatform.instance.torchStateStream
+        .listen((torchState) {
+          if (_isDisposed) {
+            return;
+          }
 
-      value = value.copyWith(torchState: torchState);
-    });
+          value = value.copyWith(torchState: torchState);
+        });
 
-    _zoomScaleSubscription = MobileScannerPlatform.instance.zoomScaleStateStream.listen((
-      zoomScale,
-    ) {
-      if (_isDisposed) {
-        return;
-      }
+    _zoomScaleSubscription = MobileScannerPlatform.instance.zoomScaleStateStream
+        .listen((zoomScale) {
+          if (_isDisposed) {
+            return;
+          }
 
-      value = value.copyWith(zoomScale: zoomScale);
-    });
+          value = value.copyWith(zoomScale: zoomScale);
+        });
 
-    if (MobileScannerPlatform.instance case final MethodChannelMobileScanner implementation
+    if (MobileScannerPlatform.instance
+        case final MethodChannelMobileScanner implementation
         when defaultTargetPlatform != TargetPlatform.macOS) {
-      _deviceOrientationSubscription = implementation.deviceOrientationChangedStream.listen((
-        orientation,
-      ) {
-        if (_isDisposed) {
-          return;
-        }
+      _deviceOrientationSubscription = implementation
+          .deviceOrientationChangedStream
+          .listen((orientation) {
+            if (_isDisposed) {
+              return;
+            }
 
-        value = value.copyWith(deviceOrientation: orientation);
-      });
+            value = value.copyWith(deviceOrientation: orientation);
+          });
     }
   }
 
@@ -278,7 +285,10 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     // If the device does not have a torch, do not report "off".
     value = value.copyWith(
       isRunning: false,
-      torchState: oldTorchState == TorchState.unavailable ? TorchState.unavailable : TorchState.off,
+      torchState:
+          oldTorchState == TorchState.unavailable
+              ? TorchState.unavailable
+              : TorchState.off,
     );
     return true;
   }
@@ -365,7 +375,10 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
       return;
     }
 
-    final clampedPosition = Offset(position.dx.clamp(0, 1), position.dy.clamp(0, 1));
+    final clampedPosition = Offset(
+      position.dx.clamp(0, 1),
+      position.dy.clamp(0, 1),
+    );
 
     await MobileScannerPlatform.instance.setFocusPoint(clampedPosition);
   }
@@ -384,7 +397,10 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
   ///
   /// If the permission is denied on iOS, MacOS or Web, there is no way to
   /// request it again.
-  Future<void> start({CameraFacing? cameraDirection, CameraLensType? cameraLensType}) async {
+  Future<void> start({
+    CameraFacing? cameraDirection,
+    CameraLensType? cameraLensType,
+  }) async {
     if (_isDisposed) {
       throw MobileScannerException(
         errorCode: MobileScannerErrorCode.controllerDisposed,
@@ -401,18 +417,17 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
       // The timeout is currently an arbitrary value,
       // which should be long enough for the next frame
       // to propagate any pending changes to the widget tree.
-      await _isAttachedCompleter.future.timeout(const Duration(milliseconds: 500)).catchError((
-        Object error,
-        StackTrace stackTrace,
-      ) {
-        throw MobileScannerException(
-          errorCode: MobileScannerErrorCode.controllerNotAttached,
-          errorDetails: MobileScannerErrorDetails(
-            message: MobileScannerErrorCode.controllerNotAttached.message,
-            details: stackTrace.toString(),
-          ),
-        );
-      });
+      await _isAttachedCompleter.future
+          .timeout(const Duration(milliseconds: 500))
+          .catchError((Object error, StackTrace stackTrace) {
+            throw MobileScannerException(
+              errorCode: MobileScannerErrorCode.controllerNotAttached,
+              errorDetails: MobileScannerErrorDetails(
+                message: MobileScannerErrorCode.controllerNotAttached.message,
+                details: stackTrace.toString(),
+              ),
+            );
+          });
 
       // Abort if the controller was disposed
       // while waiting for the widget to be attached.
@@ -470,7 +485,9 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     try {
       _setupListeners();
 
-      final viewAttributes = await MobileScannerPlatform.instance.start(options);
+      final viewAttributes = await MobileScannerPlatform.instance.start(
+        options,
+      );
 
       // This controller now holds the platform camera session.
       _platformSessionOwner = this;
@@ -553,7 +570,9 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
   ///
   /// For [ToggleLensType], does nothing if the device has less than 2 lens
   /// types available.
-  Future<void> switchCamera([SwitchCameraOption option = const ToggleDirection()]) async {
+  Future<void> switchCamera([
+    SwitchCameraOption option = const ToggleDirection(),
+  ]) async {
     _throwIfNotInitialized();
 
     switch (option) {
@@ -562,7 +581,10 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
       case ToggleLensType():
         await _toggleLensType();
       case SelectCamera(:final facingDirection, :final lensType):
-        await _selectCamera(facingDirection: facingDirection, lensType: lensType);
+        await _selectCamera(
+          facingDirection: facingDirection,
+          lensType: lensType,
+        );
     }
   }
 
@@ -579,7 +601,8 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
 
     // If the camera direction is not known,
     // or if the camera is an external camera, do not allow switching cameras.
-    if (cameraDirection == CameraFacing.unknown || cameraDirection == CameraFacing.external) {
+    if (cameraDirection == CameraFacing.unknown ||
+        cameraDirection == CameraFacing.external) {
       return;
     }
 
@@ -601,10 +624,13 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     // (e.g., external cameras being attached/detached).
     // Pass the current facing direction so only lenses for that camera side
     // are returned, avoiding cross-side pollution.
-    final supportedLenses = await getSupportedLenses(facing: value.cameraDirection);
+    final supportedLenses = await getSupportedLenses(
+      facing: value.cameraDirection,
+    );
 
     // Filter out 'any' and keep only specific lens types.
-    final specificLenses = supportedLenses.where((lens) => lens != CameraLensType.any).toList();
+    final specificLenses =
+        supportedLenses.where((lens) => lens != CameraLensType.any).toList();
 
     // Do nothing if there are less than 2 lens types available.
     if (specificLenses.length < 2) {
@@ -612,11 +638,18 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     }
 
     // Define the lens cycle order.
-    const lensCycle = [CameraLensType.normal, CameraLensType.wide, CameraLensType.zoom];
+    const lensCycle = [
+      CameraLensType.normal,
+      CameraLensType.wide,
+      CameraLensType.zoom,
+    ];
 
     // Find the current lens type from state (default to normal if unknown).
     final stateLensType = value.cameraLensType;
-    final currentLens = stateLensType == CameraLensType.any ? CameraLensType.normal : stateLensType;
+    final currentLens =
+        stateLensType == CameraLensType.any
+            ? CameraLensType.normal
+            : stateLensType;
 
     // Find the next available lens in the cycle.
     final currentIndex = lensCycle.indexOf(currentLens);
@@ -637,7 +670,10 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     }
 
     await stop();
-    return start(cameraDirection: value.cameraDirection, cameraLensType: nextLens);
+    return start(
+      cameraDirection: value.cameraDirection,
+      cameraLensType: nextLens,
+    );
   }
 
   Future<void> _selectCamera({
@@ -648,13 +684,15 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     final targetDirection = facingDirection ?? value.cameraDirection;
 
     // If the target direction is unknown or external, do nothing.
-    if (targetDirection == CameraFacing.unknown || targetDirection == CameraFacing.external) {
+    if (targetDirection == CameraFacing.unknown ||
+        targetDirection == CameraFacing.external) {
       return;
     }
 
     // Skip if the configuration is already the same to avoid unnecessary
     // camera restarts and UI flicker.
-    if (targetDirection == value.cameraDirection && lensType == value.cameraLensType) {
+    if (targetDirection == value.cameraDirection &&
+        lensType == value.cameraLensType) {
       return;
     }
 
@@ -723,7 +761,9 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
   ///   print('Available lenses: $supportedLenses');
   /// }
   /// ```
-  Future<Set<CameraLensType>> getSupportedLenses({CameraFacing? facing}) async {
+  Future<Set<CameraLensType>> getSupportedLenses({
+    CameraFacing? facing,
+  }) async {
     if (_isDisposed) {
       throw MobileScannerException(
         errorCode: MobileScannerErrorCode.controllerDisposed,
@@ -774,7 +814,9 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
       );
     }
 
-    return MobileScannerPlatform.instance.getBestCloseRangeScanningLens(facing: facing);
+    return MobileScannerPlatform.instance.getBestCloseRangeScanningLens(
+      facing: facing,
+    );
   }
 
   /// Dispose the controller.
@@ -794,7 +836,8 @@ class MobileScannerController extends ValueNotifier<MobileScannerState> {
     // If another controller currently holds the platform camera session,
     // disposing the platform resources would break that controller.
     // In that case only this controller's own resources are cleaned up.
-    if (_platformSessionOwner != null && !identical(_platformSessionOwner, this)) {
+    if (_platformSessionOwner != null &&
+        !identical(_platformSessionOwner, this)) {
       return;
     }
 

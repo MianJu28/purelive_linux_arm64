@@ -2,8 +2,41 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/recorder/ffmpeg/ffmpeg_command_builder.dart';
+import 'package:pure_live/recorder/services/ffmpeg_tls_trust_store.dart';
 
 void main() {
+  test('recording flushes complete packets in child TS muxers, not only the outer segment muxer', () {
+    for (final url in [
+      'https://cdn.example/live.m3u8',
+      'https://cdn.example/live.flv',
+      'rtmp://cdn.example/live',
+      'file:///fixture.ts',
+    ]) {
+      final arguments = FFmpegCommandBuilder.buildRecordArguments(
+        url: url,
+        outputDir: Directory.systemTemp.path,
+        segmentTime: 600,
+        preferBestStream: true,
+        rwTimeout: 15,
+        threadQueueSize: 1024,
+      );
+      expect(
+        _valueAfter(arguments, '-segment_format_options'),
+        'flush_packets=1:avoid_negative_ts=disabled:max_delay=0:output_ts_offset=1.4',
+      );
+      expect(arguments.where((value) => value == '-segment_format_options'), hasLength(1));
+      expect(arguments.indexOf('-segment_format_options'), greaterThan(arguments.indexOf('-i')));
+      expect(arguments.indexOf('-segment_format_options'), lessThan(arguments.length - 2));
+      expect(_valueAfter(arguments, '-segment_format'), 'mpegts');
+      expect(_valueAfter(arguments, '-c'), 'copy');
+      expect(arguments, isNot(contains('-flush_packets')));
+      // These belong to the child output, not input network demuxing. A zero
+      // mux delay without the explicit preroll loses boundary audio/B-frames.
+      expect(arguments, isNot(contains('-max_delay')));
+      expect(arguments, isNot(contains('-output_ts_offset')));
+    }
+  });
+
   test('recording passes signed URLs, headers and output paths as exact native arguments', () {
     final outputDir = '${Directory.systemTemp.path}${Platform.pathSeparator}Pure Live Records';
     final arguments = FFmpegCommandBuilder.buildRecordArguments(
@@ -14,17 +47,18 @@ void main() {
       rwTimeout: 15,
       threadQueueSize: 1024,
       filePrefix: 'session-001',
-      headers: const <String, String>{
-        'user-agent': 'Pure Live Test UA',
-        'referer': 'https://example.test/room/1',
-      },
+      headers: const <String, String>{'user-agent': 'Pure Live Test UA', 'referer': 'https://example.test/room/1'},
     );
 
     expect(_valueAfter(arguments, '-i'), 'https://cdn.example/live.flv?token=a&expires=2');
     expect(_valuesAfter(arguments, '-map'), <String>['0:v:0?', '0:a:0?']);
     expect(_valueAfter(arguments, '-user_agent'), 'Pure Live Test UA');
     expect(_valueAfter(arguments, '-headers'), 'referer: https://example.test/room/1\r\n');
-    expect(arguments.last, '$outputDir${Platform.pathSeparator}session-001_%06d.ts');
+    expect(arguments.last, '$outputDir${Platform.pathSeparator}session-001_%06d.clock-v1.ts');
+    expect(_valueAfter(arguments, '-segment_list'), '$outputDir${Platform.pathSeparator}session-001.clock-v1.csv');
+    expect(_valueAfter(arguments, '-segment_list_type'), 'csv');
+    expect(_valueAfter(arguments, '-avoid_negative_ts'), 'make_non_negative');
+    expect(_valueAfter(arguments, '-reset_timestamps'), '1');
     expect(_valueAfter(arguments, '-reconnect_on_network_error'), '1');
     expect(_valueAfter(arguments, '-reconnect_on_http_error'), '5xx');
     expect(_valueAfter(arguments, '-dts_delta_threshold'), '2');
@@ -35,10 +69,7 @@ void main() {
     expect(arguments, isNot(contains('-seekable')));
     expect(arguments, isNot(contains('-reconnect_at_eof')));
     expect(arguments, isNot(contains('-tls_verify')));
-    expect(
-      arguments.any((argument) => argument.startsWith('"') || argument.endsWith('"')),
-      isFalse,
-    );
+    expect(arguments.any((argument) => argument.startsWith('"') || argument.endsWith('"')), isFalse);
   });
 
   test('recording applies protocol-specific options and clamps native values', () {
@@ -101,10 +132,7 @@ void main() {
     );
 
     expect(_valueAfter(arguments, '-user_agent'), 'Recorder UA');
-    expect(
-      _valueAfter(arguments, '-headers'),
-      'referer: https://example.test/ Cookie: injected\r\n',
-    );
+    expect(_valueAfter(arguments, '-headers'), 'referer: https://example.test/ Cookie: injected\r\n');
     expect(arguments.where((argument) => argument == '-user_agent'), hasLength(1));
     expect(arguments.join('\n').toLowerCase(), isNot(contains('bad header')));
   });
@@ -119,20 +147,38 @@ void main() {
     expect(arguments, isNot(contains('-tls_verify')));
   });
 
+  test('FFmpeg 9 HTTPS inputs receive the reviewed CA file before input', () {
+    final arguments = FFmpegCommandBuilder.buildRecordArguments(
+      url: 'https://cdn.example/live.flv?token=a&expires=2',
+      outputDir: Directory.systemTemp.path,
+      segmentTime: 60,
+      preferBestStream: true,
+      rwTimeout: 15,
+      threadQueueSize: 1024,
+    );
+
+    final trusted = FFmpegTlsTrustStore.injectCaFile(arguments, caFile: '/app/certificates/mozilla.pem');
+    final inputIndex = trusted.indexOf('-i');
+
+    expect(trusted.sublist(inputIndex - 2, inputIndex), <String>['-ca_file', '/app/certificates/mozilla.pem']);
+    expect(trusted.where((argument) => argument == '-ca_file'), hasLength(1));
+    expect(trusted, isNot(contains('-tls_verify')));
+  });
+
+  test('CA injection leaves non-TLS inputs unchanged and is idempotent', () {
+    const http = <String>['-rw_timeout', '1000000', '-i', 'http://cdn.example/live.flv', '-c', 'copy'];
+    const httpsWithCa = <String>['-ca_file', '/app/certificates/first.pem', '-i', 'https://cdn.example/live.flv'];
+
+    expect(FFmpegTlsTrustStore.injectCaFile(http, caFile: '/app/certificates/mozilla.pem'), http);
+    expect(FFmpegTlsTrustStore.injectCaFile(httpsWithCa, caFile: '/app/certificates/second.pem'), httpsWithCa);
+  });
+
   test('display formatting does not alter the native argument vector', () {
-    final arguments = <String>[
-      '-i',
-      'https://cdn.example/live.flv?a=1&b=2',
-      'C:\\Pure Live\\out.ts',
-    ];
+    final arguments = <String>['-i', 'https://cdn.example/live.flv?a=1&b=2', 'C:\\Pure Live\\out.ts'];
     final formatted = FFmpegCommandBuilder.formatArguments(arguments);
 
     expect(formatted, contains('"https://cdn.example/live.flv?a=1&b=2"'));
-    expect(arguments, <String>[
-      '-i',
-      'https://cdn.example/live.flv?a=1&b=2',
-      'C:\\Pure Live\\out.ts',
-    ]);
+    expect(arguments, <String>['-i', 'https://cdn.example/live.flv?a=1&b=2', 'C:\\Pure Live\\out.ts']);
   });
 }
 

@@ -1,385 +1,360 @@
-import 'dart:developer';
-
+import 'package:pure_live/core/site/niconico/niconico_link.dart';
+import 'package:pure_live/core/site/weibo/weibo_link.dart';
+import 'package:pure_live/core/site/tting/tting_link.dart';
+import 'package:pure_live/core/site/xiaohongshu/xiaohongshu_link.dart';
+import 'package:pure_live/core/site/openrec/openrec_api.dart';
+import 'package:pure_live/core/site/openrec/openrec_link.dart';
 import 'package:dio/dio.dart' as dio;
-import 'package:flutter/services.dart';
+import 'package:pure_live/core/site/huajiao/huajiao_api.dart';
+import 'package:pure_live/core/site/huajiao/huajiao_link.dart';
+import 'package:pure_live/core/site/missevan/missevan_api.dart';
+import 'package:pure_live/core/site/inke/inke_api.dart';
+import 'package:pure_live/core/site/kilakila/kilakila_api.dart';
+import 'package:pure_live/core/site/kilakila/kilakila_link.dart';
+
 import 'package:pure_live/common/index.dart';
-import 'package:pure_live/modules/live_play/dialogs/live_dlna_dialog.dart';
+import 'package:pure_live/common/utils/live_short_link_session.dart';
+import 'package:pure_live/core/interface/live_site.dart';
+import 'package:pure_live/modules/live_play/dialogs/known_room_link_dialog.dart';
+import 'package:pure_live/modules/toolbox/toolbox_direct_link_flow.dart';
+import 'package:pure_live/modules/search/web_search_room_parser.dart';
 
 class LiveUrlTool {
-  static Future<List<String>> parseLiveUrl(String url) async {
-    if (url.isEmpty) return [];
-    final urlRegExp = RegExp(
-      r'((https?:www\.)|(https?:\/\/)|(www\.))[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}(\/[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)?',
-    );
-    List<String?> urlMatches = urlRegExp.allMatches(url).map((m) => m.group(0)).toList();
-    if (urlMatches.isEmpty) return [];
+  /// Extract complete HTTP URLs before inspecting host/path. This also avoids
+  /// treating an embedded www address in an FTP URL as a second HTTP link.
+  static Iterable<Uri> sharedHttpUris(String text) => sharedHttpUrls(text).map(Uri.parse);
 
-    String realUrl = urlMatches.first!;
+  // Preserve signed URL spelling before Uri normalizes percent escapes.
+  static Iterable<String> sharedHttpUrls(String text) sync* {
+    final urls = RegExp(r'(?:[a-z][a-z0-9+.-]*://|www\.)[^\s<>]+', caseSensitive: false);
+    for (final match in urls.allMatches(text)) {
+      var candidate = match.group(0)!;
+      if (candidate.toLowerCase().startsWith('www.')) candidate = 'https://$candidate';
+      // XHS and Weibo shares append Chinese prose without whitespace.
+      // Keep percent-encoded punctuation and other platforms' URL spelling.
+      if ({
+        'xhslink.com',
+        'www.xiaohongshu.com',
+        'xiaohongshu.com',
+        'weibo.com',
+        'www.weibo.com',
+      }.contains(Uri.tryParse(candidate)?.host)) {
+        candidate = candidate.split(RegExp(r'[，。！？、；：）》」』”’]')).first;
+        candidate = candidate.replaceFirst(RegExp(r'''[,!?;:)\]}"']+$'''), '');
+        // A terminal dot path component is URL structure, not prose punctuation.
+        if (!candidate.endsWith('/.') && !candidate.endsWith('/..')) {
+          candidate = candidate.replaceFirst(RegExp(r'\.+$'), '');
+        }
+      } else {
+        candidate = candidate.replaceFirst(RegExp(r'''[.,!?;:)\]}。！？、，；：）》」』”’"']+$'''), '');
+      }
+      final uri = Uri.tryParse(candidate);
+      if (uri == null ||
+          uri.userInfo.isNotEmpty ||
+          uri.host.isEmpty ||
+          (uri.scheme != 'http' && uri.scheme != 'https')) {
+        continue;
+      }
+      yield candidate;
+    }
+  }
 
-    // B站短链跳转
-    if (realUrl.contains('b23.tv')) {
-      var location = await _getRedirectLocation(realUrl);
-      return await parseLiveUrl(location);
-    }
+  static bool _hostIs(String host, String root) => host == root || host.endsWith('.$root');
 
-    // B站直播间
-    if (realUrl.contains('bilibili.com')) {
-      var reg = RegExp(r'bilibili\.com/([\d|\w]+)');
-      String id = reg.firstMatch(realUrl)?.group(1) ?? '';
-      return [id, Sites.bilibiliSite];
-    }
+  static bool containsSupportedLink(String text) {
+    const roots = {
+      'bilibili.com',
+      'b23.tv',
+      'douyu.com',
+      'huya.com',
+      'douyin.com',
+      'webcast.amemv.com',
+      'live.kuaishou.com',
+      'live.kuaishou.cn',
+      'cc.163.com',
+      'twitch.tv',
+      'sooplive.com',
+      'sooplive.co.kr',
+      'yy.com',
+      'live.acfun.cn',
+      'picarto.tv',
+      'twitcasting.tv',
+    };
+    return sharedHttpUrls(text).any((raw) {
+      if (WeiboLink.parse(raw) != null ||
+          NiconicoLink.parse(raw) != null ||
+          XiaohongshuLink.parse(raw) != null ||
+          XiaohongshuLink.shortUri(raw) != null ||
+          TtingLink.parse(raw) != null ||
+          OpenrecLink.parse(raw) != null ||
+          HuajiaoLink.parse(raw) != null ||
+          KilakilaLink.parse(raw) != null) {
+        return true;
+      }
+      final uri = Uri.parse(raw);
+      return InkeApi.roomFromUri(uri) != null ||
+          MissevanApi.roomFromUri(uri) != null ||
+          roots.any((root) => _hostIs(uri.host.toLowerCase(), root));
+    });
+  }
 
-    // 斗鱼
-    if (realUrl.contains('douyu.com')) {
-      realUrl = realUrl.trimEndChar('/');
-      var reg = RegExp(r'douyu\.com/([\d|\w]+)');
-      String id = reg.firstMatch(realUrl)?.group(1) ?? '';
-      return [id, Sites.douyuSite];
+  static Future<List<String>> parseLiveUrl(
+    String text, {
+    dio.Dio Function()? clientFactory,
+    dio.CancelToken? cancelToken,
+    KilakilaApi? kilakilaApi,
+    HuajiaoApi? huajiaoApi,
+    OpenrecApi? openrecApi,
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    if (cancelToken?.isCancelled ?? false) return [];
+    final session = LiveShortLinkSession(timeout: timeout, clientFactory: clientFactory);
+    final ownedCancel = dio.CancelToken();
+    try {
+      final parsing = _parseLiveUrl(
+        text,
+        session,
+        kilakilaApi ?? KilakilaApi(),
+        huajiaoApi ?? HuajiaoApi(),
+        openrecApi ?? OpenrecApi(),
+        ownedCancel,
+      );
+      final result = cancelToken == null
+          ? parsing
+          : Future.any<List<String>>([parsing, cancelToken.whenCancel.then((_) => <String>[])]);
+      return await result.timeout(
+        timeout,
+        onTimeout: () {
+          session.close();
+          return <String>[];
+        },
+      );
+    } finally {
+      ownedCancel.cancel();
+      session.close();
     }
+  }
 
-    // 虎牙
-    if (realUrl.contains('huya.com')) {
-      realUrl = realUrl.trimEndChar('/');
-      var reg = RegExp(r'huya\.com/([\d|\w]+)');
-      String id = reg.firstMatch(realUrl)?.group(1) ?? '';
-      return [id, Sites.huyaSite];
-    }
-
-    // 抖音直播
-    if (realUrl.contains('live.douyin.com')) {
-      realUrl = realUrl.trimEndChar('/');
-      var reg = RegExp(r'live\.douyin\.com/([\d|\w]+)');
-      String id = reg.firstMatch(realUrl)?.group(1) ?? '';
-      return [id, Sites.douyinSite];
-    }
-    if (realUrl.contains('www.douyin.com')) {
-      realUrl = realUrl.split('?')[0].trimEndChar('/');
-      Uri uri = Uri.parse(realUrl);
-      return [uri.pathSegments.last, Sites.douyinSite];
-    }
-    if (realUrl.contains('v.douyin.com')) {
-      String id = await _getRealDouyinRoomId(realUrl);
-      return [id, Sites.douyinSite];
-    }
-
-    if (url.contains('webcast.amemv.com')) {
-      var reg = RegExp(r'reflow/(\d+)');
-      String id = reg.firstMatch(url)?.group(1) ?? '';
-      return [id, Sites.douyinSite];
-    }
-
-    // 快手
-    if (realUrl.contains('live.kuaishou.com') || realUrl.contains('live.kuaishou.cn')) {
-      realUrl = realUrl.trimEndChar('/');
-      var reg = RegExp(r'live\.kuaishou\.(com|cn)/u/([a-zA-Z0-9]+)$');
-      String id = reg.firstMatch(realUrl)?.group(2) ?? '';
-      return [id, Sites.kuaishouSite];
-    }
-
-    // 网易CC
-    if (realUrl.contains('cc.163.com')) {
-      realUrl = realUrl.trimEndChar('/');
-      var reg = RegExp(r'cc\.163\.com/([a-zA-Z0-9]+)$');
-      String id = reg.firstMatch(realUrl)?.group(1) ?? '';
-      return [id, Sites.ccSite];
-    }
-    if (realUrl.contains('twitch.tv/')) {
-      final regExp = RegExp(r'twitch\.tv/([^/?]+)');
-      String id = regExp.firstMatch(url)?.group(1) ?? '';
-      return [id, Sites.twitchSite];
-    }
-    if (realUrl.contains('sooplive.com/') || realUrl.contains('sooplive.co.kr/')) {
-      final regExp = RegExp(r'(?:www\.|play\.)?sooplive\.(?:com|co\.kr)/([^/?]+)');
-
-      final id = regExp.firstMatch(realUrl)?.group(1) ?? '';
-
-      return [id, Sites.soopSite];
-    }
-    if (realUrl.contains('yy.com/')) {
-      final regExp = RegExp(r'(?:www\.)?yy\.com/([^/?]+)');
-      final roomId = regExp.firstMatch(realUrl)?.group(1) ?? '';
-      return [roomId, Sites.yySite];
+  static Future<List<String>> _parseLiveUrl(
+    String text,
+    LiveShortLinkSession session,
+    KilakilaApi kilakilaApi,
+    HuajiaoApi huajiaoApi,
+    OpenrecApi openrecApi,
+    dio.CancelToken cancel,
+  ) async {
+    for (final raw in sharedHttpUrls(text)) {
+      final uri = Uri.parse(raw);
+      if (session.isClosed) return [];
+      final host = uri.host.toLowerCase();
+      final realUrl = raw;
+      final xiaohongshu = await XiaohongshuLink.resolve(raw, session: session);
+      if (xiaohongshu != null) return [xiaohongshu, Sites.xiaohongshuSite];
+      final tting = TtingLink.parse(raw);
+      if (tting != null) return ['$tting', Sites.ttingSite];
+      final openrec = OpenrecLink.parse(raw);
+      if (openrec != null) {
+        late final OpenrecRoomKey key;
+        if (openrec.kind == OpenrecLinkKind.channel) {
+          final owner = await openrecApi.channel(openrec.id, cancel: cancel);
+          key = OpenrecRoomKey.create(owner.id, owner.numericId);
+        } else {
+          final movie = await openrecApi.movie(openrec.id, cancel: cancel);
+          key = OpenrecRoomKey.create(movie.channelId, movie.numericChannelId);
+        }
+        if (session.isClosed || cancel.isCancelled) return [];
+        return [key.value, Sites.openrecSite];
+      }
+      final huajiao = HuajiaoLink.parse(raw);
+      if (huajiao != null) {
+        if (huajiao.kind == HuajiaoLinkKind.owner) return [huajiao.id, Sites.huajiaoSite];
+        final ownerId = await huajiaoApi.broadcastOwnerId(huajiao.id, cancel: cancel);
+        if (session.isClosed || cancel.isCancelled) return [];
+        return [ownerId, Sites.huajiaoSite];
+      }
+      final kilakila = KilakilaLink.parse(raw);
+      if (kilakila != null) {
+        if (kilakila.kind == KilakilaLinkKind.owner) return [kilakila.id, Sites.kilakilaSite];
+        final owner = await kilakilaApi.ownerFromLink(raw, cancel: cancel);
+        if (session.isClosed || cancel.isCancelled) return [];
+        return [owner.userId, Sites.kilakilaSite];
+      }
+      late List<String> segments;
+      try {
+        segments = uri.pathSegments.where((part) => part.isNotEmpty).toList(growable: false);
+      } on FormatException {
+        continue;
+      }
+      if (segments.isEmpty) continue;
+      if (_hostIs(host, 'b23.tv')) {
+        final response = await session.get(uri);
+        final location = LiveShortLinkSession.redirectTarget(uri, response);
+        if (location == null) continue;
+        final target = await _parseLiveUrl(location.toString(), session, kilakilaApi, huajiaoApi, openrecApi, cancel);
+        if (target.isNotEmpty) return target;
+        continue;
+      }
+      if (host == 'v.douyin.com') {
+        final id = await _getRealDouyinRoomId(uri, session);
+        if (id.isNotEmpty) return [id, Sites.douyinSite];
+        continue;
+      }
+      final target = WebSearchRoomParser.parse(realUrl);
+      if (target != null) return [target.roomId, target.platform];
+      // Preserve manual-tool aliases not exposed by the web-search parser.
+      String? platform;
+      String? id;
+      var pattern = RegExp(r'^[a-zA-Z0-9_-]+$');
+      if (_hostIs(host, 'bilibili.com')) {
+        platform = Sites.bilibiliSite;
+        id = segments.first;
+        pattern = RegExp(r'^\d+$');
+      } else if (_hostIs(host, 'douyu.com')) {
+        platform = Sites.douyuSite;
+        id = segments.first;
+      } else if (host == 'www.douyin.com') {
+        platform = Sites.douyinSite;
+        id = segments.last;
+      } else if (host == 'webcast.amemv.com') {
+        platform = Sites.douyinSite;
+        id = RegExp(r'(?:^|/)reflow/(\d+)(?:/|$)').firstMatch(uri.path)?.group(1);
+      } else if (host == 'live.kuaishou.cn' && segments.length >= 2 && segments.first == 'u') {
+        platform = Sites.kuaishouSite;
+        id = segments[1];
+      } else if (host == 'cc.163.com') {
+        platform = Sites.ccSite;
+        id = segments.first;
+      } else if (_hostIs(host, 'sooplive.com')) {
+        platform = Sites.soopSite;
+        id = segments.first;
+      }
+      if (platform != null && id != null && WebSearchRoomParser.isRoomIdentifier(id, pattern)) {
+        return [id, platform];
+      }
     }
     return [];
   }
 
-  /// 获取直播播放直链
-  /// [liveUrl] 直播间链接
-  static Future<void> getLivePlayUrl(String liveUrl) async {
-    if (liveUrl.isEmpty) {
-      ToastUtil.show(i18n('toolbox_empty_link'));
-      return;
-    }
-
-    // 1. 解析链接
-    List<String> parseResult = await parseLiveUrl(liveUrl);
-    if (parseResult.length < 2 || parseResult[0].isEmpty) {
-      ToastUtil.show(i18n('toolbox_parse_failed'));
-      return;
-    }
-
-    String roomId = parseResult[0];
-    String platform = parseResult[1];
-
-    try {
-      // 2. 获取房间详情
-      SmartDialog.showLoading(msg: '');
-      final detail = await Sites.of(platform).liveSite
-          .getRoomDetail(roomId: roomId, platform: platform);
-
-      // 3. 获取清晰度列表
-      final qualities = await Sites.of(platform).liveSite.getPlayQualites(detail: detail);
-      SmartDialog.dismiss(status: SmartStatus.loading);
-
-      if (qualities.isEmpty) {
-        ToastUtil.show(i18n('toolbox_quality_failed'));
-        return;
+  static Future<String> _getRealDouyinRoomId(Uri uri, LiveShortLinkSession session) async {
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': '*/*',
+      'Origin': 'https://live.douyin.com',
+      'Referer': 'https://live.douyin.com/',
+    };
+    var current = uri;
+    while (!session.isClosed) {
+      final host = current.host.toLowerCase();
+      if (host == 'live.douyin.com') {
+        try {
+          return WebSearchRoomParser.parse(current.toString())?.roomId ?? '';
+        } on FormatException {
+          return '';
+        }
       }
-
-      // 4. 选择清晰度
-      final selectedQuality = await Get.dialog(
-        SimpleDialog(
-          title: Text(i18n('toolbox_select_quality')),
-          children: qualities
-              .map(
-                (e) => ListTile(
-                  title: Text(e.quality, textAlign: TextAlign.center),
-                  onTap: () => Navigator.pop(Get.context!, e),
-                ),
-              )
-              .toList(),
-        ),
-      );
-      if (selectedQuality == null) return;
-
-      // 5. 获取播放线路
-      SmartDialog.showLoading(msg: '');
-      final playUrls = await Sites.of(platform).liveSite
-          .getPlayUrls(detail: detail, quality: selectedQuality);
-      SmartDialog.dismiss(status: SmartStatus.loading);
-
-      // 6. 选择线路并复制
-      await Get.dialog(
-        SimpleDialog(
-          title: Text(i18n('toolbox_select_line')),
-          children: playUrls
-              .asMap()
-              .entries
-              .map(
-                (entry) => ListTile(
-                  title: Text(i18n('toolbox_line', args: {'index': '${entry.key + 1}'})),
-                  subtitle: Text(entry.value, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: entry.value));
-                    Navigator.pop(Get.context!);
-                    ToastUtil.show(i18n('toolbox_copy_success'));
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      );
-    } catch (e) {
-      log('获取直链失败: $e', name: 'LiveUrlTool');
-      ToastUtil.show(i18n('toolbox_get_url_failed'));
-    } finally {
-      SmartDialog.dismiss(status: SmartStatus.loading);
-    }
-  }
-
-  static Future<String> _getRedirectLocation(String url) async {
-    try {
-      await dio.Dio().get(url, options: dio.Options(followRedirects: false));
-    } on dio.DioException catch (e) {
-      if (e.response?.statusCode == 302) {
-        return e.response?.headers.value('Location') ?? '';
+      if (host != 'v.douyin.com' && host != 'www.douyin.com' && host != 'webcast.amemv.com') return '';
+      final roomId = RegExp(r'(?:^|/)reflow/(\d+)(?:/|$)').firstMatch(current.path)?.group(1);
+      if (roomId != null && host != 'v.douyin.com') {
+        final info = await session.get(
+          Uri.https('webcast.amemv.com', '/webcast/room/reflow/info/', {
+            'room_id': roomId,
+            'verifyFp': '',
+            'type_id': '0',
+            'live_id': '1',
+            'sec_user_id': '',
+            'app_id': '1128',
+          }),
+          json: true,
+          headers: headers,
+        );
+        final payload = info?.data;
+        if (info?.statusCode != 200 || payload is! Map) return '';
+        final data = payload['data'];
+        if (data is! Map) return '';
+        final room = data['room'];
+        if (room is! Map) return '';
+        final owner = room['owner'];
+        if (owner is! Map) return '';
+        final raw = owner['web_rid'];
+        if (raw is! String && raw is! int) return '';
+        final id = raw.toString();
+        return RegExp(r'^\d+$').hasMatch(id) ? id : '';
       }
-    } catch (e) {
-      log(e.toString(), name: '_getRedirectLocation');
+      final response = await session.get(current, headers: headers);
+      final target = LiveShortLinkSession.redirectTarget(current, response);
+      if (target == null) return '';
+      current = target;
     }
     return '';
   }
 
-  static Future<String> _getRealDouyinRoomId(String url) async {
-    try {
-      final headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': '*/*',
-        'Origin': 'https://live.douyin.com',
-        'Referer': 'https://live.douyin.com/',
-      };
-
-      final resp = await dio.Dio().get(
-        url,
-        options: dio.Options(followRedirects: true, headers: headers, maxRedirects: 100),
-      );
-
-      final reg = RegExp(r'reflow/(\d+)');
-      String? roomId = reg.firstMatch(resp.realUri.toString())?.group(1);
-      if (roomId == null) return '';
-
-      final infoResp = await dio.Dio().get(
-        'https://webcast.amemv.com/webcast/room/reflow/info/',
-        queryParameters: {
-          'room_id': roomId,
-          'verifyFp': '',
-          'type_id': 0,
-          'live_id': 1,
-          'sec_user_id': '',
-          'app_id': 1128,
-        },
-      );
-
-      return infoResp.data['data']['room']['owner']['web_rid']?.toString() ?? '';
-    } catch (e) {
-      log(e.toString(), name: '_getRealDouyinRoomId');
-      return '';
-    }
-  }
-
-  static Future<void> getPlayUrlByRoomId({required String roomId, required String platform}) async {
-    if (roomId.isEmpty || platform.isEmpty) {
-      ToastUtil.show(i18n('toolbox_empty_link'));
-      return;
-    }
-    try {
-      SmartDialog.showLoading(msg: '');
-
-      final detail = await Sites.of(platform).liveSite
-          .getRoomDetail(roomId: roomId, platform: platform);
-
-      final qualities = await Sites.of(platform).liveSite.getPlayQualites(detail: detail);
-      SmartDialog.dismiss(status: SmartStatus.loading);
-
-      if (qualities.isEmpty) {
-        ToastUtil.show(i18n('toolbox_quality_failed'));
-        return;
-      }
-
-      final selectedQuality = await Get.dialog(
-        SimpleDialog(
-          title: Text(i18n('toolbox_select_quality')),
-          children: qualities
-              .map(
-                (e) => ListTile(
-                  title: Text(e.quality, textAlign: TextAlign.center),
-                  onTap: () => Navigator.pop(Get.context!, e),
-                ),
-              )
-              .toList(),
-        ),
-      );
-      if (selectedQuality == null) return;
-
-      SmartDialog.showLoading(msg: '');
-      final playUrls = await Sites.of(platform).liveSite
-          .getPlayUrls(detail: detail, quality: selectedQuality);
-      SmartDialog.dismiss(status: SmartStatus.loading);
-
-      await Get.dialog(
-        SimpleDialog(
-          title: Text(i18n('toolbox_select_line')),
-          children: playUrls
-              .asMap()
-              .entries
-              .map(
-                (entry) => ListTile(
-                  title: Text(i18n('toolbox_line', args: {'index': '${entry.key + 1}'})),
-                  subtitle: Text(entry.value, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: entry.value));
-                    Navigator.pop(Get.context!);
-                    ToastUtil.show(i18n('toolbox_copy_success'));
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      );
-    } catch (e) {
-      log('已知房间号获取直链失败: $e', name: 'LiveUrlTool');
-      ToastUtil.show(i18n('toolbox_get_url_failed'));
-    } finally {
-      SmartDialog.dismiss(status: SmartStatus.loading);
-    }
-  }
-
-  static Future<void> castPlayUrlByRoomId({
+  static Future<void> getPlayUrlByRoomId({
+    required BuildContext context,
     required String roomId,
     required String platform,
-  }) async {
+    LiveSite Function(String)? siteFor,
+    bool Function()? isCurrentRoom,
+    void Function(String)? notify,
+  }) => _showKnownRoomAction(
+    context: context,
+    roomId: roomId,
+    platform: platform,
+    cast: false,
+    siteFor: siteFor,
+    isCurrentRoom: isCurrentRoom,
+    notify: notify,
+  );
+
+  static Future<void> castPlayUrlByRoomId({
+    required BuildContext context,
+    required String roomId,
+    required String platform,
+    LiveSite Function(String)? siteFor,
+    bool Function()? isCurrentRoom,
+    void Function(String)? notify,
+    Future<void> Function(String)? openCast,
+  }) => _showKnownRoomAction(
+    context: context,
+    roomId: roomId,
+    platform: platform,
+    cast: true,
+    siteFor: siteFor,
+    isCurrentRoom: isCurrentRoom,
+    notify: notify,
+    openCast: openCast,
+  );
+
+  static Future<void> _showKnownRoomAction({
+    required BuildContext context,
+    required String roomId,
+    required String platform,
+    required bool cast,
+    LiveSite Function(String)? siteFor,
+    bool Function()? isCurrentRoom,
+    void Function(String)? notify,
+    Future<void> Function(String)? openCast,
+  }) {
+    if (!context.mounted) return Future.value();
+    final showNotice = notify ?? ((String key) => ToastUtil.show(i18n(key)));
+    roomId = roomId.trim();
+    platform = platform.trim().toLowerCase();
     if (roomId.isEmpty || platform.isEmpty) {
-      ToastUtil.show(i18n('toolbox_empty_link'));
-      return;
+      showNotice('toolbox_empty_link');
+      return Future.value();
     }
-
-    try {
-      SmartDialog.showLoading(msg: '');
-      final detail = await Sites.of(platform).liveSite
-          .getRoomDetail(roomId: roomId, platform: platform);
-
-      final qualities = await Sites.of(platform).liveSite.getPlayQualites(detail: detail);
-      SmartDialog.dismiss(status: SmartStatus.loading);
-
-      if (qualities.isEmpty) {
-        ToastUtil.show(i18n('toolbox_quality_failed'));
-        return;
-      }
-
-      final selectedQuality = await Get.dialog(
-        SimpleDialog(
-          title: Text(i18n('toolbox_select_quality')),
-          children: qualities
-              .map(
-                (e) => ListTile(
-                  title: Text(e.quality, textAlign: TextAlign.center),
-                  onTap: () {
-                    Navigator.pop(Get.context!, e);
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      );
-      if (selectedQuality == null) return;
-
-      SmartDialog.showLoading(msg: '');
-      final playUrls = await Sites.of(platform).liveSite
-          .getPlayUrls(detail: detail, quality: selectedQuality);
-      SmartDialog.dismiss(status: SmartStatus.loading);
-
-      if (playUrls.isEmpty) {
-        ToastUtil.show(i18n('toolbox_get_url_failed'));
-        return;
-      }
-
-      final selectedUrl = await Get.dialog(
-        SimpleDialog(
-          title: Text(i18n('toolbox_select_line')),
-          children: playUrls
-              .asMap()
-              .entries
-              .map(
-                (entry) => ListTile(
-                  title: Text(i18n('toolbox_line', args: {'index': '${entry.key + 1}'})),
-                  subtitle: Text(entry.value, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  onTap: () {
-                    Navigator.pop(Get.context!, entry.value);
-                  },
-                ),
-              )
-              .toList(),
-        ),
-      );
-
-      // 选中url后直接投屏
-      if (selectedUrl != null && selectedUrl.isNotEmpty) {
-        Get.dialog(LiveDlnaPage(datasource: selectedUrl));
-      }
-    } catch (e) {
-      SmartDialog.dismiss(status: SmartStatus.loading);
-      ToastUtil.show(i18n('toolbox_get_url_failed'));
+    if (!Sites.isSupported(platform)) {
+      showNotice('toolbox_parse_failed');
+      return Future.value();
     }
+    return KnownRoomLinkDialog.show(
+      context: context,
+      room: LiveRoom(roomId: roomId, platform: platform),
+      cast: cast,
+      flow: ToolBoxDirectLinkFlow(siteFor: siteFor),
+      isCurrentRoom: isCurrentRoom ?? (() => true),
+      notify: showNotice,
+      openCast: openCast,
+    );
   }
 }
 

@@ -12,7 +12,8 @@ import 'in_app_webview_controller.dart';
 /// value to avoid breaking changes. See [PlatformHeadlessInAppWebViewCreationParams] for
 /// more information.
 @immutable
-class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWebViewCreationParams {
+class AndroidHeadlessInAppWebViewCreationParams
+    extends PlatformHeadlessInAppWebViewCreationParams {
   /// Creates a new [AndroidHeadlessInAppWebViewCreationParams] instance.
   AndroidHeadlessInAppWebViewCreationParams(
       {super.controllerFromPlatform,
@@ -31,9 +32,11 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
       super.onLoadResource,
       super.onScrollChanged,
       @Deprecated('Use onDownloadStarting instead') super.onDownloadStart,
-      @Deprecated('Use onDownloadStarting instead') super.onDownloadStartRequest,
+      @Deprecated('Use onDownloadStarting instead')
+      super.onDownloadStartRequest,
       super.onDownloadStarting,
-      @Deprecated('Use onLoadResourceWithCustomScheme instead') super.onLoadResourceCustomScheme,
+      @Deprecated('Use onLoadResourceWithCustomScheme instead')
+      super.onLoadResourceCustomScheme,
       super.onLoadResourceWithCustomScheme,
       super.onCreateWindow,
       super.onCloseWindow,
@@ -61,9 +64,11 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
       super.onWindowBlur,
       super.onOverScrolled,
       super.onZoomScaleChanged,
-      @Deprecated('Use onSafeBrowsingHit instead') super.androidOnSafeBrowsingHit,
+      @Deprecated('Use onSafeBrowsingHit instead')
+      super.androidOnSafeBrowsingHit,
       super.onSafeBrowsingHit,
-      @Deprecated('Use onPermissionRequest instead') super.androidOnPermissionRequest,
+      @Deprecated('Use onPermissionRequest instead')
+      super.androidOnPermissionRequest,
       super.onPermissionRequest,
       @Deprecated('Use onGeolocationPermissionsShowPrompt instead')
       super.androidOnGeolocationPermissionsShowPrompt,
@@ -71,37 +76,46 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
       @Deprecated('Use onGeolocationPermissionsHidePrompt instead')
       super.androidOnGeolocationPermissionsHidePrompt,
       super.onGeolocationPermissionsHidePrompt,
-      @Deprecated('Use shouldInterceptRequest instead') super.androidShouldInterceptRequest,
+      @Deprecated('Use shouldInterceptRequest instead')
+      super.androidShouldInterceptRequest,
       super.shouldInterceptRequest,
-      @Deprecated('Use onRenderProcessGone instead') super.androidOnRenderProcessGone,
+      @Deprecated('Use onRenderProcessGone instead')
+      super.androidOnRenderProcessGone,
       super.onRenderProcessGone,
-      @Deprecated('Use onRenderProcessResponsive instead') super.androidOnRenderProcessResponsive,
+      @Deprecated('Use onRenderProcessResponsive instead')
+      super.androidOnRenderProcessResponsive,
       super.onRenderProcessResponsive,
       @Deprecated('Use onRenderProcessUnresponsive instead')
       super.androidOnRenderProcessUnresponsive,
       super.onRenderProcessUnresponsive,
-      @Deprecated('Use onFormResubmission instead') super.androidOnFormResubmission,
+      @Deprecated('Use onFormResubmission instead')
+      super.androidOnFormResubmission,
       super.onFormResubmission,
       @Deprecated('Use onZoomScaleChanged instead') super.androidOnScaleChanged,
       @Deprecated('Use onReceivedIcon instead') super.androidOnReceivedIcon,
       super.onReceivedIcon,
-      @Deprecated('Use onReceivedTouchIconUrl instead') super.androidOnReceivedTouchIconUrl,
+      @Deprecated('Use onReceivedTouchIconUrl instead')
+      super.androidOnReceivedTouchIconUrl,
       super.onReceivedTouchIconUrl,
       @Deprecated('Use onJsBeforeUnload instead') super.androidOnJsBeforeUnload,
       super.onJsBeforeUnload,
-      @Deprecated('Use onReceivedLoginRequest instead') super.androidOnReceivedLoginRequest,
+      @Deprecated('Use onReceivedLoginRequest instead')
+      super.androidOnReceivedLoginRequest,
       super.onReceivedLoginRequest,
       super.onPermissionRequestCanceled,
       super.onRequestFocus,
       @Deprecated('Use onWebContentProcessDidTerminate instead')
       super.iosOnWebContentProcessDidTerminate,
       super.onWebContentProcessDidTerminate,
-      @Deprecated('Use onDidReceiveServerRedirectForProvisionalNavigation instead')
+      @Deprecated(
+          'Use onDidReceiveServerRedirectForProvisionalNavigation instead')
       super.iosOnDidReceiveServerRedirectForProvisionalNavigation,
       super.onDidReceiveServerRedirectForProvisionalNavigation,
-      @Deprecated('Use onNavigationResponse instead') super.iosOnNavigationResponse,
+      @Deprecated('Use onNavigationResponse instead')
+      super.iosOnNavigationResponse,
       super.onNavigationResponse,
-      @Deprecated('Use shouldAllowDeprecatedTLS instead') super.iosShouldAllowDeprecatedTLS,
+      @Deprecated('Use shouldAllowDeprecatedTLS instead')
+      super.iosShouldAllowDeprecatedTLS,
       super.shouldAllowDeprecatedTLS,
       super.onCameraCaptureStateChanged,
       super.onMicrophoneCaptureStateChanged,
@@ -139,14 +153,16 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
             onDownloadStartRequest: params.onDownloadStartRequest,
             onDownloadStarting: params.onDownloadStarting,
             onLoadResourceCustomScheme: params.onLoadResourceCustomScheme,
-            onLoadResourceWithCustomScheme: params.onLoadResourceWithCustomScheme,
+            onLoadResourceWithCustomScheme:
+                params.onLoadResourceWithCustomScheme,
             onCreateWindow: params.onCreateWindow,
             onCloseWindow: params.onCloseWindow,
             onJsAlert: params.onJsAlert,
             onJsConfirm: params.onJsConfirm,
             onJsPrompt: params.onJsPrompt,
             onReceivedHttpAuthRequest: params.onReceivedHttpAuthRequest,
-            onReceivedServerTrustAuthRequest: params.onReceivedServerTrustAuthRequest,
+            onReceivedServerTrustAuthRequest:
+                params.onReceivedServerTrustAuthRequest,
             onReceivedClientCertRequest: params.onReceivedClientCertRequest,
             onFindResultReceived: params.onFindResultReceived,
             shouldInterceptAjaxRequest: params.shouldInterceptAjaxRequest,
@@ -171,17 +187,21 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
             onPermissionRequest: params.onPermissionRequest,
             androidOnGeolocationPermissionsShowPrompt:
                 params.androidOnGeolocationPermissionsShowPrompt,
-            onGeolocationPermissionsShowPrompt: params.onGeolocationPermissionsShowPrompt,
+            onGeolocationPermissionsShowPrompt:
+                params.onGeolocationPermissionsShowPrompt,
             androidOnGeolocationPermissionsHidePrompt:
                 params.androidOnGeolocationPermissionsHidePrompt,
-            onGeolocationPermissionsHidePrompt: params.onGeolocationPermissionsHidePrompt,
+            onGeolocationPermissionsHidePrompt:
+                params.onGeolocationPermissionsHidePrompt,
             androidShouldInterceptRequest: params.androidShouldInterceptRequest,
             shouldInterceptRequest: params.shouldInterceptRequest,
             androidOnRenderProcessGone: params.androidOnRenderProcessGone,
             onRenderProcessGone: params.onRenderProcessGone,
-            androidOnRenderProcessResponsive: params.androidOnRenderProcessResponsive,
+            androidOnRenderProcessResponsive:
+                params.androidOnRenderProcessResponsive,
             onRenderProcessResponsive: params.onRenderProcessResponsive,
-            androidOnRenderProcessUnresponsive: params.androidOnRenderProcessUnresponsive,
+            androidOnRenderProcessUnresponsive:
+                params.androidOnRenderProcessUnresponsive,
             onRenderProcessUnresponsive: params.onRenderProcessUnresponsive,
             androidOnFormResubmission: params.androidOnFormResubmission,
             onFormResubmission: params.onFormResubmission,
@@ -196,8 +216,10 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
             onReceivedLoginRequest: params.onReceivedLoginRequest,
             onPermissionRequestCanceled: params.onPermissionRequestCanceled,
             onRequestFocus: params.onRequestFocus,
-            iosOnWebContentProcessDidTerminate: params.iosOnWebContentProcessDidTerminate,
-            onWebContentProcessDidTerminate: params.onWebContentProcessDidTerminate,
+            iosOnWebContentProcessDidTerminate:
+                params.iosOnWebContentProcessDidTerminate,
+            onWebContentProcessDidTerminate:
+                params.onWebContentProcessDidTerminate,
             iosOnDidReceiveServerRedirectForProvisionalNavigation:
                 params.iosOnDidReceiveServerRedirectForProvisionalNavigation,
             onDidReceiveServerRedirectForProvisionalNavigation:
@@ -207,7 +229,8 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
             iosShouldAllowDeprecatedTLS: params.iosShouldAllowDeprecatedTLS,
             shouldAllowDeprecatedTLS: params.shouldAllowDeprecatedTLS,
             onCameraCaptureStateChanged: params.onCameraCaptureStateChanged,
-            onMicrophoneCaptureStateChanged: params.onMicrophoneCaptureStateChanged,
+            onMicrophoneCaptureStateChanged:
+                params.onMicrophoneCaptureStateChanged,
             onContentSizeChanged: params.onContentSizeChanged,
             initialUrlRequest: params.initialUrlRequest,
             initialFile: params.initialFile,
@@ -216,10 +239,10 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
             initialSettings: params.initialSettings,
             contextMenu: params.contextMenu,
             initialUserScripts: params.initialUserScripts,
-            pullToRefreshController:
-                params.pullToRefreshController as AndroidPullToRefreshController?,
-            findInteractionController:
-                params.findInteractionController as AndroidFindInteractionController?);
+            pullToRefreshController: params.pullToRefreshController
+                as AndroidPullToRefreshController?,
+            findInteractionController: params.findInteractionController
+                as AndroidFindInteractionController?);
 
   @override
   final AndroidFindInteractionController? findInteractionController;
@@ -229,7 +252,8 @@ class AndroidHeadlessInAppWebViewCreationParams extends PlatformHeadlessInAppWeb
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformHeadlessInAppWebView}
-class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView with ChannelController {
+class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView
+    with ChannelController {
   @override
   late final String id;
 
@@ -262,13 +286,16 @@ class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView with Chan
 
   _init() {
     _webViewController = AndroidInAppWebViewController(
-      AndroidInAppWebViewControllerCreationParams(id: id, webviewParams: params),
+      AndroidInAppWebViewControllerCreationParams(
+          id: id, webviewParams: params),
     );
     _controllerFromPlatform =
-        params.controllerFromPlatform?.call(_webViewController!) ?? _webViewController!;
+        params.controllerFromPlatform?.call(_webViewController!) ??
+            _webViewController!;
     _androidParams.pullToRefreshController?.init(id);
     _androidParams.findInteractionController?.init(id);
-    channel = MethodChannel('com.pichillilorenzo/flutter_headless_inappwebview_$id');
+    channel =
+        MethodChannel('com.pichillilorenzo/flutter_headless_inappwebview_$id');
     handler = _handleMethod;
     initMethodCallHandler();
   }
@@ -317,7 +344,9 @@ class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView with Chan
               'initialSettings': settingsMap,
               'contextMenu': params.contextMenu?.toMap() ?? {},
               'windowId': params.windowId,
-              'initialUserScripts': params.initialUserScripts?.map((e) => e.toMap()).toList() ?? [],
+              'initialUserScripts':
+                  params.initialUserScripts?.map((e) => e.toMap()).toList() ??
+                      [],
               'pullToRefreshSettings': pullToRefreshSettings,
               'initialSize': params.initialSize.toMap()
             });
@@ -326,13 +355,15 @@ class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView with Chan
   }
 
   void _inferInitialSettings(InAppWebViewSettings settings) {
-    if (params.shouldOverrideUrlLoading != null && settings.useShouldOverrideUrlLoading == null) {
+    if (params.shouldOverrideUrlLoading != null &&
+        settings.useShouldOverrideUrlLoading == null) {
       settings.useShouldOverrideUrlLoading = true;
     }
     if (params.onLoadResource != null && settings.useOnLoadResource == null) {
       settings.useOnLoadResource = true;
     }
-    if ((params.onDownloadStartRequest != null || params.onDownloadStarting != null) &&
+    if ((params.onDownloadStartRequest != null ||
+            params.onDownloadStarting != null) &&
         settings.useOnDownloadStart == null) {
       settings.useOnDownloadStart = true;
     }
@@ -342,7 +373,8 @@ class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView with Chan
       if (settings.useShouldInterceptAjaxRequest == null) {
         settings.useShouldInterceptAjaxRequest = true;
       }
-      if (params.onAjaxReadyStateChange != null && settings.useOnAjaxReadyStateChange == null) {
+      if (params.onAjaxReadyStateChange != null &&
+          settings.useOnAjaxReadyStateChange == null) {
         settings.useOnAjaxReadyStateChange = true;
       }
       if (params.onAjaxProgress != null && settings.useOnAjaxProgress == null) {
@@ -353,16 +385,20 @@ class AndroidHeadlessInAppWebView extends PlatformHeadlessInAppWebView with Chan
         settings.useShouldInterceptFetchRequest == null) {
       settings.useShouldInterceptFetchRequest = true;
     }
-    if (params.shouldInterceptRequest != null && settings.useShouldInterceptRequest == null) {
+    if (params.shouldInterceptRequest != null &&
+        settings.useShouldInterceptRequest == null) {
       settings.useShouldInterceptRequest = true;
     }
-    if (params.onRenderProcessGone != null && settings.useOnRenderProcessGone == null) {
+    if (params.onRenderProcessGone != null &&
+        settings.useOnRenderProcessGone == null) {
       settings.useOnRenderProcessGone = true;
     }
-    if (params.onNavigationResponse != null && settings.useOnNavigationResponse == null) {
+    if (params.onNavigationResponse != null &&
+        settings.useOnNavigationResponse == null) {
       settings.useOnNavigationResponse = true;
     }
-    if (params.onShowFileChooser != null && settings.useOnShowFileChooser == null) {
+    if (params.onShowFileChooser != null &&
+        settings.useOnShowFileChooser == null) {
       settings.useOnShowFileChooser = true;
     }
   }

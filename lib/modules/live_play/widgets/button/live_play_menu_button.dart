@@ -49,7 +49,7 @@ class LivePlayMenuButton extends StatelessWidget {
         break;
 
       case 2:
-        _castScreen();
+        _castScreen(context);
         break;
 
       case 3:
@@ -61,7 +61,7 @@ class LivePlayMenuButton extends StatelessWidget {
         break;
 
       case 5:
-        _getDirectLink();
+        _getDirectLink(context);
         break;
 
       case 6:
@@ -88,10 +88,18 @@ class LivePlayMenuButton extends StatelessWidget {
     Get.dialog(PlayOther(controller: controller));
   }
 
-  void _castScreen() {
+  void _castScreen(BuildContext context) {
     final detail = controller.state.value.room.detail;
 
-    LiveUrlTool.castPlayUrlByRoomId(roomId: detail?.roomId ?? '', platform: detail?.platform ?? '');
+    LiveUrlTool.castPlayUrlByRoomId(
+      context: context,
+      roomId: detail?.roomId ?? '',
+      platform: detail?.platform ?? '',
+      isCurrentRoom: () =>
+          !controller.isClosed &&
+          detail != null &&
+          (controller.state.value.room.detail?.hasSameIdentity(detail) ?? false),
+    );
   }
 
   void _showTimer(BuildContext context) {
@@ -102,14 +110,20 @@ class LivePlayMenuButton extends StatelessWidget {
     RoomVolumeDialog.show(context: context, controller: controller);
   }
 
-  void _getDirectLink() {
+  void _getDirectLink(BuildContext context) {
     final detail = controller.state.value.room.detail;
 
     if (detail == null) {
       return;
     }
 
-    LiveUrlTool.getPlayUrlByRoomId(roomId: detail.roomId ?? '', platform: detail.platform ?? '');
+    LiveUrlTool.getPlayUrlByRoomId(
+      context: context,
+      roomId: detail.roomId ?? '',
+      platform: detail.platform ?? '',
+      isCurrentRoom: () =>
+          !controller.isClosed && (controller.state.value.room.detail?.hasSameIdentity(detail) ?? false),
+    );
   }
 
   void _shareRoom() {
@@ -152,17 +166,16 @@ class LivePlayMenuButton extends StatelessWidget {
       return;
     }
 
-    WindowsMultiInstanceLauncher.launch(room: detail)
-        .catchError((Object error, StackTrace stackTrace) {
-          developer.log(
-            'Open live room in a new Windows instance failed',
-            name: 'LivePlayPage',
-            error: error,
-            stackTrace: stackTrace,
-          );
+    WindowsMultiInstanceLauncher.launch(room: detail).catchError((Object error, StackTrace stackTrace) {
+      developer.log(
+        'Open live room in a new Windows instance failed',
+        name: 'LivePlayPage',
+        error: error,
+        stackTrace: stackTrace,
+      );
 
-          ToastUtil.show(i18n('open_new_window_failed'));
-        });
+      ToastUtil.show(i18n('open_new_window_failed'));
+    });
   }
 
   List<PopupMenuEntry<int>> _buildItems(BuildContext context) {
@@ -184,8 +197,7 @@ class LivePlayMenuButton extends StatelessWidget {
       if (controller.localInteractionController.enabled.v)
         _item(value: 7, icon: Icons.auto_awesome_rounded, text: i18n('local_interaction_title')),
 
-      if (Platform.isWindows)
-        _item(value: 8, icon: Icons.open_in_new_rounded, text: i18n('open_room_in_new_window')),
+      if (Platform.isWindows) _item(value: 8, icon: Icons.open_in_new_rounded, text: i18n('open_room_in_new_window')),
     ];
   }
 

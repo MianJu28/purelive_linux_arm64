@@ -5,11 +5,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/common/models/live_room.dart';
 import 'package:pure_live/common/models/live_message.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
+import 'package:pure_live/core/danmaku/empty_danmaku.dart';
 import 'package:pure_live/modules/live_play/states/live_play_state.dart';
 import 'package:pure_live/modules/live_play/controllers/danmaku_controller.dart';
 import 'package:pure_live/modules/live_play/controllers/danmaku_session_host.dart';
 
 void main() {
+  test('unsupported remote chat reports its capability once without fake connection or repeated PiP starts', () async {
+    final host = _TestDanmakuHost();
+    final engine = _CountingEmptyDanmaku();
+    final controller = DanmakuController(host, recoveryAllowed: (_) => true);
+    final room = LiveRoom(roomId: '42', platform: 'acfun');
+    controller.initDanmaku(engine);
+    await controller.connectRoom(room);
+    await controller.connectRoom(room);
+    await controller.recoverRoomConnection(room);
+    expect(engine.startCalls, 0);
+    expect(engine.isConnected, isFalse);
+    expect(engine.onReady, isNull);
+    expect(host.currentRoomId, isNull);
+    expect(host.systemMessages, ['remote_danmaku_not_integrated']);
+    expect(controller.needReconnect(room), isFalse);
+  });
+
+  test('switching from unsupported chat to a supported room installs a real connection', () async {
+    final host = _TestDanmakuHost();
+    final controller = DanmakuController(host);
+    controller.initDanmaku(EmptyDanmaku());
+    await controller.connectRoom(LiveRoom(roomId: '42', platform: 'acfun'));
+    final engine = _CountingDanmaku();
+    await controller.replaceDanmaku(engine);
+    final room = LiveRoom(roomId: 'next', platform: 'test');
+    expect(controller.needReconnect(room), isTrue);
+    await controller.connectRoom(room);
+    expect(engine.startCalls, 1);
+    expect(host.currentRoomId, 'next');
+    expect(engine.isConnected, isTrue);
+  });
+
   test('a stalled transport start is bounded, stopped and available for reconnect', () async {
     final host = _TestDanmakuHost();
     final engine = _StalledStartDanmaku();
@@ -18,11 +51,7 @@ void main() {
       startTimeout: const Duration(milliseconds: 20),
       stopTimeout: const Duration(milliseconds: 20),
     );
-    final room = LiveRoom(
-      roomId: 'room-a',
-      platform: 'test',
-      danmakuData: const <String, dynamic>{},
-    );
+    final room = LiveRoom(roomId: 'room-a', platform: 'test', danmakuData: const <String, dynamic>{});
     controller.initDanmaku(engine);
 
     await controller.connectRoom(room).timeout(const Duration(milliseconds: 200));
@@ -41,11 +70,7 @@ void main() {
       startTimeout: const Duration(milliseconds: 20),
       stopTimeout: const Duration(milliseconds: 20),
     );
-    final room = LiveRoom(
-      roomId: 'room-b',
-      platform: 'test',
-      danmakuData: const <String, dynamic>{},
-    );
+    final room = LiveRoom(roomId: 'room-b', platform: 'test', danmakuData: const <String, dynamic>{});
     controller.initDanmaku(engine);
     await controller.connectRoom(room);
     expect(host.currentRoomId, 'room-b');
@@ -61,11 +86,7 @@ void main() {
     final host = _TestDanmakuHost();
     final engine = _CountingDanmaku();
     final controller = DanmakuController(host, recoveryAllowed: (_) => true);
-    final room = LiveRoom(
-      roomId: 'room-pip',
-      platform: 'test',
-      danmakuData: const <String, dynamic>{},
-    );
+    final room = LiveRoom(roomId: 'room-pip', platform: 'test', danmakuData: const <String, dynamic>{});
     controller.initDanmaku(engine);
 
     await controller.connectRoom(room);
@@ -82,11 +103,7 @@ void main() {
     final host = _TestDanmakuHost();
     final engine = _CountingDanmaku();
     final controller = DanmakuController(host, recoveryAllowed: (_) => true);
-    final room = LiveRoom(
-      roomId: 'room-pip-dead',
-      platform: 'test',
-      danmakuData: const <String, dynamic>{},
-    );
+    final room = LiveRoom(roomId: 'room-pip-dead', platform: 'test', danmakuData: const <String, dynamic>{});
     controller.initDanmaku(engine);
 
     await controller.connectRoom(room);
@@ -98,11 +115,7 @@ void main() {
     expect(engine.startCalls, 2);
     expect(engine.stopCalls, 2, reason: 'initial cleanup plus replacement of the dead socket');
     expect(host.currentRoomId, 'room-pip-dead');
-    expect(
-      host.rendererClearCount,
-      0,
-      reason: 'same-room recovery keeps the visible history intact',
-    );
+    expect(host.rendererClearCount, 0, reason: 'same-room recovery keeps the visible history intact');
     expect(controller.needReconnect(room), isFalse);
   });
 
@@ -110,11 +123,7 @@ void main() {
     final host = _TestDanmakuHost();
     final engine = _ConnectingDanmaku();
     final controller = DanmakuController(host, recoveryAllowed: (_) => true);
-    final room = LiveRoom(
-      roomId: 'room-pip-connecting',
-      platform: 'test',
-      danmakuData: const <String, dynamic>{},
-    );
+    final room = LiveRoom(roomId: 'room-pip-connecting', platform: 'test', danmakuData: const <String, dynamic>{});
     controller.initDanmaku(engine);
 
     final connection = controller.connectRoom(room);
@@ -128,6 +137,55 @@ void main() {
     expect(host.currentRoomId, 'room-pip-connecting');
     expect(controller.needReconnect(room), isFalse);
   });
+
+  test('typed reconnect notice preserves session ownership across localized text', () async {
+    final host = _TestDanmakuHost();
+    final engine = _ReconnectCycleDanmaku();
+    final controller = DanmakuController(host, recoveryAllowed: (_) => true);
+    final room = LiveRoom(roomId: 'room-retry', platform: 'test', danmakuData: const <String, dynamic>{});
+    controller.initDanmaku(engine);
+
+    await controller.connectRoom(room);
+    engine.simulateReconnect('endpoint retry scheduled');
+
+    expect(host.currentRoomId, 'room-retry');
+    expect(host.systemMessages.last, 'endpoint retry scheduled');
+    expect(controller.needReconnect(room), isTrue, reason: 'the transport is temporarily disconnected');
+
+    engine.simulateReady();
+
+    expect(host.currentRoomId, 'room-retry');
+    expect(controller.needReconnect(room), isFalse);
+  });
+
+  test('typed terminal close releases ownership even when its text mentions reconnecting', () async {
+    final host = _TestDanmakuHost();
+    final engine = _ReconnectCycleDanmaku();
+    final controller = DanmakuController(host, recoveryAllowed: (_) => true);
+    final room = LiveRoom(roomId: 'room-terminal', platform: 'test', danmakuData: const <String, dynamic>{});
+    controller.initDanmaku(engine);
+
+    await controller.connectRoom(room);
+    engine.simulateClose('终止失败：日志仍含“正在尝试重连”');
+
+    expect(host.currentRoomId, isNull);
+    expect(controller.needReconnect(room), isTrue);
+
+    engine.simulateReady();
+    expect(host.currentRoomId, isNull, reason: 'a late callback cannot reclaim a released session');
+
+    await controller.connectRoom(room);
+    expect(host.currentRoomId, 'room-terminal');
+    expect(controller.needReconnect(room), isFalse);
+  });
+}
+
+class _CountingEmptyDanmaku extends EmptyDanmaku {
+  int startCalls = 0;
+  @override
+  Future<void> start(dynamic args) async {
+    startCalls++;
+  }
 }
 
 class _TestDanmakuHost implements DanmakuSessionHost {
@@ -230,5 +288,31 @@ class _ConnectingDanmaku extends LiveDanmaku {
   Future<void> stop() async {
     stopCalls++;
     markDisconnected();
+  }
+}
+
+class _ReconnectCycleDanmaku extends LiveDanmaku {
+  @override
+  Future<void> start(dynamic args) async {
+    markConnected();
+    onReady?.call();
+  }
+
+  @override
+  Future<void> stop() async => markDisconnected();
+
+  void simulateReconnect(String message) {
+    markDisconnected();
+    onReconnect?.call(message);
+  }
+
+  void simulateClose(String message) {
+    markDisconnected();
+    onClose?.call(message);
+  }
+
+  void simulateReady() {
+    markConnected();
+    onReady?.call();
   }
 }

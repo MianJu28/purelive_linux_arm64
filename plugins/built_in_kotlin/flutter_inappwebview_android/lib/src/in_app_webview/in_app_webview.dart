@@ -15,7 +15,8 @@ import 'in_app_webview_controller.dart';
 ///
 /// Platform specific implementations can add additional fields by extending
 /// this class.
-class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidgetCreationParams {
+class AndroidInAppWebViewWidgetCreationParams
+    extends PlatformInAppWebViewWidgetCreationParams {
   AndroidInAppWebViewWidgetCreationParams(
       {super.controllerFromPlatform,
       super.key,
@@ -38,9 +39,11 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
       super.onLoadResource,
       super.onScrollChanged,
       @Deprecated('Use onDownloadStarting instead') super.onDownloadStart,
-      @Deprecated('Use onDownloadStarting instead') super.onDownloadStartRequest,
+      @Deprecated('Use onDownloadStarting instead')
+      super.onDownloadStartRequest,
       super.onDownloadStarting,
-      @Deprecated('Use onLoadResourceWithCustomScheme instead') super.onLoadResourceCustomScheme,
+      @Deprecated('Use onLoadResourceWithCustomScheme instead')
+      super.onLoadResourceCustomScheme,
       super.onLoadResourceWithCustomScheme,
       super.onCreateWindow,
       super.onCloseWindow,
@@ -68,9 +71,11 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
       super.onWindowBlur,
       super.onOverScrolled,
       super.onZoomScaleChanged,
-      @Deprecated('Use onSafeBrowsingHit instead') super.androidOnSafeBrowsingHit,
+      @Deprecated('Use onSafeBrowsingHit instead')
+      super.androidOnSafeBrowsingHit,
       super.onSafeBrowsingHit,
-      @Deprecated('Use onPermissionRequest instead') super.androidOnPermissionRequest,
+      @Deprecated('Use onPermissionRequest instead')
+      super.androidOnPermissionRequest,
       super.onPermissionRequest,
       @Deprecated('Use onGeolocationPermissionsShowPrompt instead')
       super.androidOnGeolocationPermissionsShowPrompt,
@@ -78,37 +83,46 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
       @Deprecated('Use onGeolocationPermissionsHidePrompt instead')
       super.androidOnGeolocationPermissionsHidePrompt,
       super.onGeolocationPermissionsHidePrompt,
-      @Deprecated('Use shouldInterceptRequest instead') super.androidShouldInterceptRequest,
+      @Deprecated('Use shouldInterceptRequest instead')
+      super.androidShouldInterceptRequest,
       super.shouldInterceptRequest,
-      @Deprecated('Use onRenderProcessGone instead') super.androidOnRenderProcessGone,
+      @Deprecated('Use onRenderProcessGone instead')
+      super.androidOnRenderProcessGone,
       super.onRenderProcessGone,
-      @Deprecated('Use onRenderProcessResponsive instead') super.androidOnRenderProcessResponsive,
+      @Deprecated('Use onRenderProcessResponsive instead')
+      super.androidOnRenderProcessResponsive,
       super.onRenderProcessResponsive,
       @Deprecated('Use onRenderProcessUnresponsive instead')
       super.androidOnRenderProcessUnresponsive,
       super.onRenderProcessUnresponsive,
-      @Deprecated('Use onFormResubmission instead') super.androidOnFormResubmission,
+      @Deprecated('Use onFormResubmission instead')
+      super.androidOnFormResubmission,
       super.onFormResubmission,
       @Deprecated('Use onZoomScaleChanged instead') super.androidOnScaleChanged,
       @Deprecated('Use onReceivedIcon instead') super.androidOnReceivedIcon,
       super.onReceivedIcon,
-      @Deprecated('Use onReceivedTouchIconUrl instead') super.androidOnReceivedTouchIconUrl,
+      @Deprecated('Use onReceivedTouchIconUrl instead')
+      super.androidOnReceivedTouchIconUrl,
       super.onReceivedTouchIconUrl,
       @Deprecated('Use onJsBeforeUnload instead') super.androidOnJsBeforeUnload,
       super.onJsBeforeUnload,
-      @Deprecated('Use onReceivedLoginRequest instead') super.androidOnReceivedLoginRequest,
+      @Deprecated('Use onReceivedLoginRequest instead')
+      super.androidOnReceivedLoginRequest,
       super.onReceivedLoginRequest,
       super.onPermissionRequestCanceled,
       super.onRequestFocus,
       @Deprecated('Use onWebContentProcessDidTerminate instead')
       super.iosOnWebContentProcessDidTerminate,
       super.onWebContentProcessDidTerminate,
-      @Deprecated('Use onDidReceiveServerRedirectForProvisionalNavigation instead')
+      @Deprecated(
+          'Use onDidReceiveServerRedirectForProvisionalNavigation instead')
       super.iosOnDidReceiveServerRedirectForProvisionalNavigation,
       super.onDidReceiveServerRedirectForProvisionalNavigation,
-      @Deprecated('Use onNavigationResponse instead') super.iosOnNavigationResponse,
+      @Deprecated('Use onNavigationResponse instead')
+      super.iosOnNavigationResponse,
       super.onNavigationResponse,
-      @Deprecated('Use shouldAllowDeprecatedTLS instead') super.iosShouldAllowDeprecatedTLS,
+      @Deprecated('Use shouldAllowDeprecatedTLS instead')
+      super.iosShouldAllowDeprecatedTLS,
       super.shouldAllowDeprecatedTLS,
       super.onCameraCaptureStateChanged,
       super.onMicrophoneCaptureStateChanged,
@@ -153,14 +167,16 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
             onDownloadStartRequest: params.onDownloadStartRequest,
             onDownloadStarting: params.onDownloadStarting,
             onLoadResourceCustomScheme: params.onLoadResourceCustomScheme,
-            onLoadResourceWithCustomScheme: params.onLoadResourceWithCustomScheme,
+            onLoadResourceWithCustomScheme:
+                params.onLoadResourceWithCustomScheme,
             onCreateWindow: params.onCreateWindow,
             onCloseWindow: params.onCloseWindow,
             onJsAlert: params.onJsAlert,
             onJsConfirm: params.onJsConfirm,
             onJsPrompt: params.onJsPrompt,
             onReceivedHttpAuthRequest: params.onReceivedHttpAuthRequest,
-            onReceivedServerTrustAuthRequest: params.onReceivedServerTrustAuthRequest,
+            onReceivedServerTrustAuthRequest:
+                params.onReceivedServerTrustAuthRequest,
             onReceivedClientCertRequest: params.onReceivedClientCertRequest,
             onFindResultReceived: params.onFindResultReceived,
             shouldInterceptAjaxRequest: params.shouldInterceptAjaxRequest,
@@ -185,17 +201,21 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
             onPermissionRequest: params.onPermissionRequest,
             androidOnGeolocationPermissionsShowPrompt:
                 params.androidOnGeolocationPermissionsShowPrompt,
-            onGeolocationPermissionsShowPrompt: params.onGeolocationPermissionsShowPrompt,
+            onGeolocationPermissionsShowPrompt:
+                params.onGeolocationPermissionsShowPrompt,
             androidOnGeolocationPermissionsHidePrompt:
                 params.androidOnGeolocationPermissionsHidePrompt,
-            onGeolocationPermissionsHidePrompt: params.onGeolocationPermissionsHidePrompt,
+            onGeolocationPermissionsHidePrompt:
+                params.onGeolocationPermissionsHidePrompt,
             androidShouldInterceptRequest: params.androidShouldInterceptRequest,
             shouldInterceptRequest: params.shouldInterceptRequest,
             androidOnRenderProcessGone: params.androidOnRenderProcessGone,
             onRenderProcessGone: params.onRenderProcessGone,
-            androidOnRenderProcessResponsive: params.androidOnRenderProcessResponsive,
+            androidOnRenderProcessResponsive:
+                params.androidOnRenderProcessResponsive,
             onRenderProcessResponsive: params.onRenderProcessResponsive,
-            androidOnRenderProcessUnresponsive: params.androidOnRenderProcessUnresponsive,
+            androidOnRenderProcessUnresponsive:
+                params.androidOnRenderProcessUnresponsive,
             onRenderProcessUnresponsive: params.onRenderProcessUnresponsive,
             androidOnFormResubmission: params.androidOnFormResubmission,
             onFormResubmission: params.onFormResubmission,
@@ -210,8 +230,10 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
             onReceivedLoginRequest: params.onReceivedLoginRequest,
             onPermissionRequestCanceled: params.onPermissionRequestCanceled,
             onRequestFocus: params.onRequestFocus,
-            iosOnWebContentProcessDidTerminate: params.iosOnWebContentProcessDidTerminate,
-            onWebContentProcessDidTerminate: params.onWebContentProcessDidTerminate,
+            iosOnWebContentProcessDidTerminate:
+                params.iosOnWebContentProcessDidTerminate,
+            onWebContentProcessDidTerminate:
+                params.onWebContentProcessDidTerminate,
             iosOnDidReceiveServerRedirectForProvisionalNavigation:
                 params.iosOnDidReceiveServerRedirectForProvisionalNavigation,
             onDidReceiveServerRedirectForProvisionalNavigation:
@@ -221,7 +243,8 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
             iosShouldAllowDeprecatedTLS: params.iosShouldAllowDeprecatedTLS,
             shouldAllowDeprecatedTLS: params.shouldAllowDeprecatedTLS,
             onCameraCaptureStateChanged: params.onCameraCaptureStateChanged,
-            onMicrophoneCaptureStateChanged: params.onMicrophoneCaptureStateChanged,
+            onMicrophoneCaptureStateChanged:
+                params.onMicrophoneCaptureStateChanged,
             onContentSizeChanged: params.onContentSizeChanged,
             onShowFileChooser: params.onShowFileChooser,
             initialUrlRequest: params.initialUrlRequest,
@@ -231,10 +254,10 @@ class AndroidInAppWebViewWidgetCreationParams extends PlatformInAppWebViewWidget
             initialSettings: params.initialSettings,
             contextMenu: params.contextMenu,
             initialUserScripts: params.initialUserScripts,
-            pullToRefreshController:
-                params.pullToRefreshController as AndroidPullToRefreshController?,
-            findInteractionController:
-                params.findInteractionController as AndroidFindInteractionController?);
+            pullToRefreshController: params.pullToRefreshController
+                as AndroidPullToRefreshController?,
+            findInteractionController: params.findInteractionController
+                as AndroidFindInteractionController?);
 
   @override
   final AndroidFindInteractionController? findInteractionController;
@@ -281,7 +304,8 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
             params.pullToRefreshController?.params.options.toMap() ??
             PullToRefreshSettings(enabled: false).toMap();
 
-    if ((params.headlessWebView?.isRunning() ?? false) && params.keepAlive != null) {
+    if ((params.headlessWebView?.isRunning() ?? false) &&
+        params.keepAlive != null) {
       final headlessId = params.headlessWebView?.id;
       if (headlessId != null) {
         // force keep alive id to match headless webview id
@@ -303,8 +327,8 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
       ) {
         return AndroidViewSurface(
           controller: controller as AndroidViewController,
-          gestureRecognizers:
-              params.gestureRecognizers ?? const <Factory<OneSequenceGestureRecognizer>>{},
+          gestureRecognizers: params.gestureRecognizers ??
+              const <Factory<OneSequenceGestureRecognizer>>{},
           hitTestBehavior: PlatformViewHitTestBehavior.opaque,
         );
       },
@@ -313,8 +337,9 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
           hybridComposition: useHybridComposition,
           id: params.id,
           viewType: 'com.pichillilorenzo/flutter_inappwebview',
-          layoutDirection:
-              this.params.layoutDirection ?? Directionality.maybeOf(context) ?? TextDirection.rtl,
+          layoutDirection: this.params.layoutDirection ??
+              Directionality.maybeOf(context) ??
+              TextDirection.rtl,
           creationParams: <String, dynamic>{
             'initialUrlRequest': this.params.initialUrlRequest?.toMap(),
             'initialFile': this.params.initialFile,
@@ -322,11 +347,16 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
             'initialSettings': settingsMap,
             'contextMenu': this.params.contextMenu?.toMap() ?? {},
             'windowId': this.params.windowId,
-            'headlessWebViewId': this.params.headlessWebView?.isRunning() ?? false
-                ? this.params.headlessWebView?.id
-                : null,
-            'initialUserScripts':
-                this.params.initialUserScripts?.map((e) => e.toMap()).toList() ?? [],
+            'headlessWebViewId':
+                this.params.headlessWebView?.isRunning() ?? false
+                    ? this.params.headlessWebView?.id
+                    : null,
+            'initialUserScripts': this
+                    .params
+                    .initialUserScripts
+                    ?.map((e) => e.toMap())
+                    .toList() ??
+                [],
             'pullToRefreshSettings': pullToRefreshSettings,
             'keepAliveId': this.params.keepAlive?.id
           },
@@ -371,28 +401,33 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
     viewId = params.keepAlive?.id ?? viewId ?? id;
     _androidHeadlessInAppWebView?.internalDispose();
     _controller = AndroidInAppWebViewController(
-        PlatformInAppWebViewControllerCreationParams(id: viewId, webviewParams: params));
+        PlatformInAppWebViewControllerCreationParams(
+            id: viewId, webviewParams: params));
     _androidParams.pullToRefreshController?.init(viewId);
     _androidParams.findInteractionController?.init(viewId);
     debugLog(
         className: runtimeType.toString(),
         id: viewId?.toString(),
-        debugLoggingSettings: PlatformInAppWebViewController.debugLoggingSettings,
+        debugLoggingSettings:
+            PlatformInAppWebViewController.debugLoggingSettings,
         method: "onWebViewCreated",
         args: []);
     if (params.onWebViewCreated != null) {
-      params.onWebViewCreated!(params.controllerFromPlatform?.call(_controller!) ?? _controller!);
+      params.onWebViewCreated!(
+          params.controllerFromPlatform?.call(_controller!) ?? _controller!);
     }
   }
 
   void _inferInitialSettings(InAppWebViewSettings settings) {
-    if (params.shouldOverrideUrlLoading != null && settings.useShouldOverrideUrlLoading == null) {
+    if (params.shouldOverrideUrlLoading != null &&
+        settings.useShouldOverrideUrlLoading == null) {
       settings.useShouldOverrideUrlLoading = true;
     }
     if (params.onLoadResource != null && settings.useOnLoadResource == null) {
       settings.useOnLoadResource = true;
     }
-    if ((params.onDownloadStartRequest != null || params.onDownloadStarting != null) &&
+    if ((params.onDownloadStartRequest != null ||
+            params.onDownloadStarting != null) &&
         settings.useOnDownloadStart == null) {
       settings.useOnDownloadStart = true;
     }
@@ -402,7 +437,8 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
       if (settings.useShouldInterceptAjaxRequest == null) {
         settings.useShouldInterceptAjaxRequest = true;
       }
-      if (params.onAjaxReadyStateChange != null && settings.useOnAjaxReadyStateChange == null) {
+      if (params.onAjaxReadyStateChange != null &&
+          settings.useOnAjaxReadyStateChange == null) {
         settings.useOnAjaxReadyStateChange = true;
       }
       if (params.onAjaxProgress != null && settings.useOnAjaxProgress == null) {
@@ -413,16 +449,20 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
         settings.useShouldInterceptFetchRequest == null) {
       settings.useShouldInterceptFetchRequest = true;
     }
-    if (params.shouldInterceptRequest != null && settings.useShouldInterceptRequest == null) {
+    if (params.shouldInterceptRequest != null &&
+        settings.useShouldInterceptRequest == null) {
       settings.useShouldInterceptRequest = true;
     }
-    if (params.onRenderProcessGone != null && settings.useOnRenderProcessGone == null) {
+    if (params.onRenderProcessGone != null &&
+        settings.useOnRenderProcessGone == null) {
       settings.useOnRenderProcessGone = true;
     }
-    if (params.onNavigationResponse != null && settings.useOnNavigationResponse == null) {
+    if (params.onNavigationResponse != null &&
+        settings.useOnNavigationResponse == null) {
       settings.useOnNavigationResponse = true;
     }
-    if (params.onShowFileChooser != null && settings.useOnShowFileChooser == null) {
+    if (params.onShowFileChooser != null &&
+        settings.useOnShowFileChooser == null) {
       settings.useOnShowFileChooser = true;
     }
   }
@@ -433,7 +473,8 @@ class AndroidInAppWebViewWidget extends PlatformInAppWebViewWidget {
     debugLog(
         className: runtimeType.toString(),
         id: viewId?.toString(),
-        debugLoggingSettings: PlatformInAppWebViewController.debugLoggingSettings,
+        debugLoggingSettings:
+            PlatformInAppWebViewController.debugLoggingSettings,
         method: "dispose",
         args: []);
     final isKeepAlive = params.keepAlive != null;

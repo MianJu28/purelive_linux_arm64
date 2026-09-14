@@ -7,16 +7,22 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
   int _virtualNetworkPage = 1;
   Future<void>? _activeLoad;
   bool _refreshPending = false;
+  int? _pendingPageSize;
 
   ServerRemotePageController() : super();
 
   Future<List<T>> fetchNetworkData(int page, int pageSize);
 
   @override
+  Future<void>? get activePageOperation => _activeLoad;
+
+  @override
   Future<void> refreshData() async {
+    if (isClosed) return;
     _refreshPending = true;
-    final active = _activeLoad;
-    if (active != null) await active;
+    while (_activeLoad != null && !isClosed) {
+      await _activeLoad;
+    }
     if (!_refreshPending || isClosed) return;
     _refreshPending = false;
     currentPage = 1;
@@ -27,7 +33,7 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
 
   @override
   Future<void> goToPage(int page) async {
-    if (_activeLoad != null || page < 1) return;
+    if (isClosed || _activeLoad != null || page < 1) return;
     if (!usesDesktopPagination) return;
     if (page > currentPage && !canLoadMore.value && !_pageCache.containsKey(page)) return;
     currentPage = page;
@@ -36,6 +42,20 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
 
   @override
   void setPageSize(int? newSize) {
+    if (isClosed || newSize == null || newSize < 1) return;
+    // Keep request dimensions stable until its snapshot is committed. A later
+    // selection replaces the pending intent, including selecting the old size.
+    _pendingPageSize = newSize;
+    unawaited(_applyPendingPageSize());
+  }
+
+  Future<void> _applyPendingPageSize() async {
+    while (_activeLoad != null && !isClosed) {
+      await _activeLoad;
+    }
+    if (isClosed) return;
+    final newSize = _pendingPageSize;
+    _pendingPageSize = null;
     if (newSize == null || pageSize.value == newSize) return;
     if (!usesDesktopPagination) {
       pageSize.value = newSize;
@@ -56,16 +76,17 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
 
     _pageCache.clear();
 
-    _adaptiveRebuildAndFetchMore(allHistoryItems);
+    await _startLoad(rebuildHistory: allHistoryItems);
   }
 
   Future<void> _adaptiveRebuildAndFetchMore(List<T> historyPool) async {
-    if (loadding.value) return;
+    if (isClosed || loadding.value) return;
 
     final int targetTotalItemsNeeded = currentPage * pageSize.value;
 
     if (historyPool.length < targetTotalItemsNeeded && canLoadMore.value) {
       final bool isNetworkSafe = await checkNetworkBeforeRequest();
+      if (isClosed) return;
       if (!isNetworkSafe) {
         finishRefreshControllers(IndicatorResult.fail);
         return;
@@ -76,11 +97,10 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
         final seen = historyPool.toSet();
         var requestCount = 0;
         var noProgressCount = 0;
-        while (historyPool.length < targetTotalItemsNeeded &&
-            requestCount < 20 &&
-            noProgressCount < 2) {
+        while (historyPool.length < targetTotalItemsNeeded && requestCount < 20 && noProgressCount < 2) {
           final int missingCount = targetTotalItemsNeeded - historyPool.length;
           final result = await fetchNetworkData(_virtualNetworkPage, missingCount);
+          if (isClosed) return;
           requestCount++;
 
           if (result.isEmpty) break;
@@ -94,9 +114,10 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
           _virtualNetworkPage++;
         }
       } catch (e) {
+        if (isClosed) return;
         handleError(e, showPageError: list.isEmpty);
       } finally {
-        loadding.value = false;
+        if (!isClosed) loadding.value = false;
       }
     }
 
@@ -121,14 +142,26 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
   Future<void> loadData() async {
     final active = _activeLoad;
     if (active != null) return active;
+    if (isClosed) return;
     return _startLoad();
   }
 
-  Future<void> _startLoad({bool replaceMobileSnapshot = false}) {
+  @override
+  Future<void> loadMoreData() async {
+    if (isClosed) return;
+    final active = _activeLoad;
+    if (active != null) return active;
+    await super.loadMoreData();
+  }
+
+  Future<void> _startLoad({bool replaceMobileSnapshot = false, List<T>? rebuildHistory}) {
     final active = _activeLoad;
     if (active != null) return active;
     late final Future<void> operation;
-    operation = _performLoad(replaceMobileSnapshot: replaceMobileSnapshot).whenComplete(() {
+    final work = rebuildHistory == null
+        ? _performLoad(replaceMobileSnapshot: replaceMobileSnapshot)
+        : _adaptiveRebuildAndFetchMore(rebuildHistory);
+    operation = work.whenComplete(() {
       if (identical(_activeLoad, operation)) _activeLoad = null;
     });
     _activeLoad = operation;
@@ -143,14 +176,13 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
       list.assignAll(cachedData);
       canLoadMore.value = cachedData.length >= pageSize.value;
       pageEmpty.value = list.isEmpty;
-      finishRefreshControllers(
-        canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-      );
+      finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
       scrollToTopImmediate();
       return;
     }
 
     final bool isNetworkSafe = await checkNetworkBeforeRequest();
+    if (isClosed) return;
     if (!isNetworkSafe) {
       finishRefreshControllers(IndicatorResult.fail);
       return;
@@ -172,7 +204,21 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
 
       while (combinedResult.length < sizeToFetch && requestCount < 20 && noProgressCount < 2) {
         final int neededCount = sizeToFetch - combinedResult.length;
-        final result = await fetchNetworkData(_virtualNetworkPage, neededCount);
+        late final List<T> result;
+        try {
+          result = await fetchNetworkData(_virtualNetworkPage, neededCount);
+          if (isClosed) return;
+        } catch (_) {
+          if (isClosed) return;
+          // A later cursor/page is allowed to fail without erasing items that
+          // the same transaction has already fetched successfully. This is
+          // common with APIs that protect deeper pagination more aggressively
+          // than their first page and with transient mobile network changes.
+          // The partial page is committed below with canLoadMore=false; an
+          // initial request failure still follows the normal error path.
+          if (combinedResult.isEmpty) rethrow;
+          break;
+        }
         requestCount++;
         if (result.isEmpty) break;
 
@@ -196,9 +242,7 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
         _pageCache[currentPage] = combinedResult;
         list.assignAll(combinedResult);
         pageEmpty.value = list.isEmpty;
-        finishRefreshControllers(
-          canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-        );
+        finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
         scrollToTopImmediate();
       } else {
         canLoadMore.value = combinedResult.length >= pageSize.value;
@@ -208,17 +252,18 @@ abstract class ServerRemotePageController<T> extends BasePageScrollAndStateBone<
           list.addAll(combinedResult);
         }
         pageEmpty.value = list.isEmpty;
-        finishRefreshControllers(
-          canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore,
-        );
+        finishRefreshControllers(canLoadMore.value ? IndicatorResult.success : IndicatorResult.noMore);
       }
     } catch (e) {
+      if (isClosed) return;
       currentPage = previousPageSnapshot;
       handleError(e, showPageError: list.isEmpty);
       finishRefreshControllers(IndicatorResult.fail);
     } finally {
-      loadding.value = false;
-      pageLoadding.value = false;
+      if (!isClosed) {
+        loadding.value = false;
+        pageLoadding.value = false;
+      }
     }
   }
 }

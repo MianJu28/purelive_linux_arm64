@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pure_live/get/get.dart';
-import 'package:flutter_color/flutter_color.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:pure_live/plugins/locale_helper.dart';
 import 'package:loading_indicator/loading_indicator.dart';
 import 'package:pure_live/common/style/app_text_styles.dart';
-import 'package:pure_live/common/services/utils/hive_rx.dart';
 import 'package:pure_live/common/services/settings_service.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
@@ -41,42 +39,7 @@ class AppStatusView extends StatefulWidget {
   State<AppStatusView> createState() => _AppStatusViewState();
 }
 
-class _AppStatusViewState extends State<AppStatusView> with SingleTickerProviderStateMixin {
-  late AnimationController _rotateController;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotateController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    if (widget.type == AppStatusType.loading &&
-        SettingsService.to.theme.loadingStyle.v == 'default') {
-      _rotateController.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(AppStatusView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.type == AppStatusType.loading &&
-        SettingsService.to.theme.loadingStyle.v == 'default' &&
-        !_rotateController.isAnimating) {
-      _rotateController.repeat();
-    } else if ((widget.type != AppStatusType.loading ||
-            SettingsService.to.theme.loadingStyle.v != 'default') &&
-        _rotateController.isAnimating) {
-      _rotateController.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _rotateController.dispose();
-    super.dispose();
-  }
-
+class _AppStatusViewState extends State<AppStatusView> {
   Widget _getSpinKit(String style, Color color, double size) {
     switch (style) {
       case 'rotatingPlain':
@@ -196,23 +159,7 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
         return LoadingAnimationWidget.dotsTriangle(color: color, size: size);
 
       default:
-        return RotationTransition(
-          turns: _rotateController,
-          child: ShaderMask(
-            shaderCallback: (rect) => SweepGradient(
-              colors: [color, color.withValues(alpha: 0.1)],
-              stops: const [0.0, 0.85],
-            ).createShader(rect),
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(width: 3.5, color: Colors.white),
-              ),
-            ),
-          ),
-        );
+        return _DefaultLoadingIndicator(color: color, size: size);
     }
   }
 
@@ -366,10 +313,7 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
         return SizedBox(
           width: size,
           height: size,
-          child: LoadingIndicator(
-            indicatorType: Indicator.ballScaleRippleMultiple,
-            colors: [color],
-          ),
+          child: LoadingIndicator(indicatorType: Indicator.ballScaleRippleMultiple, colors: [color]),
         );
       case 'ballSpinFadeLoader':
         return SizedBox(
@@ -438,13 +382,7 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
 
   Widget _buildLoadingWidget(String style) {
     final theme = Theme.of(context);
-    Color parsedColor;
-    final hexColor = SettingsService.to.theme.loadingStyleColorSwitch.v;
-    if (hexColor.isNotEmpty) {
-      parsedColor = HexColor(hexColor);
-    } else {
-      parsedColor = widget.iconColor ?? theme.colorScheme.primary;
-    }
+    final parsedColor = SettingsService.to.theme.loadingStyleColor ?? widget.iconColor ?? theme.colorScheme.primary;
 
     final double size = widget.isMini
         ? 24
@@ -458,30 +396,7 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
     final loadingIndicator = _getLoadingIndicator(style, parsedColor, size, theme);
     if (loadingIndicator is! SizedBox || loadingIndicator.child != null) return loadingIndicator;
 
-    final loadingAnimation = _getLoadingAnimation(style, parsedColor, size, theme);
-    if (loadingAnimation is! SizedBox) return loadingAnimation;
-
-    return RotationTransition(
-      turns: _rotateController,
-      child: ShaderMask(
-        shaderCallback: (rect) {
-          return SweepGradient(
-            startAngle: 0.0,
-            endAngle: 3.14 * 2,
-            colors: [parsedColor, parsedColor.withValues(alpha: 0.1)],
-            stops: const [0.0, 0.85],
-          ).createShader(rect);
-        },
-        child: Container(
-          width: widget.isMini ? 20 : 28,
-          height: widget.isMini ? 20 : 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(width: widget.isMini ? 2.0 : 3.5, color: Colors.white),
-          ),
-        ),
-      ),
-    );
+    return _getLoadingAnimation(style, parsedColor, size, theme);
   }
 
   @override
@@ -492,21 +407,16 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
     if (widget.type == AppStatusType.loading) {
       return Center(
         child: Obx(() {
-          return _buildLoadingWidget(SettingsService.to.theme.loadingStyle.v);
+          return _buildLoadingWidget(SettingsService.to.theme.resolvedLoadingStyle);
         }),
       );
     }
 
     final String finalTitle =
-        widget.title ??
-        (widget.type == AppStatusType.error
-            ? i18n('status_error_title')
-            : i18n('status_empty_title'));
+        widget.title ?? (widget.type == AppStatusType.error ? i18n('status_error_title') : i18n('status_empty_title'));
     final String finalSubtitle =
         widget.subtitle ??
-        (widget.type == AppStatusType.error
-            ? i18n('status_error_subtitle')
-            : i18n('status_empty_subtitle'));
+        (widget.type == AppStatusType.error ? i18n('status_error_subtitle') : i18n('status_empty_subtitle'));
     final String finalButtonText = widget.buttonText ?? i18n('status_retry_button');
 
     return Center(
@@ -528,10 +438,7 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
                 border: Border.all(color: effectiveIconColor.withValues(alpha: 0.05), width: 1),
               ),
               child: Icon(
-                widget.icon ??
-                    (widget.type == AppStatusType.error
-                        ? Icons.wifi_off_rounded
-                        : Icons.live_tv_rounded),
+                widget.icon ?? (widget.type == AppStatusType.error ? Icons.wifi_off_rounded : Icons.live_tv_rounded),
                 size: widget.isMini ? 16 : 42,
                 color: widget.iconColor ?? theme.colorScheme.primary.withValues(alpha: 0.6),
               ),
@@ -555,10 +462,7 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
                 child: Text(
                   finalSubtitle,
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.t13.copyWith(
-                    color: widget.subtitleColor ?? theme.hintColor,
-                    height: 1.5,
-                  ),
+                  style: AppTextStyles.t13.copyWith(color: widget.subtitleColor ?? theme.hintColor, height: 1.5),
                 ),
               ),
             ),
@@ -572,6 +476,56 @@ class _AppStatusViewState extends State<AppStatusView> with SingleTickerProvider
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// The selected loading subtree owns its ticker. An Rx style change rebuilds
+/// that subtree without calling AppStatusView.didUpdateWidget, so keeping the
+/// controller on the outer status view leaves an invisible animation running.
+class _DefaultLoadingIndicator extends StatefulWidget {
+  const _DefaultLoadingIndicator({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  State<_DefaultLoadingIndicator> createState() => _DefaultLoadingIndicatorState();
+}
+
+class _DefaultLoadingIndicatorState extends State<_DefaultLoadingIndicator> with SingleTickerProviderStateMixin {
+  late final AnimationController _rotation;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotation = AnimationController(duration: const Duration(seconds: 1), vsync: this)..repeat();
+  }
+
+  @override
+  void dispose() {
+    _rotation.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _rotation,
+      child: ShaderMask(
+        shaderCallback: (rect) => SweepGradient(
+          colors: [widget.color, widget.color.withValues(alpha: 0.1)],
+          stops: const [0.0, 0.85],
+        ).createShader(rect),
+        child: Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(width: 3.5, color: Colors.white),
+          ),
+        ),
       ),
     );
   }

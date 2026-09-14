@@ -21,6 +21,7 @@
 - App 语义版本、build number、包名、ABI、Flutter/Gradle/Windows 工具链版本；
 - Android：设备序列号、型号、Android 版本、分辨率、密度、支持刷新率、当前刷新率、电量、温度、包版本；
 - Windows：系统版本、显示器分辨率/缩放/最高刷新率、GPU、播放器内核、数据目录；
+- iOS：设备型号、系统版本、App build、播放器内核、`vo/ao/hwdec`、Jetsam/Crash 报告可用性及测试房间；
 - 设置快照：主题、刷新率、导航、播放器、画中画、弹幕、本地互动、录制和平台登录状态。改变设置的案例结束后恢复快照；不修改真实账号 Cookie、关注关系和云端数据。
 
 证据统一写入：
@@ -144,7 +145,8 @@ local-artifacts/diagnostics/full-regression-20260828/
 - [ ] AND-PLAY-13 清晰度与线路面板按内容自适应，选项占主要视觉；横屏右半屏紧凑布局、内容可完整滚动且边界正常。
 - [ ] AND-PLAY-14 播放/暂停、刷新、音量、静音、定时停止、投屏入口、直播记录双列面板和小窗快捷按钮。
 - [ ] AND-PLAY-15 直播记录：状态/录播/观看记录 Tab、日期、数量设置、双列卡片、进入/返回和滚动边界。
-- [ ] AND-DAN-01 弹幕连接、断开、重连、心跳；房间 A→B→A 不出现错房间、旧消息、重复消息或死循环。
+- [ ] AND-PLAY-16 物理音量加/减：播放前、播放中、弹窗、横竖屏全屏、系统画中画、外部浏览器及前后台返回后均作用于媒体流；分别记录系统媒体流数值、应用显示、实际听感和输出路由，电话/蓝牙等系统接管条件另列，测试后恢复原音量。
+- [ ] AND-DAN-01 弹幕连接、断开、重连、心跳；房间 A→B→A 不出现错房间、旧消息、重复消息或死循环。暂态重连应保留当前会话并接受恢复后的 ready，最终关闭必须释放会话且拒绝迟到 ready；两种结果不依赖提示语言或措辞。
 - [ ] AND-DAN-02 竖屏覆盖弹幕、横屏覆盖弹幕、小窗弹幕、下方弹幕列表共享同一有效会话但各自展示策略独立。
 - [ ] AND-DAN-03 弹幕设置模板、保存/恢复、区域、上下边距、透明度、速度、字号、字重、描边、动态/固定 FPS 即时预览和即时生效。
 - [ ] AND-DAN-04 快速弹幕滚动平滑；同一消息不同视图速度策略一致，不因页面 rebuild 重启动画。
@@ -168,6 +170,8 @@ local-artifacts/diagnostics/full-regression-20260828/
 - [ ] 录制地址是否与播放地址合同不同，FFmpeg 需要的 headers、协议白名单、时间戳和容器兼容。
 
 每个平台至少完成一个当前在播样本的详情/播放/画质/线路/弹幕/录制探测；缺少直播样本时保留 fixture 自动化与探测时间，不借用另一平台结论。
+
+弹幕原生矩阵前可先运行当前生产适配器的重复连接基线：`.\tool\run_danmaku_connection_probe.ps1 -RouteMode DIRECT -Cycles 10 -ObservationSeconds 5 -Platforms bilibili,huya,douyin`。该 opt-in 探针只记录公开房间 ID 和聚合事件计数；通过只表示本机网络、短观察窗口和所列平台当时可连接，不替代 Android/Windows GUI、断网恢复、长时稳定性或指定报告房间。
 
 ### A7 — Android 录制、后台与本地互动
 
@@ -223,12 +227,23 @@ Windows 阶段复用 A2–A8 的公共业务案例，并补充桌面特有检查
 ### W4 — Windows 性能、故障和长测
 
 - [ ] WIN-PERF-01 首页静置 15 分钟、列表连续滚动 5 分钟、播放+弹幕 30 分钟、录制 30 分钟、小窗 15 分钟。
-- [ ] WIN-PERF-02 每 5 秒记录 working set/private bytes/handles/threads/GPU/CPU；退出直播后观察 60 秒回落。
+- [ ] WIN-PERF-02 每 5 秒记录 working set/private bytes/handles/threads/GPU/CPU；退出直播后观察 60 秒回落。使用 `tool/sample_windows_runtime.ps1 -IncludeGpu` 同时采集进程 GPU engine sum、3D、Video Decode、Video Processing、Copy、独显/共享显存，以及显卡驱动、当前分辨率和刷新率；计数器不可用时记录 `null`，不把缺失数据伪装成 0。GPU engine sum 是多个引擎/适配器实例之和，允许超过 100%，判读时必须同时查看分项。
 - [ ] WIN-PERF-03 A/B 房间切换 20 次、全屏/小窗 20 次、打开关闭二级页 50 次；资源不线性增长。
 - [ ] WIN-FAULT-01 断网、代理错误、DNS/超时、流断开、窗口失焦、显示器休眠恢复；状态可解释且可恢复。
 - [ ] WIN-SOAK-01 1–2 小时综合长测：播放、弹幕、定时切模式、短录制、网络抖动；若趋势提前稳定可按计划提前结束。
 
-## 6. 修复与回归规则
+## 6. iOS 社区平台补充矩阵
+
+- [ ] IOS-BASE-01 冻结设备、iOS、App build、房间、持续时间和完整 MPV 自定义设置；每轮保存系统 Crash/Jetsam 与应用日志。
+- [ ] IOS-SET-01 验证 iOS 仅暴露 `vo=libmpv`，音频为 `auto/audiounit/null`，硬解为通用项及 `videotoolbox` / `videotoolbox-copy`；导入 Android/Windows 备份后重新读取持久化值。
+- [ ] IOS-PLAY-01 同一抖音房间分别执行普通页与全屏各 30 分钟，记录首帧、画面/声音、内存压力、温度、横竖屏切换及退出时间点。
+- [ ] IOS-PLAY-02 对 `videotoolbox`、`videotoolbox-copy`、`auto-safe` 和 `no` 串行复验；每次只改变硬解项，退出房间并确认上一播放器已释放后再开始下一轮。
+- [ ] IOS-LIFE-01 普通页↔全屏、前后台、系统返回、换房和快速进入/退出各循环 20 次；崩溃时以第一份原生调用栈区分 Jetsam、MPV render-context dispose 与平台流错误。
+- [ ] IOS-REG-01 修订后复跑设置导入/重置、播放器创建、普通页/全屏、VideoToolbox 和软件解码相邻矩阵；源代码回归与 iOS 原生结果分层记录。
+
+Issue #859 的当前评论、源码缺口、media-kit #1361 对照及红绿记录见 `docs/ISSUE_AUDIT_2026_09_10.md`。当前缺少对应 iOS 设备的原生结果时，上述案例保持未执行，不借用 Android/Windows 结论。
+
+## 7. 修复与回归规则
 
 1. 复现后先写 `provenance`：`upstream-existing`、`fork-regression`、`integration-conflict`、`external-drift`、`environment-or-data` 或 `not-reproduced`。
 2. 找到第一个错误状态和所有者；不以增加任意延时、无限刷新、全局重建或无限重试掩盖问题。
@@ -237,7 +252,7 @@ Windows 阶段复用 A2–A8 的公共业务案例，并补充桌面特有检查
 5. Android 修复后重新安装来自当前 SHA 的 APK，重跑原案例、相邻模式和资源回落；随后才进入 Windows。
 6. 每个结果标记 `pass`、`fail`、`blocked-by-sample`、`external-drift` 或 `not-run`，并附证据路径。
 
-## 7. 最终报告结构
+## 8. 最终报告结构
 
 - 构建/安装基线和 SHA；
 - Android 逐阶段通过/失败/样本缺口数量；

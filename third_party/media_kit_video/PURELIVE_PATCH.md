@@ -1,52 +1,15 @@
-# PureLive media_kit_video patch
+# PureLive media_kit_video 说明
 
-- Upstream: `https://github.com/Predidit/media-kit.git`
-- Base commit: `994465d9bfca3f39d0b41199d16e7fd93fe97881`
-- Package version: `media_kit_video 1.2.5`
-- License: MIT; the upstream `LICENSE` is retained in this directory.
+- 来源：本仓库上游 `master` 的 `third_party/media_kit_video`（`media_kit_video 1.2.5`，
+  源自 `https://github.com/Predidit/media-kit.git`）。
+- License: MIT；上游 `LICENSE` 随目录保留。
+- 本目录相对上游**只有一处补丁**：Jingjia（JM9100）VA-API dmabuf 兼容层（见下节），
+  落在 `linux/video_output.cc` 与 `linux/CMakeLists.txt`。
 
-## Why this copy exists
-
-On Android, `AndroidVideoController` owns the `vo`, `wid` and Surface lifecycle.
-PureLive's room-scoped audio mode also needs to select `vid=no` without replacing
-the player or reopening the live stream. Sending that property independently
-could race a rotation, PiP or Surface resize update and leave the UI waiting for
-a video track or Surface that had already vanished.
-
-This patch adds `VideoController.setVideoOutputEnabled` and makes the Android
-controller the single owner of both the requested video-output state and the
-Surface lifecycle. Track properties are issued from the controller's lock via
-media_kit's asynchronous mpv request. The synchronous string-property FFI call
-is deliberately avoided for headphone switching because a busy live demuxer
-can block Flutter's isolate before the audio presentation or timeout paints.
-Video mode always selects `vid=auto`, including while WID is temporarily zero;
-only an explicit audio-only request selects `vid=no`. This avoids a startup
-deadlock where disabling video before a Surface callback also prevented the
-callback that would restore it. Surface replacement follows Flutter's
-`SurfaceProducer` contract: every availability/resize queries `getSurface()`, a
-changed Java Surface receives a new JNI global reference, and the old WID is
-detached exactly once before delayed reference deletion. Geometry-only updates
-do not reset `vo`, and Surface changes do not seek a live stream merely to
-refresh rendering. The Android Surface-size MethodChannel request remains
-outside the controller lock. Desktop platforms retain media_kit's existing
-`setVideoTrack` behavior.
-
-On Windows, PureLive also exposes a throttled `frameRevision` liveness signal.
-The native D3D11 mailbox emits it only after a fence-confirmed frame has been
-promoted for Flutter consumption; software rendering emits it after a completed
-render. This lets `PlayerManager` distinguish “libmpv still says playing” from
-“the presentation surface has stopped advancing”, recreate the renderer once,
-then fall through to the existing CDN-line recovery. The signal carries no
-pixels, is limited to two events per second, and does not alter normal frame
-delivery or aspect-ratio policy.
-
-`VideoController.setSize` also accepts an opt-in `force` flag on every platform
-(only the Windows native implementation changes behavior). PureLive uses it on
-the first layout after a Windows `Texture` remount so the current native output
-receives a viewport even when its controller cache still contains equal width
-and height. Normal resize calls keep the upstream equality fast path. Together
-with the frame-progress fence, this prevents a 0×0 replacement output from
-being treated as presentation-ready after an overlay route or transport retry.
+历史说明：PureLive 曾在 `994465d9` 基线上自行追加 `VideoController.setVideoOutputEnabled`、
+Windows `frameRevision` 帧进度回调与 `setSize(force:)`。这些能力已由上游副本自带
+（`lib/` 侧的调用方同样是上游实现），因此不再重复打补丁；本目录只在 Jinjia 兼容层上
+与上游存在差异。
 
 ## Jingjia (JM9100) VA-API dmabuf compat
 
@@ -88,25 +51,18 @@ the compat: `VAAPI hwdec only works with OpenGL or Vulkan backends`,
 GL_EXT_EGL_image_storage`, `hwdec-current=vaapi`, frame pixels equal to the
 software-decoded ones (no all-zero NV12 "green screen").
 
-## Maintenance
+## 维护
 
-When updating the pinned media-kit revision:
+上游更新 media-kit 时的步骤：
 
-1. Replace this directory with the new upstream package.
-2. Reapply the controller API, Android state-owner patch, and Windows
-   fence-confirmed frame-progress callback.
-3. Compare every file against the new upstream commit; only the files described
-   above, `pubspec.yaml`, this note and the policy helper should differ.
-4. Run `flutter analyze`, the full test suite, Windows release build and Android
-   ARM64 release build.
-5. On Android, repeat video/audio toggles plus rotation, PiP and room re-entry.
-6. On Windows, verify a deliberately stalled renderer is recreated once, a
-   stalled CDN advances to the next line, a 0×0 candidate never replaces the
-   active texture, remounting reasserts viewport size, and explicit pause never
-   triggers the watchdog.
-7. Keep the pinned libmpv archive untouched and re-check the Jingjia compat
-   wrappers (`purelive_get_proc_address`, `eglGetProcAddress` interposition):
-   they depend on media_kit still loading GL entry points through
-   `MPV_RENDER_PARAM_OPENGL_INIT_PARAMS.get_proc_address` and on mpv still
-   resolving the dmabuf interop entry points via `eglGetProcAddress`. Re-run the
-   libmpv probe described above after any media-kit or mpv version change.
+1. 用新的上游包替换本目录（保持目录名 `third_party/media_kit_video`）。
+2. 重新应用 Jingjia 兼容补丁：`linux/video_output.cc` 的 `purelive_get_proc_address`
+   包装与 `linux/CMakeLists.txt` 的说明注释，可用
+   `git diff upstream/master <上一版本> -- third_party/media_kit_video/linux` 取回。
+3. 与本目录对比，除上述文件与本说明外不应有其它差异；`pubspec.yaml` 的差异只允许是
+   本仓库 `pubspec.yaml` 的 override。
+4. 运行 `flutter analyze`、Linux release 构建，并按需运行 Windows/Android 发布构建。
+5. 保持内置 libmpv 归档不变，并复验兼容层依赖的两个前提：media_kit 仍通过
+   `MPV_RENDER_PARAM_OPENGL_INIT_PARAMS.get_proc_address` 加载 GL 入口，mpv 仍通过
+   `eglGetProcAddress` 解析 dmabuf interop 入口；任何 media-kit/mpv 版本变化后重跑
+   上文描述的 libmpv 探针。

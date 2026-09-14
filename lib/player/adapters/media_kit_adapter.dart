@@ -1,173 +1,190 @@
-import 'dart:ui';
-
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:rxdart/rxdart.dart';
+
+import '../models/player_state.dart';
+import '../models/player_exception.dart';
+import '../models/player_error_type.dart';
+
 import 'package:pure_live/common/index.dart';
-import 'package:pure_live/core/common/log.dart';
-import 'package:pure_live/plugins/file_utils.dart';
+
+import '../interface/unified_player_interface.dart';
+
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:pure_live/player/utils/player_consts.dart';
-import 'package:pure_live/player/models/player_state.dart';
 import 'package:media_kit/media_kit.dart' hide PlayerState;
 import 'package:pure_live/player/models/player_engine.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
-import 'package:pure_live/player/models/player_exception.dart';
-import 'package:pure_live/player/models/player_error_type.dart';
-import 'package:pure_live/player/utils/playback_cache_policy.dart';
-import 'package:pure_live/player/utils/video_output_size_policy.dart';
-import 'package:pure_live/player/shaders/shader_asset_service.dart';
-import 'package:pure_live/player/models/player_super_resolution.dart';
+import 'package:pure_live/player/utils/live_buffer_policy.dart';
+import 'package:pure_live/player/utils/mpv_platform_profile.dart';
 import 'package:pure_live/common/utils/latest_async_value_queue.dart';
-import 'package:pure_live/player/interface/unified_player_interface.dart';
+import 'package:pure_live/player/widgets/video_output_viewport_sizer.dart';
 import 'package:pure_live/player/interface/media_kit_player_accessor.dart';
+import 'package:pure_live/player/core/player_error_classifier.dart';
+import 'package:pure_live/player/core/source_event_fence.dart';
+import 'package:pure_live/player/core/playback_proxy_policy.dart';
 
 @visibleForTesting
 ({int width, int height})? resolveMediaKitDisplaySize(VideoParams params) {
-  return resolveVideoParamsDisplaySize(params);
+  final size = resolveVideoParamsDisplaySize(params);
+  return size == null ? null : (width: size.width, height: size.height);
 }
 
-/// The host platform as seen by the mpv output configuration.
-///
-/// It exists so the configuration logic can be resolved without `dart:io`,
-/// which keeps the per-platform branches unit-testable.
 @visibleForTesting
-enum PlayerHostPlatform { android, windows, linux, macOS, iOS, other }
+bool shouldPublishMediaKitPlaying(bool nativePlaying) => nativePlaying;
 
-@visibleForTesting
-PlayerHostPlatform resolvePlayerHostPlatform() {
-  if (PlatformUtils.isAndroid) return PlayerHostPlatform.android;
-
-  if (PlatformUtils.isWindows) return PlayerHostPlatform.windows;
-
-  if (PlatformUtils.isLinux) return PlayerHostPlatform.linux;
-
-  if (PlatformUtils.isMacOS) return PlayerHostPlatform.macOS;
-
-  if (PlatformUtils.isIOS) return PlayerHostPlatform.iOS;
-
-  return PlayerHostPlatform.other;
-}
-
-/// Resolves the mpv `--vo` value to hand to [VideoControllerConfiguration].
-///
-/// Returns `null` for every platform except Android, which makes media_kit
-/// keep its platform default. On Windows, GNU/Linux, macOS and iOS media_kit
-/// renders through the `libmpv` render context into a Flutter texture; any
-/// other `vo` makes mpv create its own output window and detaches it from
-/// that render context, so `VideoOutputManager` never publishes a texture.
-/// The observable symptom is audio playing with a permanently black picture.
-///
-/// The stored [configuredDriver] comes from
-/// [PlayerConsts.androidVideoRenderersList] (`auto`, `gpu`, `gpu-next`,
-/// `mediacodec_embed`), which is Android-only vocabulary. Forwarding it on
-/// the desktop therefore always breaks rendering. Multiview cells never set
-/// `vo` and are consequently unaffected.
-@visibleForTesting
-String? resolveVideoOutputDriver({
-  required bool android,
-  required String configuredDriver,
-  required int androidSdkInt,
-}) {
-  if (!android) {
-    return null;
-  }
-
-  if (configuredDriver.isEmpty || configuredDriver == 'auto') {
-    return androidSdkInt >= 34 ? 'gpu-next' : 'gpu';
-  }
-
-  return configuredDriver;
-}
-
-/// Builds the [VideoControllerConfiguration] for one host platform.
-///
-/// Kept free of `dart:io` and settings I/O so every branch is unit-testable.
-@visibleForTesting
-VideoControllerConfiguration resolveVideoControllerConfiguration({
-  required PlayerHostPlatform platform,
-  required bool customPlayerOutput,
-  required bool playerCompatMode,
-  required String videoOutputDriver,
-  required String videoHardwareDecoder,
-  required bool enableRtxVsr,
-  required bool enableCodec,
-  required int androidSdkInt,
-}) {
-  if (!customPlayerOutput) {
-    return VideoControllerConfiguration(enableHardwareAcceleration: enableCodec);
-  }
-
-  if (platform == PlayerHostPlatform.android && playerCompatMode) {
-    return const VideoControllerConfiguration(
-      vo: 'mediacodec_embed',
-      hwdec: 'mediacodec',
-      enableHardwareAcceleration: true,
-      enableAndroidSurfaceProducer: false,
-      androidAttachSurfaceAfterVideoParameters: false,
-    );
-  }
-
-  // `vo` is Android-only. Windows / GNU/Linux / macOS / iOS render through
-  // media_kit's `libmpv` render context, so they must keep the platform
-  // default (null). Overriding it with the stored Android renderer detaches
-  // mpv from that context and leaves a black picture with sound.
-  final vo = resolveVideoOutputDriver(
-    android: platform == PlayerHostPlatform.android,
-    configuredDriver: videoOutputDriver,
-    androidSdkInt: androidSdkInt,
-  );
-
-  final String? hwdec;
-  switch (platform) {
-    case PlayerHostPlatform.android:
-    case PlayerHostPlatform.linux:
-    case PlayerHostPlatform.iOS:
-      hwdec = videoHardwareDecoder.isEmpty ? 'auto' : videoHardwareDecoder;
-    case PlayerHostPlatform.windows:
-      hwdec = enableRtxVsr ? 'd3d11va' : (videoHardwareDecoder.isEmpty ? 'auto' : videoHardwareDecoder);
-    case PlayerHostPlatform.macOS:
-      hwdec = 'no';
-    case PlayerHostPlatform.other:
-      hwdec = null;
-  }
-
-  return VideoControllerConfiguration(
-    vo: vo,
-    hwdec: hwdec,
-    enableHardwareAcceleration: platform == PlayerHostPlatform.macOS ? false : enableCodec,
-  );
-}
-
-class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
+class MediaKitAdapter
+    implements
+        UnifiedPlayer,
+        MediaKitPlayerAccessor,
+        VideoFitAwarePlayer,
+        SourceTransitionAwarePlayer,
+        PrivateInputAwarePlayer,
+        DecoderRecoveryAwarePlayer,
+        VideoFrameProgressAwarePlayer {
   MediaKitAdapter() {
     _audioModeTransitions = LatestAsyncValueQueue<bool>(_applyAudioOnly);
   }
 
+  bool _privateInput = false;
+  String? _nextSourceIdentity;
+  String? _currentSourceIdentity;
+  @override
+  void setPrivateInput(bool value, {String? sourceIdentity}) {
+    _privateInput = value;
+    _nextSourceIdentity = sourceIdentity;
+  }
+
+  /// Exercises the real source lifecycle and subscriptions without a renderer.
+  /// The supplied player owns its event contract; widget/native rendering is
+  /// intentionally outside this deterministic adapter-test entry point.
+  @visibleForTesting
+  factory MediaKitAdapter.headlessForTest(Player player, {String preferredHardwareDecoder = 'no'}) {
+    return MediaKitAdapter()
+      .._player = player
+      .._preferredHardwareDecoder = preferredHardwareDecoder
+      .._initialized = true;
+  }
+
+  /// Applies the shared low-latency live-stream mpv property set to a native
+  /// (libmpv) player platform.
+  ///
+  /// 单一事实来源：主播放器（[MediaKitAdapter.init]）与 multiview 每格播放器
+  /// 都必须使用同一套属性（seek 白名单、探测时长、LiveBufferPolicy 缓冲上限、
+  /// 网络超时、音频驱动、代理、macOS 硬解关闭），避免两处配置漂移。
+  static Future<void> applyNativeLiveProperties(dynamic native) async {
+    await native.setProperty('force-seekable', 'yes');
+
+    await native.setProperty(
+      'protocol_whitelist',
+      'httpproxy,udp,rtp,tcp,tls,data,file,http,https,crypto,rtmp,rtmps,rtsp,srt',
+    );
+
+    await native.setProperty('demuxer-lavf-probesize', '2097152');
+
+    // Live FLV/HLS streams need a short probe rather than a long-file
+    // analysis pass.  This reduces the black-screen interval before the
+    // first decoded frame while retaining enough data for codec detection.
+    await native.setProperty('demuxer-lavf-analyzeduration', '2');
+
+    // mpv's generic defaults keep a large seek-oriented forward/backward
+    // cache. Live rooms are not meaningfully seekable, so retaining that
+    // much compressed data only makes long Windows/Android sessions appear
+    // to grow indefinitely. Keep this shared with the tested policy rather
+    // than scattering raw byte strings through the adapter.
+    await LiveBufferPolicy.apply((name, value) async => await native.setProperty(name, value));
+
+    await native.setProperty('network-timeout', '15');
+
+    // Ask mpv to abandon a broken hardware decoder after the first consecutive
+    // frame failure. This preserves the low-power fast path on compatible
+    // devices while making unsupported profiles fall back to software instead
+    // of leaving a black Surface behind. mpv's larger default can skip several
+    // live packets before the fallback is attempted.
+    await native.setProperty('hwdec-software-fallback', '1');
+
+    final audioOutput = effectiveMpvAudioOutputDriverForPlatform(
+      customOutput: SettingsService.to.player.customPlayerOutput.v,
+      configuredDriver: SettingsService.to.player.audioOutputDriver.v,
+      platform: defaultTargetPlatform,
+    );
+    if (audioOutput != null) {
+      await native.setProperty('ao', audioOutput);
+    }
+
+    // Multiview also calls this shared initializer. Keep its media routing;
+    // the main adapter applies it again per source, bypassing private input.
+    await native.setProperty('http-proxy', PlaybackProxyPolicy.currentNativeUrl(privateInput: false));
+
+    if (PlatformUtils.isMacOS) {
+      await native.setProperty('hwdec', 'no');
+    }
+
+    if (PlatformUtils.isWindows && SettingsService.to.player.enableRtxVsr.value) {
+      await native.setProperty('hwdec', 'd3d11va');
+      await native.setProperty('vf', 'd3d11vpp=scale=2:scaling-mode=nvidia');
+    }
+  }
+
   late final Player _player;
+
   late final VideoController _controller;
 
   bool _initialized = false;
+
   bool _disposed = false;
+
   bool _listenerBound = false;
 
-  bool _performanceDiagnosticsInstalled = false;
+  bool _nativePathObserved = false;
 
-  /// Last size successfully pushed to the native texture, used to skip
-  /// redundant channel round-trips when layout repeats the same constraints.
-  int _lastOutputWidth = 0;
+  bool _nativeFramePropertiesObserved = false;
 
-  int _lastOutputHeight = 0;
+  bool _usesNativeFrameProbe = false;
 
   String? _currentUrl;
+
   bool _isAudioOnly = false;
 
-  SuperResolutionMode _superResolutionMode = SuperResolutionMode.off;
+  final SourceEventFence _sourceFence = SourceEventFence();
+
+  bool _sourceTransitionPrepared = false;
+
+  bool _sourceHasVideoFrame = false;
+
+  bool _sourceHasAudioFrame = false;
+
+  String _preferredHardwareDecoder = 'no';
+
+  String? _softwareDecoderFallbackUrl;
+
+  int _sourceProgressRevision = 0;
+
+  Timer? _pendingNativeErrorTimer;
+
+  _NativeDiagnostic? _openingNativeDiagnostic;
+
+  PlayerException? _pendingNativeError;
+
+  int? _pendingNativeErrorGeneration;
+
+  int _pendingNativeErrorProgressRevision = 0;
+
+  NativeDiagnosticComponent _pendingNativeErrorComponent = NativeDiagnosticComponent.either;
+
+  String? _lastEmittedNativeError;
+
+  DateTime? _lastEmittedNativeErrorAt;
+
+  int? _lastEmittedNativeErrorGeneration;
+
+  BoxFit _videoFit = BoxFit.contain;
 
   late final LatestAsyncValueQueue<bool> _audioModeTransitions;
 
-  late final PlaybackCachePolicy _cachePolicy;
+  // =========================
+  // subjects
+  // =========================
 
   final _stateSubject = BehaviorSubject<PlayerState>.seeded(PlayerState.idle);
 
@@ -185,412 +202,123 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
   final _videoFrameProgressSubject = PublishSubject<int>();
 
+  VoidCallback? _videoFrameRevisionListener;
+
+  // =========================
+  // subscriptions
+  // =========================
+
   final List<StreamSubscription> _subscriptions = [];
 
   StreamSubscription? _playingSub;
+
   StreamSubscription? _bufferingSub;
-  StreamSubscription? _completeSub;
-  StreamSubscription? _errorSub;
+
   StreamSubscription? _videoParamsSub;
 
-  static Future<void> applyNativeLiveProperties(NativePlayer native) async {
-    await native.setProperty('force-seekable', 'yes');
+  StreamSubscription? _audioParamsSub;
 
-    await native.setProperty(
-      'protocol_whitelist',
-      'httpproxy,udp,rtp,tcp,tls,data,file,http,https,crypto,rtmp,rtmps,rtsp,srt',
-    );
-    await native.setProperty('demuxer-cache-dir', await FileUtils().getTempPath());
+  StreamSubscription? _completeSub;
 
-    await native.setProperty('demuxer-lavf-probesize', '2097152');
+  StreamSubscription? _errorSub;
 
-    // Live FLV/HLS streams need a short probe rather than a long-file
-    // analysis pass.  This reduces the black-screen interval before the
-    // first decoded frame while retaining enough data for codec detection.
-    await native.setProperty('demuxer-lavf-analyzeduration', '2');
+  StreamSubscription? _logSub;
 
-    await native.setProperty('network-timeout', '15');
-
-    await native.setProperty('hwdec-software-fallback', '1');
-
-    // Software-decoding relief. Both options are no-ops while hardware
-    // decoding is active and only kick in when the CPU falls behind, which
-    // runtime diagnostics (hwdec-current=no) confirmed on arm64 desktops:
-    //
-    // - vd-lavc-fast enables FFmpeg's fast decode path (~10-30% faster at a
-    //   negligible quality cost).
-    // - framedrop=decoder+vo drops non-reference frames at the decoder before
-    //   they eat CPU time, so a 60fps source the CPU cannot sustain plays at
-    //   a steady lower rate instead of stuttering and drifting out of sync.
-    await native.setProperty('vd-lavc-fast', 'yes');
-
-    await native.setProperty('framedrop', 'decoder+vo');
-
-    await native.setProperty('volume-max', '100');
-
-    if (PlatformUtils.isLinux) {
-      await _applyLinuxRenderRelief(native);
-    }
-  }
-
-  /// Linux-only render-cost relief for the JM9100 (mwv207) GPU stack.
-  ///
-  /// Diagnostics on the JM9100 (docs/LINUX_JM9100_HWDECODE_AUDIT.md §8) show
-  /// the per-pixel dither shader and non-bilinear sampling dominate the GL
-  /// render path: 1080p30 playback costs ~75% CPU with mpv defaults but only
-  /// ~37% with bilinear sampling and dithering disabled, while the direct
-  /// hardware presentation path sits at ~5%. Live content gains nothing from
-  /// dithering or high-order scalers, so the adapter pins the cheap path on
-  /// Linux only; Windows and Android keep their defaults.
-  ///
-  /// Failures are non-fatal: a private mpv build may reject a property, and
-  /// the pipeline then simply keeps its previous quality, which is why each
-  /// set is logged instead of aborting initialization.
-  static Future<void> _applyLinuxRenderRelief(NativePlayer native) async {
-    const properties = <String, String>{
-      'dither-depth': 'no',
-      'scale': 'bilinear',
-      'cscale': 'bilinear',
-    };
-
-    for (final entry in properties.entries) {
-      try {
-        await native.setProperty(entry.key, entry.value);
-      } catch (e) {
-        Log.w('MediaKitAdapter: setProperty(${entry.key}) failed: $e');
-      }
-    }
-  }
-
-  static Future<void> _configureAndroidCustomOutput(NativePlayer native) async {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return;
-    }
-
-    if (PlatformUtils.isAndroid && settings.playerCompatMode.v) {
-      return;
-    }
-    if (settings.audioOutputDriver.v != 'auto') {
-      await native.setProperty(
-        'ao',
-        settings.androidEnableOpenSLES.v ? 'opensles' : settings.audioOutputDriver.v,
-      );
-    }
-
-    await native.setProperty('volume-max', '100');
-
-    await native.setProperty('hwdec-software-fallback', '1');
-  }
-
-  static Future<void> _configureWindowsCustomOutput(NativePlayer native) async {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return;
-    }
-
-    if (settings.enableRtxVsr.v) {
-      await native.setProperty('vf', 'd3d11vpp=scale=2:scaling-mode=nvidia');
-    }
-    if (settings.audioOutputDriver.v != 'auto') {
-      await native.setProperty('ao', settings.audioOutputDriver.v);
-    }
-  }
-
-  static Future<void> _configureMacOSCustomOutput(NativePlayer native) async {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return;
-    }
-    if (settings.audioOutputDriver.v != 'auto') {
-      await native.setProperty('ao', settings.audioOutputDriver.v);
-    }
-  }
-
-  static Future<void> _configureIOSCustomOutput(NativePlayer native) async {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return;
-    }
-    if (settings.audioOutputDriver.v != 'auto') {
-      await native.setProperty('ao', settings.audioOutputDriver.v);
-    }
-  }
-
-  static Future<void> _configureLinuxCustomOutput(NativePlayer native) async {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return;
-    }
-
-    if (settings.audioOutputDriver.v != 'auto') {
-      await native.setProperty('ao', settings.audioOutputDriver.v);
-    }
-  }
-
-  SuperResolutionMode _resolveInitialSuperResolutionMode() {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return SuperResolutionMode.off;
-    }
-
-    if (PlatformUtils.isAndroid && settings.playerCompatMode.v) {
-      return SuperResolutionMode.off;
-    }
-
-    if (PlatformUtils.isIOS) {
-      return SuperResolutionMode.off;
-    }
-
-    if (PlatformUtils.isWindows && settings.enableRtxVsr.v) {
-      return SuperResolutionMode.off;
-    }
-
-    return SuperResolutionMode.fromStorageValue(settings.defaultSuperResolutionMode.v);
-  }
-
-  List<String> _getSuperResolutionShaders() {
-    return switch (_superResolutionMode) {
-      SuperResolutionMode.off => const <String>[],
-      SuperResolutionMode.efficiency => PlayerConsts.mpvAnime4KShadersLiteKeys,
-      SuperResolutionMode.quality => PlayerConsts.mpvAnime4KShaderKeys,
-    };
-  }
-
-  Future<void> _configureSuperResolution() async {
-    if (_disposed) {
-      return;
-    }
-
-    if (_player.platform is! NativePlayer) {
-      return;
-    }
-
-    final native = _player.platform as NativePlayer;
-
-    await native.waitForPlayerInitialization;
-    await native.waitForVideoControllerInitializationIfAttached;
-
-    if (_disposed) {
-      return;
-    }
-
-    final shaders = _getSuperResolutionShaders();
-
-    await _applyShaderList(native, shaders);
-  }
-
-  Future<void> _applyShaderList(NativePlayer native, List<String> shaders) async {
-    if (shaders.isEmpty) {
-      await native.command(['change-list', 'glsl-shaders', 'clr', '']);
-
-      return;
-    }
-
-    final shaderCommand = FileUtils().buildShadersAbsolutePath(
-      ShaderAssetService.instance.shadersDirectoryPath!,
-      shaders,
-    );
-
-    await native.command(['change-list', 'glsl-shaders', 'set', shaderCommand]);
-  }
-
-  Future<void> setSuperResolution(SuperResolutionMode mode) async {
-    if (_disposed) {
-      return;
-    }
-
-    if (_player.platform is! NativePlayer) {
-      return;
-    }
-
-    if (!_isSuperResolutionSupported()) {
-      if (_superResolutionMode != SuperResolutionMode.off) {
-        final oldMode = _superResolutionMode;
-
-        _superResolutionMode = SuperResolutionMode.off;
-
-        try {
-          await _configureSuperResolution();
-        } catch (_) {
-          _superResolutionMode = oldMode;
-        }
-      }
-
-      return;
-    }
-
-    final oldMode = _superResolutionMode;
-
-    if (oldMode == mode) {
-      return;
-    }
-
-    try {
-      _superResolutionMode = mode;
-
-      await _configureSuperResolution();
-
-      Log.i(
-        'MediaKitAdapter: super resolution changed '
-        '${oldMode.name} -> ${mode.name}',
-      );
-    } catch (e, s) {
-      _superResolutionMode = oldMode;
-
-      Log.e('MediaKitAdapter: failed to set super resolution', s);
-
-      try {
-        await _configureSuperResolution();
-      } catch (restoreError, restoreStack) {
-        Log.e(
-          'MediaKitAdapter: failed to restore previous '
-          'super resolution shader',
-          restoreStack,
-        );
-      }
-
-      rethrow;
-    }
-  }
-
-  bool _isSuperResolutionSupported() {
-    final settings = SettingsService.to.player;
-
-    if (!settings.customPlayerOutput.v) {
-      return false;
-    }
-
-    if (PlatformUtils.isAndroid && settings.playerCompatMode.v) {
-      return false;
-    }
-
-    if (PlatformUtils.isIOS) {
-      return false;
-    }
-
-    if (PlatformUtils.isWindows && settings.enableRtxVsr.v) {
-      return false;
-    }
-
-    return true;
-  }
-
-  Future<VideoControllerConfiguration> _buildVideoControllerConfiguration() async {
-    final settings = SettingsService.to.player;
-    final platform = resolvePlayerHostPlatform();
-    final customOutput = settings.customPlayerOutput.v;
-    final compatMode = platform == PlayerHostPlatform.android && settings.playerCompatMode.v;
-
-    // Both early exits below disable the shader pipeline, so mirror that side
-    // effect here and keep the resolver itself pure.
-    if (!customOutput || compatMode) {
-      _superResolutionMode = SuperResolutionMode.off;
-    }
-
-    // Only the automatic Android selection needs a device lookup; every other
-    // combination resolves from settings alone.
-    int androidSdkInt = 0;
-    if (platform == PlayerHostPlatform.android && customOutput && !compatMode) {
-      final driver = settings.videoOutputDriver.v;
-
-      if (driver.isEmpty || driver == 'auto') {
-        androidSdkInt = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
-      }
-    }
-
-    return resolveVideoControllerConfiguration(
-      platform: platform,
-      customPlayerOutput: customOutput,
-      playerCompatMode: settings.playerCompatMode.v,
-      videoOutputDriver: settings.videoOutputDriver.v,
-      videoHardwareDecoder: settings.videoHardwareDecoder.v,
-      enableRtxVsr: settings.enableRtxVsr.v,
-      enableCodec: settings.enableCodec.v,
-      androidSdkInt: androidSdkInt,
-    );
-  }
+  // =========================
+  // init
+  // =========================
 
   @override
   Future<void> init({bool audioOnly = false}) async {
-    if (_initialized) {
-      return;
-    }
-
+    if (_initialized) return;
+    // Always create a normal video output. Audio-only is a reversible track
+    // selection on the same player; constructing a `vo=null` controller made
+    // returning to video depend on destroying and recreating the native player.
     _disposed = false;
-    _listenerBound = false;
-    _currentUrl = null;
+
+    // This is application presentation state. On Android the attached
+    // media_kit VideoController is the sole owner of mpv's `vid` property.
     _isAudioOnly = false;
 
-    _superResolutionMode = _resolveInitialSuperResolutionMode();
+    _listenerBound = false;
+
+    _currentUrl = null;
 
     try {
       _stateSubject.add(PlayerState.initializing);
-      _cachePolicy = PlaybackCachePolicy(
-        isLocalPlayback: () => false,
-        currentPlayer: () => _player,
-      );
-      final settings = SettingsService.to.player;
 
-      _player = Player(configuration: const PlayerConfiguration(osc: false));
+      MediaKit.ensureInitialized();
+      _player = Player();
 
       if (_player.platform is NativePlayer) {
-        final native = _player.platform as NativePlayer;
-
+        final native = _player.platform as dynamic;
+        // Live adapters use one explicit seekability override. The upstream
+        // Android workaround duplicated this native property write.
         await applyNativeLiveProperties(native);
-        _cachePolicy.startWatching();
-        await _cachePolicy.apply();
-        if (settings.customPlayerOutput.v) {
-          if (PlatformUtils.isAndroid) {
-            if (!settings.playerCompatMode.v) {
-              await _configureAndroidCustomOutput(native);
-            }
-          } else if (PlatformUtils.isWindows) {
-            await _configureWindowsCustomOutput(native);
-          } else if (PlatformUtils.isMacOS) {
-            await _configureMacOSCustomOutput(native);
-          } else if (PlatformUtils.isIOS) {
-            await _configureIOSCustomOutput(native);
-          } else if (PlatformUtils.isLinux) {
-            await _configureLinuxCustomOutput(native);
-          }
-        }
       }
 
-      final configuration = await _buildVideoControllerConfiguration();
-
-      // Diagnosing "sound without a picture" starts from the effective mpv
-      // output configuration. `null` means media_kit keeps its platform
-      // default, which is what the texture-based hosts require.
-      Log.i(
-        'MediaKitAdapter: VideoController vo=${configuration.vo ?? '<platform default>'} '
-        'hwdec=${configuration.hwdec ?? '<platform default>'} '
-        'hardwareAcceleration=${configuration.enableHardwareAcceleration}',
+      // =========================
+      // controller
+      // =========================
+      final platform = defaultTargetPlatform;
+      final androidCompatMode = PlatformUtils.isAndroid && SettingsService.to.player.playerCompatMode.v;
+      final videoOutputDriver = normalizeMpvVideoOutputDriverForPlatform(
+        SettingsService.to.player.videoOutputDriver.v,
+        platform,
+      );
+      final hardwareDecoder = normalizeMpvHardwareDecoderForPlatform(
+        SettingsService.to.player.videoHardwareDecoder.v,
+        platform,
       );
 
-      _controller = VideoController(_player, configuration: configuration);
+      _preferredHardwareDecoder = PlatformUtils.isMacOS
+          ? 'no'
+          : androidCompatMode
+          ? 'mediacodec'
+          : SettingsService.to.player.customPlayerOutput.v
+          ? hardwareDecoder
+          : SettingsService.to.player.enableCodec.v
+          ? 'auto-safe'
+          : 'no';
 
-      // Pin an initial size before the first frame so the desktop render loop
-      // never falls into the per-frame mpv property query. The source size is
-      // still unknown here, so the policy falls back to its 1080p estimate and
-      // the video-params listener refines it once metadata arrives.
-      await _syncNativeOutputSize();
+      _controller = androidCompatMode
+          ? VideoController(
+              _player,
+              configuration: const VideoControllerConfiguration(vo: 'mediacodec_embed', hwdec: 'mediacodec'),
+            )
+          : SettingsService.to.player.customPlayerOutput.v
+          ? VideoController(
+              _player,
+              configuration: VideoControllerConfiguration(
+                vo: videoOutputDriver,
+                hwdec: PlatformUtils.isMacOS ? 'no' : hardwareDecoder,
+                enableHardwareAcceleration: !PlatformUtils.isMacOS,
+              ),
+            )
+          : VideoController(
+              _player,
+              configuration: VideoControllerConfiguration(
+                enableHardwareAcceleration: PlatformUtils.isMacOS ? false : SettingsService.to.player.enableCodec.v,
+                hwdec: PlatformUtils.isMacOS ? 'no' : null,
+                androidAttachSurfaceAfterVideoParameters: false,
+              ),
+            );
 
-      await _installPerformanceDiagnostics();
+      if (PlatformUtils.isWindows) {
+        var lastRevision = _controller.frameRevision.value;
+        void handleFrameRevision() {
+          if (_disposed) return;
+          final revision = _controller.frameRevision.value;
+          if (revision == lastRevision) return;
+          lastRevision = revision;
+          _videoFrameProgressSubject.add(revision);
+        }
 
-      await _bindListeners();
-
-      if (_superResolutionMode != SuperResolutionMode.off) {
-        await _configureSuperResolution();
+        _videoFrameRevisionListener = handleFrameRevision;
+        _controller.frameRevision.addListener(handleFrameRevision);
       }
 
-      await _player.setPlaylistMode(PlaylistMode.none);
+      await _bindListeners(sourceGeneration: _sourceFence.generation);
 
       _initialized = true;
 
@@ -609,6 +337,196 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     }
   }
 
+  // =========================
+  // datasource
+  // =========================
+
+  @override
+  void beginSourceTransition() {
+    if (_disposed) return;
+    _prepareSourceTransition();
+    _sourceTransitionPrepared = true;
+  }
+
+  void _prepareSourceTransition({String? url}) {
+    _pendingNativeErrorTimer?.cancel();
+    _pendingNativeErrorTimer = null;
+    _pendingNativeError = null;
+    _pendingNativeErrorGeneration = null;
+    _pendingNativeErrorComponent = NativeDiagnosticComponent.either;
+    _openingNativeDiagnostic = null;
+    _sourceHasVideoFrame = false;
+    _sourceHasAudioFrame = false;
+    _sourceProgressRevision = 0;
+    _sourceFence.begin(url ?? _currentUrl);
+    _playingSubject.add(false);
+    _loadingSubject.add(true);
+    _completeSubject.add(false);
+    _widthSubject.add(null);
+    _heightSubject.add(null);
+  }
+
+  Future<List<String>> _currentNativeSourcePaths() async {
+    if (_player.platform is! NativePlayer) return <String>[_currentUrl ?? ''];
+    try {
+      final path = await (_player.platform as dynamic).getProperty('path') as String;
+      return <String>[path];
+    } catch (_) {
+      return const <String>[];
+    }
+  }
+
+  Future<void> _bindNativeSourceObservers(int generation) async {
+    if (_disposed || _player.platform is! NativePlayer) return;
+    final native = _player.platform as dynamic;
+
+    if (_nativePathObserved) {
+      try {
+        await native.unobserveProperty('path');
+      } catch (_) {}
+      _nativePathObserved = false;
+    }
+    if (_nativeFramePropertiesObserved) {
+      try {
+        await native.unobserveProperty('video-frame-info/picture-type');
+        await native.unobserveProperty('estimated-vf-fps');
+      } catch (_) {}
+      _nativeFramePropertiesObserved = false;
+      _usesNativeFrameProbe = false;
+    }
+    if (_disposed || generation != _sourceFence.generation) return;
+
+    // Every callback captures the source lease that installed it. Reading the
+    // fence's current generation inside a delayed callback relabels an old
+    // room/quality event as new and was the root of stale dimensions, repeated
+    // danmaku recovery and spurious decoder errors after source replacement.
+    await native.observeProperty('path', (String path) async {
+      _handleNativePath(path, generation);
+    });
+    _nativePathObserved = true;
+    await native.observeProperty('video-frame-info/picture-type', (String value) async {
+      _handleDecodedVideoFrameSignal(value, generation);
+    });
+    await native.observeProperty('estimated-vf-fps', (String value) async {
+      _handleDecodedVideoFrameRate(value, generation);
+    });
+    _nativeFramePropertiesObserved = true;
+    _usesNativeFrameProbe = true;
+  }
+
+  void _handleNativePath(String path, int generation) {
+    if (_disposed || generation != _sourceFence.generation) return;
+    _sourceFence.observeNativeSources(<String>[path]);
+    if (_sourceFence.isOpening) return;
+    if (!_sourceFence.accepts(generation)) return;
+    _publishCurrentNativeSnapshot(generation);
+    unawaited(_refreshCurrentNativeReadinessSnapshot(generation));
+    _drainDeferredNativeDiagnostic(generation);
+  }
+
+  Future<void> _refreshCurrentNativeReadinessSnapshot(int generation) async {
+    if (_disposed || !_sourceFence.accepts(generation) || _player.platform is! NativePlayer) return;
+    final native = _player.platform as dynamic;
+    try {
+      final pictureType = (await native.getProperty('video-frame-info/picture-type') as String).trim();
+      if (_sourceFence.accepts(generation)) _handleDecodedVideoFrameSignal(pictureType, generation);
+    } catch (_) {
+      // The property is unavailable until the first decoded video frame.
+    }
+    try {
+      final fps = (await native.getProperty('estimated-vf-fps') as String).trim();
+      if (_sourceFence.accepts(generation)) _handleDecodedVideoFrameRate(fps, generation);
+    } catch (_) {
+      // The property is unavailable when this source has no decoded video.
+    }
+    try {
+      final audioFormat = (await native.getProperty('audio-params/format') as String).trim();
+      if (audioFormat.isNotEmpty && _sourceFence.accepts(generation)) {
+        _markDecodedAudioFrame(generation);
+      }
+    } catch (_) {
+      // The property is unavailable until the audio decoder is configured.
+    }
+  }
+
+  void _handleDecodedVideoFrameSignal(String value, int generation) {
+    final pictureType = value.trim().toUpperCase();
+    if (pictureType != 'I' && pictureType != 'P' && pictureType != 'B') return;
+    _markDecodedVideoFrame(generation);
+  }
+
+  void _handleDecodedVideoFrameRate(String value, int generation) {
+    final fps = double.tryParse(value.trim());
+    if (fps == null || !fps.isFinite || fps <= 0) return;
+    _markDecodedVideoFrame(generation);
+  }
+
+  void _markDecodedVideoFrame(int generation) {
+    if (_disposed || !_sourceFence.accepts(generation)) return;
+    _sourceHasVideoFrame = true;
+    _openingNativeDiagnostic = null;
+    _sourceProgressRevision++;
+    // Native frame probes are progress heartbeats, not playback-state
+    // transitions. Republishing playing/loading on every decoded frame made
+    // PlayerManager recreate watchdog timers and notify UI listeners dozens of
+    // times per second on Windows. Keep the dedicated frame stream hot while
+    // emitting state only when it actually changes.
+    _publishMediaProgressState();
+    _cancelRecoveredNativeError(NativeDiagnosticComponent.video);
+  }
+
+  void _markDecodedAudioFrame(int generation) {
+    if (_disposed || !_sourceFence.accepts(generation)) return;
+    _sourceHasAudioFrame = true;
+    _sourceProgressRevision++;
+    if (_isAudioOnly && _player.state.playing) {
+      _publishMediaProgressState();
+    }
+    _cancelRecoveredNativeError(NativeDiagnosticComponent.audio);
+  }
+
+  void _publishMediaProgressState() {
+    // A queued frame or playing=true may arrive while mpv is still waiting
+    // for cache. Only the native buffering contract ends that episode; media
+    // readiness must not retire PlayerManager's independent stall watchdog.
+    final buffering = _player.state.buffering;
+    if (_loadingSubject.value != buffering) _loadingSubject.add(buffering);
+    if (_player.state.playing && !_playingSubject.value) _playingSubject.add(true);
+    if (buffering) {
+      if (_stateSubject.value != PlayerState.buffering) _stateSubject.add(PlayerState.buffering);
+    } else if (_player.state.playing) {
+      if (_stateSubject.value != PlayerState.playing) _stateSubject.add(PlayerState.playing);
+    }
+  }
+
+  @override
+  Future<bool> prepareSoftwareDecoderFallback(PlayerException error) async {
+    final url = _currentSourceIdentity;
+    if (_disposed ||
+        _isAudioOnly ||
+        error.type != PlayerErrorType.codec ||
+        error.code?.startsWith('audio_') == true ||
+        url == null ||
+        url.isEmpty ||
+        _preferredHardwareDecoder == 'no' ||
+        _softwareDecoderFallbackUrl == url) {
+      return false;
+    }
+
+    // Only mark the next open. Changing `hwdec` while the failing source still
+    // owns the decoder can synchronously emit another error into the recovery
+    // stack and race the source-generation fence.
+    _softwareDecoderFallbackUrl = url;
+    return true;
+  }
+
+  Future<void> _applyDecoderPolicyForSource(String url) async {
+    if (_player.platform is! NativePlayer) return;
+    final useSoftware = _softwareDecoderFallbackUrl == url;
+    if (!useSoftware) _softwareDecoderFallbackUrl = null;
+    await (_player.platform as dynamic).setProperty('hwdec', useSoftware ? 'no' : _preferredHardwareDecoder);
+  }
+
   @override
   Future<void> setDataSource(
     String url,
@@ -617,67 +535,79 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     LiveRoom? room,
     bool audioOnly = false,
   }) async {
-    if (_disposed) {
-      return;
-    }
-
-    if (_currentUrl == url && isPlayingNow) {
-      return;
-    }
-
+    if (_disposed) return;
+    final privateInput = _privateInput;
+    final sourceIdentity = _nextSourceIdentity ?? url;
+    _privateInput = false;
+    _nextSourceIdentity = null;
+    _currentSourceIdentity = sourceIdentity;
+    // An explicit manager play is a new source generation even if the URL is
+    // textually identical. Decoder recovery, manual retry and signed CDN URLs
+    // may all reopen the same string with different native policy. Skipping
+    // here used to clear the public subjects in beginSourceTransition and then
+    // leave them permanently empty; it also made software-decoder fallback a
+    // no-op for the exact URL that had just failed in hardware.
     _currentUrl = url;
+    _isAudioOnly = audioOnly;
+    if (_sourceTransitionPrepared) {
+      // The manager reset the public source state before rebinding its
+      // source-scoped listeners. Associate that generation with this URL.
+      _sourceFence.retargetOpening(url);
+      _sourceTransitionPrepared = false;
+    } else {
+      _prepareSourceTransition(url: url);
+    }
+    final sourceGeneration = _sourceFence.generation;
 
     try {
-      _loadingSubject.add(true);
-
       _stateSubject.add(PlayerState.preparing);
 
-      _completeSubject.add(false);
+      await _bindNativeSourceObservers(sourceGeneration);
+      await _bindListeners(sourceGeneration: sourceGeneration, force: true);
+      if (_disposed || sourceGeneration != _sourceFence.generation) return;
 
-      _widthSubject.add(null);
-      _heightSubject.add(null);
+      await _applyDecoderPolicyForSource(sourceIdentity);
 
       if (_player.platform is NativePlayer) {
-        final native = _player.platform as NativePlayer;
-
-        final proxy = SettingsService.to.proxy;
-
-        if (proxy.enableProxy.v && proxy.proxyHost.v.isNotEmpty) {
-          final proxyUrl = 'http://${proxy.proxyHost.v}:${proxy.proxyPort.v}';
-
-          await native.setProperty('http-proxy', proxyUrl);
-        }
-
-        await native.setProperty('vid', audioOnly ? 'no' : 'auto');
+        await (_player.platform as dynamic).setProperty(
+          'http-proxy',
+          PlaybackProxyPolicy.currentNativeUrl(privateInput: privateInput),
+        );
       }
 
-      await _player.setAudioTrack(AudioTrack.auto());
+      await _player.open(Media(url, httpHeaders: headers), play: true);
 
-      final urls = <String>[url, ...playUrls.where((item) => item.isNotEmpty && item != url)];
+      if (_disposed || sourceGeneration != _sourceFence.generation) return;
+      _sourceFence.finishOpen(await _currentNativeSourcePaths(), authorizeSuccessfulOpen: true);
+      _publishCurrentNativeSnapshot(sourceGeneration);
+      unawaited(_refreshCurrentNativeReadinessSnapshot(sourceGeneration));
 
-      final playlist = Playlist(urls.map((item) => Media(item, httpHeaders: headers)).toList());
-
-      await _player.open(playlist, play: true);
-
+      // mpv opens a normal Android source with `vid=auto`, and the Surface
+      // controller already owns that same initial state. Reissuing an async
+      // `vid=auto` command here can stay pending after the first frame is
+      // visible; the room controller's initialization Future then never
+      // completes and the first headphone tap waits on a stream that is already
+      // playing. Audio-only still needs an explicit post-open selection.
       if (PlatformUtils.isAndroid && !audioOnly) {
         _isAudioOnly = false;
-      } else if (audioOnly || _isAudioOnly) {
-        // 仅在进入音频模式、或从音频模式恢复视频时才改动 vid。
-        //
-        // 不能无条件以 force 调用 _applyAudioOnly：非 Android 分支会执行
-        // setVideoTrack(VideoTrack.auto())，即向 mpv 重写 vid=auto。而 open()
-        // 对直播流是异步的，返回时 demuxer 往往还没解析出轨道列表，此时重写
-        // vid 会让 mpv 按“当前无可用视频轨道”决策，视频输出不再恢复，表现为
-        // 有声音、无画面（黑屏）。vid=auto 本就是默认值，正常播放时重写毫无
-        // 收益。多画面播放从不触碰 vid，渲染正常，行为应与之一致。
-        await _applyAudioOnly(audioOnly, force: true);
       } else {
-        _isAudioOnly = false;
+        await _applyAudioOnly(audioOnly, force: true);
       }
-      if (_superResolutionMode != SuperResolutionMode.off) {
-        await _configureSuperResolution();
+
+      if (_disposed || sourceGeneration != _sourceFence.generation) return;
+      _publishCurrentNativeSnapshot(sourceGeneration);
+      final openingDiagnostic = _openingNativeDiagnostic;
+      _openingNativeDiagnostic = null;
+      if (openingDiagnostic != null && !_isDiagnosticComponentReady(openingDiagnostic.prefix)) {
+        if (openingDiagnostic.generation == sourceGeneration) {
+          _handleNativeDiagnostic(
+            openingDiagnostic.message,
+            nativePrefix: openingDiagnostic.prefix,
+            generation: sourceGeneration,
+          );
+        }
       }
-      _stateSubject.add(PlayerState.ready);
+      _stateSubject.add(_loadingSubject.value ? PlayerState.buffering : PlayerState.ready);
 
       if (PlatformUtils.isMobile) {
         await setVolume(1.0);
@@ -686,317 +616,314 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
         await setVolume(targetVolume);
       }
     } catch (e, s) {
-      final exception = PlayerException(
-        message: 'Media open failed',
-        type: PlayerErrorType.source,
-        error: e,
-        stackTrace: s,
-      );
+      if (sourceGeneration != _sourceFence.generation || _disposed) return;
+      final classification = PlayerErrorClassifier.classify(e.toString());
+      final exception = e is PlayerException
+          ? e
+          : PlayerException(
+              message: 'Media open failed: $e',
+              type: classification.type == PlayerErrorType.native ? PlayerErrorType.source : classification.type,
+              code: classification.code,
+              error: e,
+              stackTrace: s,
+            );
 
       _safeAddError(exception);
 
-      _stateSubject.add(PlayerState.error);
-
       throw exception;
     } finally {
-      if (!_disposed) {
-        _loadingSubject.add(false);
+      if (!_disposed &&
+          _sourceFence.accepts(sourceGeneration) &&
+          (_sourceHasVideoFrame || (_isAudioOnly && _sourceHasAudioFrame))) {
+        _publishMediaProgressState();
       }
     }
   }
 
-  /// Pins the native output texture to a fixed size on the desktop renderers.
-  ///
-  /// Without a configured size, `video_output_notify_render` resolves the
-  /// texture size on every single frame through
-  /// `video_output_get_width`/`video_output_get_height`, and each of those
-  /// performs a full synchronous `video-out-params` property fetch from mpv
-  /// (node allocation, key walk and free) on the GL thread — twice per frame.
-  /// A pinned size takes the cached fast path in `video_output_get_width`
-  /// instead. It also stops a 4K source from being decoded into a
-  /// full-resolution texture the viewport never needs.
-  ///
-  /// Multiview cells pin their size when their [VideoController] is created;
-  /// the single-room player passed null, which is why it rendered at a lower
-  /// frame rate than multiview.
-  Future<void> _syncNativeOutputSize() async {
-    if (_disposed || !PlatformUtils.isDesktop) {
-      return;
-    }
+  // =========================
+  // listeners
+  // =========================
 
-    final view = PlatformDispatcher.instance.views.firstOrNull;
-
-    final pixelRatio = view?.devicePixelRatio ?? 0.0;
-
-    final physicalSize = view?.physicalSize;
-
-    if (physicalSize == null || !pixelRatio.isFinite || pixelRatio <= 0) {
-      return;
-    }
-
-    await _applyNativeOutputSize(physicalSize / pixelRatio, pixelRatio);
-  }
-
-  /// Pins the native output texture to [logicalViewport] * [pixelRatio].
-  ///
-  /// The window-level estimate overshoots whenever the room page reserves
-  /// space for side panels or the control bar, so [_scheduleViewportSizeSync]
-  /// refines it with the real video-area constraints once laid out. On
-  /// software GL rasterizers (common on arm64 desktops) every texture pixel
-  /// is rasterized on the CPU, and an oversized texture directly depresses
-  /// the video frame rate.
-  Future<void> _applyNativeOutputSize(Size logicalViewport, double pixelRatio) async {
-    if (_disposed || !PlatformUtils.isDesktop) {
-      return;
-    }
-
-    if (!pixelRatio.isFinite || pixelRatio <= 0) {
-      return;
-    }
-
-    var size = calculateVideoOutputSize(
-      logicalViewport: logicalViewport,
-      devicePixelRatio: pixelRatio,
-      sourceWidth: _widthSubject.value,
-      sourceHeight: _heightSubject.value,
-    );
-
-    if (size.isEmpty) {
-      return;
-    }
-
-    // Low-memory mode opts the host into an HD texture ceiling: software
-    // decoding (confirmed via hwdec-current=no diagnostics) plus a software
-    // GL rasterizer pay for every pixel on the CPU, and 1440p+ textures
-    // collapse the frame rate. Normal hosts keep full resolution.
-    if (SettingsService.to.player.lowMemoryMode.v) {
-      size = clampVideoOutputToHd(size);
-    }
-
-    final width = size.width.round();
-
-    final height = size.height.round();
-
-    // Layout passes repeat the same constraints many times; skip the channel
-    // round-trip when nothing changed.
-    if (width == _lastOutputWidth && height == _lastOutputHeight) {
-      return;
-    }
-
-    try {
-      await _controller.setSize(width: width, height: height);
-
-      _lastOutputWidth = width;
-
-      _lastOutputHeight = height;
-
-      Log.i('MediaKitAdapter: output texture pinned to ${width}x$height');
-    } catch (error, stackTrace) {
-      // A torn-down player during an in-flight resize must not surface as a
-      // playback failure.
-      Log.w('MediaKitAdapter: native output resize failed: $error');
-
-      Log.d(stackTrace.toString());
-    }
-  }
-
-  /// Refines the pinned texture with the actual video-area constraints.
-  ///
-  /// Side effects are deferred to the end of the frame; [calculateVideoOutputSize]
-  /// and the local last-size cache keep repeated layout passes cheap.
-  void _scheduleViewportSizeSync(BuildContext context, BoxConstraints constraints) {
-    if (_disposed || !PlatformUtils.isDesktop) {
-      return;
-    }
-
-    if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight || constraints.maxWidth <= 0 || constraints.maxHeight <= 0) {
-      return;
-    }
-
-    final double pixelRatio;
-
-    try {
-      pixelRatio = View.of(context).devicePixelRatio;
-    } catch (_) {
-      return;
-    }
-
-    final logical = Size(constraints.maxWidth, constraints.maxHeight);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_disposed) {
-        return;
-      }
-
-      unawaited(_applyNativeOutputSize(logical, pixelRatio));
-    });
-  }
-
-  /// Instruments mpv so a "low frame rate" report can be answered with data
-  /// instead of guesses:
-  ///
-  /// - `hwdec-current`: the decoder mpv is actually using. `no`/empty means
-  ///   the CPU is decoding, which on arm64 Linux is the dominant cause of low
-  ///   video frame rates; it is reported loudly on purpose.
-  /// - `container-fps`: the source frame rate, so "low" can be judged against
-  ///   what the stream actually carries.
-  ///
-  /// Both are change-driven `mpv_observe_property` registrations and stay
-  /// silent while values hold; observing never alters playback.
-  Future<void> _installPerformanceDiagnostics() async {
-    if (_disposed || _performanceDiagnosticsInstalled) {
-      return;
-    }
-
-    if (_player.platform is! NativePlayer) {
-      return;
-    }
-
-    final native = _player.platform as NativePlayer;
-
-    _performanceDiagnosticsInstalled = true;
-
-    Future<void> observe(String property, void Function(String value) onValue) async {
-      try {
-        await native.observeProperty(property, (value) async => onValue(value));
-      } catch (error) {
-        // Duplicate registration or a teardown race must never break playback.
-        _performanceDiagnosticsInstalled = false;
-
-        Log.d('MediaKitAdapter: observe $property failed: $error');
-      }
-    }
-
-    await observe('hwdec-current', (value) {
-      if (value.isEmpty || value == 'no') {
-        Log.w('MediaKitAdapter: SOFTWARE decoding in use (hwdec-current=$value) '
-            '- expect reduced frame rates on low-power CPUs');
-      } else {
-        Log.i('MediaKitAdapter: hardware decoding active (hwdec-current=$value)');
-      }
-    });
-
-    await observe('container-fps', (value) {
-      Log.i('MediaKitAdapter: source container fps=$value');
-    });
-  }
-
-  Future<void> _bindListeners() async {
-    if (_listenerBound) {
-      return;
-    }
+  Future<void> _bindListeners({required int sourceGeneration, bool force = false}) async {
+    if (_listenerBound && !force) return;
 
     _listenerBound = true;
 
     await _cancelAllSubscriptions();
+    if (_disposed || sourceGeneration != _sourceFence.generation) return;
+
+    // =========================
+    // playing
+    // =========================
 
     _playingSub = _player.stream.playing.listen(
       (playing) {
-        if (_disposed) {
-          return;
-        }
-
-        _playingSubject.add(playing);
-
-        if (!_loadingSubject.value) {
-          _stateSubject.add(playing ? PlayerState.playing : PlayerState.paused);
+        if (_disposed) return;
+        if (!_sourceFence.accepts(sourceGeneration)) return;
+        final publishPlaying = shouldPublishMediaKitPlaying(playing);
+        _playingSubject.add(publishPlaying);
+        if (publishPlaying) {
+          // `Player.stream.playing` is the native playback authority. Optional
+          // mpv frame properties are not available on every Android backend and
+          // must never suppress this state or keep the manager's readiness
+          // deadline alive for a stream which is already playing.
+          _publishMediaProgressState();
+          if (!_player.state.buffering) {
+            _sourceProgressRevision++;
+            _cancelRecoveredNativeError(
+              _isAudioOnly ? NativeDiagnosticComponent.audio : NativeDiagnosticComponent.video,
+            );
+          }
+        } else {
+          if (!_loadingSubject.value) _stateSubject.add(PlayerState.paused);
         }
       },
       onError: (e, s) {
-        Log.e(e, s);
-
-        _emitError(e, s, PlayerErrorType.native);
+        _emitError(e, s, PlayerErrorType.native, sourceGeneration);
       },
     );
 
+    // =========================
+    // buffering
+    // =========================
+
     _bufferingSub = _player.stream.buffering.listen(
       (loading) {
-        if (_disposed) {
-          return;
-        }
-
+        if (_disposed) return;
+        if (!_sourceFence.accepts(sourceGeneration)) return;
         _loadingSubject.add(loading);
 
         if (loading) {
           _stateSubject.add(PlayerState.buffering);
         } else {
+          _sourceProgressRevision++;
           _stateSubject.add(_playingSubject.value ? PlayerState.playing : PlayerState.paused);
+          if (_playingSubject.value) {
+            _cancelRecoveredNativeError(
+              _isAudioOnly ? NativeDiagnosticComponent.audio : NativeDiagnosticComponent.video,
+            );
+          }
         }
       },
       onError: (e, s) {
-        Log.e(e, s);
-
-        _emitError(e, s, PlayerErrorType.native);
+        _emitError(e, s, PlayerErrorType.native, sourceGeneration);
       },
     );
 
-    _videoParamsSub = _player.stream.videoParams.listen(
-      (params) {
-        if (_disposed) {
-          return;
-        }
+    // Keep width and height from the same decoder-parameter event. Listening
+    // to the two derived streams independently allowed a transient width from
+    // one quality/rotation state to be paired with the previous height. That
+    // malformed ratio was then propagated into portrait detection and PiP.
+    _videoParamsSub = _player.stream.videoParams.listen((params) {
+      if (_disposed) return;
+      if (!_sourceFence.accepts(sourceGeneration)) return;
+      final size = resolveMediaKitDisplaySize(params);
+      _widthSubject.add(size?.width);
+      _heightSubject.add(size?.height);
+      if (size != null) {
+        // Non-native backends do not expose mpv frame properties. Their video
+        // parameter event remains the strongest available readiness signal.
+        if (!_usesNativeFrameProbe) _markDecodedVideoFrame(sourceGeneration);
+      }
+    });
 
-        final size = resolveMediaKitDisplaySize(params);
+    _audioParamsSub = _player.stream.audioParams.listen((_) {
+      if (_disposed) return;
+      _markDecodedAudioFrame(sourceGeneration);
+    });
 
-        _widthSubject.add(size?.width);
-
-        _heightSubject.add(size?.height);
-
-        // The real source dimensions are known only now, so the pinned output
-        // size can be refined beyond the conservative start-up estimate.
-        unawaited(_syncNativeOutputSize());
-      },
-      onError: (e, s) {
-        Log.e(e, s);
-
-        _emitError(e, s, PlayerErrorType.native);
-      },
-    );
+    // =========================
+    // completed
+    // =========================
 
     _completeSub = _player.stream.completed.listen(
       (completed) {
-        if (_disposed || !completed) {
-          return;
-        }
+        if (_disposed) return;
+        if (!_sourceFence.accepts(sourceGeneration)) return;
+
+        if (!completed) return;
 
         _completeSubject.add(true);
 
         _stateSubject.add(PlayerState.completed);
       },
       onError: (e, s) {
-        Log.e(e, s);
-
-        _emitError(e, s, PlayerErrorType.native);
+        _emitError(e, s, PlayerErrorType.native, sourceGeneration);
       },
     );
 
-    _errorSub = _player.stream.error.distinct().listen(
-      (error) {
-        if (_disposed) {
-          return;
-        }
+    // =========================
+    // error
+    // =========================
 
-        final type = _mapErrorType(error.toString());
+    // The same native message can legitimately be emitted by two consecutive
+    // CDN lines. Stream-wide `distinct` treated the second source failure as a
+    // duplicate, so the recovery chain stopped on a permanent loading state.
+    // Deduplication below is scoped to one source generation instead.
+    if (_player.platform is NativePlayer) {
+      _logSub = _player.stream.log.listen((event) {
+        if (_disposed || event.level != 'error' || !_isActionableNativeLog(event.prefix, event.text)) return;
+        _handleNativeDiagnostic(event.text, nativePrefix: event.prefix, generation: sourceGeneration);
+      });
+    } else {
+      _errorSub = _player.stream.error.listen((error) {
+        if (_disposed) return;
+        _handleNativeDiagnostic(error.toString(), generation: sourceGeneration);
+      });
+    }
 
-        _safeAddError(PlayerException(message: error.toString(), type: type));
-
-        _stateSubject.add(PlayerState.error);
-      },
-      onError: (e, s) {
-        Log.e(e, s);
-
-        _emitError(e, s, PlayerErrorType.native);
-      },
-    );
+    // =========================
+    // collect
+    // =========================
 
     _subscriptions.addAll([
       _playingSub!,
       _bufferingSub!,
-      _completeSub!,
-      _errorSub!,
       _videoParamsSub!,
+      _audioParamsSub!,
+      _completeSub!,
+      ?_errorSub,
+      ?_logSub,
     ]);
   }
+
+  static bool _isActionableNativeLog(String prefix, String text) {
+    final normalizedPrefix = prefix.trim().toLowerCase();
+    if (normalizedPrefix == 'ffmpeg') return text.trimLeft().toLowerCase().startsWith('tcp:');
+    return const <String>{
+      'file',
+      'vd',
+      'ad',
+      'ffmpeg/video',
+      'ffmpeg/audio',
+      'cplayer',
+      'stream',
+    }.contains(normalizedPrefix);
+  }
+
+  void _publishCurrentNativeSnapshot(int generation) {
+    if (!_sourceFence.accepts(generation) || _disposed) return;
+    final size = resolveMediaKitDisplaySize(_player.state.videoParams);
+    if (size != null) {
+      _widthSubject.add(size.width);
+      _heightSubject.add(size.height);
+      if (!_usesNativeFrameProbe) _markDecodedVideoFrame(generation);
+    }
+    final audioParams = _player.state.audioParams;
+    if (audioParams.format?.isNotEmpty == true ||
+        (audioParams.sampleRate ?? 0) > 0 ||
+        (audioParams.channelCount ?? 0) > 0) {
+      _markDecodedAudioFrame(generation);
+    }
+    if (shouldPublishMediaKitPlaying(_player.state.playing)) {
+      _playingSubject.add(true);
+      _publishMediaProgressState();
+      if (!_player.state.buffering) {
+        _cancelRecoveredNativeError(_isAudioOnly ? NativeDiagnosticComponent.audio : NativeDiagnosticComponent.video);
+      }
+    }
+  }
+
+  void _handleNativeDiagnostic(String message, {String? nativePrefix, required int generation}) {
+    if (generation != _sourceFence.generation) return;
+    if (_sourceFence.isOpening || !_sourceFence.accepts(generation)) {
+      _openingNativeDiagnostic = _NativeDiagnostic(message: message, prefix: nativePrefix, generation: generation);
+      return;
+    }
+    final classification = PlayerErrorClassifier.classify(message, nativePrefix: nativePrefix);
+    final exception = PlayerException(message: message, type: classification.type, code: classification.code);
+    if (classification.immediatelyTerminal) {
+      _emitConfirmedNativeError(exception, generation);
+      return;
+    }
+
+    // mpv reports recoverable packet and hardware-decoder diagnostics on the
+    // same stream as terminal failures. Give the active source one bounded
+    // recovery window; a fresh frame/playing transition cancels this error.
+    if (_pendingNativeErrorTimer != null) return;
+    _pendingNativeError = exception;
+    _pendingNativeErrorGeneration = generation;
+    _pendingNativeErrorProgressRevision = _sourceProgressRevision;
+    _pendingNativeErrorComponent = classification.component;
+    _pendingNativeErrorTimer = Timer(const Duration(milliseconds: 1200), () {
+      _pendingNativeErrorTimer = null;
+      final pending = _pendingNativeError;
+      final pendingGeneration = _pendingNativeErrorGeneration;
+      _pendingNativeError = null;
+      _pendingNativeErrorGeneration = null;
+      if (pending == null || pendingGeneration == null || !_sourceFence.accepts(pendingGeneration)) return;
+      final componentReady = switch (_pendingNativeErrorComponent) {
+        NativeDiagnosticComponent.video => _sourceHasVideoFrame,
+        NativeDiagnosticComponent.audio => _sourceHasAudioFrame,
+        NativeDiagnosticComponent.either => _sourceHasVideoFrame || _sourceHasAudioFrame,
+      };
+      final playbackProgressed = _sourceProgressRevision > _pendingNativeErrorProgressRevision;
+      final recovered = playbackProgressed && _player.state.playing && (componentReady || !_loadingSubject.value);
+      if (recovered || (_player.state.playing && !_loadingSubject.value)) {
+        return;
+      }
+      _emitConfirmedNativeError(pending, pendingGeneration);
+    });
+  }
+
+  void _cancelRecoveredNativeError(NativeDiagnosticComponent progressedComponent) {
+    if (_pendingNativeErrorTimer == null) return;
+    if (_pendingNativeErrorComponent != NativeDiagnosticComponent.either &&
+        _pendingNativeErrorComponent != progressedComponent) {
+      return;
+    }
+    _pendingNativeErrorTimer?.cancel();
+    _pendingNativeErrorTimer = null;
+    _pendingNativeError = null;
+    _pendingNativeErrorGeneration = null;
+    _pendingNativeErrorComponent = NativeDiagnosticComponent.either;
+  }
+
+  void _drainDeferredNativeDiagnostic(int generation) {
+    final diagnostic = _openingNativeDiagnostic;
+    if (diagnostic != null && diagnostic.generation != generation) {
+      _openingNativeDiagnostic = null;
+      return;
+    }
+    if (diagnostic != null && _isDiagnosticComponentReady(diagnostic.prefix)) {
+      _openingNativeDiagnostic = null;
+      return;
+    }
+    if (diagnostic == null || !_sourceFence.accepts(generation)) return;
+    _openingNativeDiagnostic = null;
+    _handleNativeDiagnostic(diagnostic.message, nativePrefix: diagnostic.prefix, generation: generation);
+  }
+
+  bool _isDiagnosticComponentReady(String? nativePrefix) {
+    final prefix = nativePrefix?.trim().toLowerCase();
+    if (prefix == 'ad' || prefix == 'ffmpeg/audio') return _sourceHasAudioFrame;
+    if (prefix == 'vd' || prefix == 'ffmpeg/video') return _sourceHasVideoFrame;
+    return _sourceHasVideoFrame || _sourceHasAudioFrame;
+  }
+
+  void _emitConfirmedNativeError(PlayerException exception, int generation) {
+    if (!_sourceFence.accepts(generation) || _disposed) return;
+    _emitCurrentSourceError(exception, generation);
+  }
+
+  void _emitCurrentSourceError(PlayerException exception, int generation) {
+    if (!_sourceFence.isCurrentGeneration(generation) || _disposed) return;
+    final now = DateTime.now();
+    if (_lastEmittedNativeErrorGeneration == generation &&
+        _lastEmittedNativeError == exception.toString() &&
+        _lastEmittedNativeErrorAt != null &&
+        now.difference(_lastEmittedNativeErrorAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastEmittedNativeErrorGeneration = generation;
+    _lastEmittedNativeError = exception.toString();
+    _lastEmittedNativeErrorAt = now;
+    _safeAddError(exception);
+  }
+
+  // =========================
+  // cancel subscriptions
+  // =========================
 
   Future<void> _cancelAllSubscriptions() async {
     for (final sub in _subscriptions) {
@@ -1007,86 +934,68 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
     _playingSub = null;
     _bufferingSub = null;
+    _videoParamsSub = null;
+    _audioParamsSub = null;
+
     _completeSub = null;
     _errorSub = null;
-    _videoParamsSub = null;
+    _logSub = null;
   }
 
-  void _emitError(Object error, StackTrace stackTrace, PlayerErrorType type) {
-    if (_disposed) {
-      return;
-    }
+  // =========================
+  // emit error
+  // =========================
 
-    _safeAddError(
-      PlayerException(message: error.toString(), type: type, error: error, stackTrace: stackTrace),
-    );
+  void _emitError(Object error, StackTrace stackTrace, PlayerErrorType type, int generation) {
+    if (_disposed || !_sourceFence.accepts(generation)) return;
 
-    _stateSubject.add(PlayerState.error);
+    _safeAddError(PlayerException(message: error.toString(), type: type, error: error, stackTrace: stackTrace));
   }
 
   void _safeAddError(PlayerException exception) {
-    if (_disposed || _errorSubject.isClosed) {
-      return;
-    }
+    if (_disposed) return;
+
+    if (_errorSubject.isClosed) return;
 
     _errorSubject.add(exception);
   }
 
-  PlayerErrorType _mapErrorType(String error) {
-    final lower = error.toLowerCase();
+  // =========================
+  // widget
+  // =========================
 
-    if (lower.contains('network') || lower.contains('timeout') || lower.contains('io')) {
-      return PlayerErrorType.network;
-    }
-
-    if (lower.contains('codec') || lower.contains('mediacodec') || lower.contains('decode')) {
-      return PlayerErrorType.codec;
-    }
-
-    if (lower.contains('404') || lower.contains('source') || lower.contains('open')) {
-      return PlayerErrorType.source;
-    }
-
-    if (lower.contains('surface') || lower.contains('texture')) {
-      return PlayerErrorType.texture;
-    }
-
-    Log.d(error);
-
-    return PlayerErrorType.native;
+  @override
+  Widget getVideoWidget({BoxFit? fit}) {
+    final effectiveFit = fit ?? _videoFit;
+    _videoFit = effectiveFit;
+    final video = Video(
+      controller: _controller,
+      controls: NoVideoControls,
+      fit: effectiveFit,
+      // PlaybackLifecycleCoordinator is the single lifecycle authority.
+      // Letting Video apply a second, settings-only policy paused audio-only
+      // rooms on Home/lock even though the background policy kept them alive.
+      pauseUponEnteringBackgroundMode: false,
+      resumeUponEnteringForegroundMode: false,
+    );
+    if (!PlatformUtils.isWindows) return video;
+    return VideoOutputViewportSizer(
+      outputIdentity: _controller,
+      sourceWidth: _widthSubject,
+      sourceHeight: _heightSubject,
+      onResize: (width, height, force) => _controller.setSize(width: width, height: height, force: force),
+      child: video,
+    );
   }
 
   @override
-  Widget getVideoWidget(BoxFit fit) {
-    return StreamBuilder<List<int?>>(
-      stream: CombineLatestStream.list<int?>([_widthSubject, _heightSubject]),
-      builder: (context, snapshot) {
-        final width = snapshot.data?[0];
-        final height = snapshot.data?[1];
-
-        double ratio = 16 / 9;
-
-        if (width != null && height != null && width > 0 && height > 0) {
-          ratio = width / height;
-        }
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            _scheduleViewportSizeSync(context, constraints);
-
-            return Video(
-              controller: _controller,
-              controls: NoVideoControls,
-              aspectRatio: ratio,
-              fit: fit,
-              pauseUponEnteringBackgroundMode: false,
-              resumeUponEnteringForegroundMode: false,
-            );
-          },
-        );
-      },
-    );
+  void setVideoFit(BoxFit fit) {
+    _videoFit = fit;
   }
+
+  // =========================
+  // play
+  // =========================
 
   @override
   Future<void> play() async {
@@ -1102,24 +1011,25 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
   Future<void> stop() async {
     await _player.pause();
 
+    await _player.seek(Duration.zero);
+
     _stateSubject.add(PlayerState.stopped);
   }
 
   @override
   Future<void> softStop() async {
+    // Pausing a live source keeps its demuxer, decoder, audio track and network
+    // buffers alive. That left the home/settings UI competing with an invisible
+    // room for CPU and hundreds of MiB after navigation. Unload the current
+    // media while retaining the native Player object for a fast next open.
     await _player.setVolume(0.0);
-
     await _player.stop();
-
     _currentUrl = null;
     _isAudioOnly = false;
-
     _playingSubject.add(false);
     _loadingSubject.add(false);
-
     _widthSubject.add(null);
     _heightSubject.add(null);
-
     _stateSubject.add(PlayerState.stopped);
   }
 
@@ -1128,31 +1038,32 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     if (!_audioModeTransitions.isRunning && _isAudioOnly == audioOnly) {
       return Future<void>.value();
     }
-
     return _audioModeTransitions.submit(audioOnly);
   }
 
   Future<void> _applyAudioOnly(bool audioOnly, {bool force = false}) async {
-    if (_disposed) {
-      return;
-    }
-
-    if (!force && _isAudioOnly == audioOnly) {
-      return;
-    }
+    if (_disposed) return;
+    if (!force && _isAudioOnly == audioOnly) return;
 
     try {
       if (PlatformUtils.isAndroid) {
+        // Android's patched video controller serializes `vid` with WID/Surface
+        // updates. Disabling decode here saves battery during long ASMR sessions
+        // while retaining the same player, demuxer and network connection.
         if (audioOnly) {
-          await _player.setVideoTrack(VideoTrack.no());
+          await _controller.setVideoOutputEnabled(false);
         } else {
           await _restoreAndroidVideoOutput();
         }
       } else {
-        await _player.setVideoTrack(audioOnly ? VideoTrack.no() : VideoTrack.auto());
+        // Desktop video outputs do not rewrite `vid` while their surface is
+        // resized, so changing the decoded track is safe and saves resources.
+        final track = audioOnly ? VideoTrack.no() : VideoTrack.auto();
+        await _player.setVideoTrack(track);
       }
 
       _isAudioOnly = audioOnly;
+      if (_disposed) return;
     } catch (error, stackTrace) {
       throw PlayerException(
         message: 'MediaKit audio mode switch failed',
@@ -1163,39 +1074,49 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     }
   }
 
+  /// Enables Android video and waits for mpv to publish fresh decoded-video
+  /// parameters before the room removes its audio presentation. This is an
+  /// adaptive keyframe fence rather than an arbitrary fixed delay: fast streams
+  /// reveal immediately, while a slow GOP remains covered by the room artwork
+  /// instead of showing a black texture.
   Future<void> _restoreAndroidVideoOutput() async {
     final frameReady = Completer<void>();
-
     var armed = false;
-
+    final stopwatch = Stopwatch()..start();
     final subscription = _player.stream.videoParams.listen((params) {
       final width = params.dw ?? params.w ?? 0;
-
       final height = params.dh ?? params.h ?? 0;
-
       if (armed && width > 0 && height > 0 && !frameReady.isCompleted) {
         frameReady.complete();
       }
     });
 
     try {
+      // The stream is broadcast, but arm after attaching the listener so a
+      // stale cached state can never be mistaken for the next decoded frame.
       armed = true;
-
-      await _player.setVideoTrack(VideoTrack.auto());
+      await _controller.setVideoOutputEnabled(true);
 
       var observedFreshFrame = true;
-
       await frameReady.future.timeout(
         const Duration(milliseconds: 2800),
         onTimeout: () {
           observedFreshFrame = false;
         },
       );
-
       if (observedFreshFrame) {
+        // video-params precedes texture composition by a very small interval.
+        // Two display frames keep the cover in place until the GPU texture has
+        // had a chance to present without adding a user-visible fixed pause.
         await Future<void>.delayed(const Duration(milliseconds: 34));
+      } else {
+        debugPrint(
+          'MediaKitAdapter: video restore readiness timed out after '
+          '${stopwatch.elapsedMilliseconds} ms; revealing the live texture',
+        );
       }
     } finally {
+      stopwatch.stop();
       await subscription.cancel();
     }
   }
@@ -1207,44 +1128,50 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     await _player.setVolume(vol);
   }
 
-  Future<void> setPlaybackSpeed(double speed) async {
-    await _player.setRate(speed);
-  }
-
-  Future<void> setProperty(String property, String value) async {
-    if (_disposed) {
-      return;
-    }
-
-    if (_player.platform is! NativePlayer) {
-      return;
-    }
-
-    final native = _player.platform as NativePlayer;
-
-    await native.setProperty(property, value);
-  }
-
-  Future<void> setPrefetchSuspended(bool suspended) async {
-    if (_disposed) {
-      return;
-    }
-
-    _cachePolicy.setPrefetchSuspended(suspended);
-  }
+  // =========================
+  // dispose
+  // =========================
 
   @override
   Future<void> hardDispose() async {
-    if (_disposed) {
-      return;
-    }
+    if (_disposed) return;
 
     _disposed = true;
 
     _initialized = false;
+
     _listenerBound = false;
 
+    _pendingNativeErrorTimer?.cancel();
+
+    _pendingNativeErrorTimer = null;
+
+    _sourceFence.clear();
+
+    final frameRevisionListener = _videoFrameRevisionListener;
+    if (frameRevisionListener != null) {
+      _controller.frameRevision.removeListener(frameRevisionListener);
+      _videoFrameRevisionListener = null;
+    }
+
     await _cancelAllSubscriptions();
+
+    if (_nativePathObserved && _player.platform is NativePlayer) {
+      try {
+        await (_player.platform as dynamic).unobserveProperty('path');
+      } catch (_) {}
+      _nativePathObserved = false;
+    }
+
+    if (_nativeFramePropertiesObserved && _player.platform is NativePlayer) {
+      try {
+        final native = _player.platform as dynamic;
+        await native.unobserveProperty('video-frame-info/picture-type');
+        await native.unobserveProperty('estimated-vf-fps');
+      } catch (_) {}
+      _nativeFramePropertiesObserved = false;
+      _usesNativeFrameProbe = false;
+    }
 
     try {
       await _player.stop();
@@ -1253,6 +1180,11 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     try {
       await _player.dispose();
     } catch (_) {}
+
+    _softwareDecoderFallbackUrl = null;
+    _currentSourceIdentity = null;
+    _nextSourceIdentity = null;
+    _privateInput = false;
 
     await Future.wait([
       _stateSubject.close(),
@@ -1266,6 +1198,10 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
     ]);
   }
 
+  // =========================
+  // getter
+  // =========================
+
   @override
   bool get isInitialized => _initialized;
 
@@ -1273,9 +1209,13 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
   bool get isPlayingNow => _playingSubject.value;
 
   @override
+  // Windows keeps the libmpv/D3D renderer valid after [softStop]; only the
+  // current Media (and therefore the CDN transport, demuxer and decoder
+  // buffers) is unloaded.  The Huya first-frame-gated hand-off can therefore
+  // alternate two initialized players instead of allocating another native
+  // renderer every lease period.  Keep the contract Windows-only until the
+  // surface-backed mobile implementations have equivalent lifecycle proof.
   bool get isReusable => PlatformUtils.isWindows;
-
-  SuperResolutionMode get superResolutionMode => _superResolutionMode;
 
   @override
   Stream<PlayerState> get onStateChanged => _stateSubject.stream;
@@ -1299,6 +1239,12 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
   Stream<int?> get height => _heightSubject.stream;
 
   @override
+  bool get supportsVideoFrameProgress => PlatformUtils.isWindows;
+
+  @override
+  Stream<int> get onVideoFrameProgress => _videoFrameProgressSubject.stream;
+
+  @override
   PlayerEngine get engine => PlayerEngine.mediaKit;
 
   @override
@@ -1306,4 +1252,12 @@ class MediaKitAdapter implements UnifiedPlayer, MediaKitPlayerAccessor {
 
   @override
   VideoController get mediaKitVideoController => _controller;
+}
+
+class _NativeDiagnostic {
+  const _NativeDiagnostic({required this.message, required this.prefix, required this.generation});
+
+  final String message;
+  final String? prefix;
+  final int generation;
 }

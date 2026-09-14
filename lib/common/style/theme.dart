@@ -1,13 +1,31 @@
 import 'package:pure_live/common/index.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
+
+/// Resolves the app-wide font without overriding a platform's native default.
+///
+/// Downloaded fonts are registered under their persisted IDs and therefore
+/// take precedence. Windows deliberately keeps Microsoft YaHei as its stable
+/// CJK default; Android and the remaining platforms use a null family so
+/// Flutter follows the device's own system font and fallback chain.
+String? resolveAppFontFamily({
+  required String selectedName,
+  required Iterable<String> customFonts,
+  required bool isWindows,
+}) {
+  if (customFonts.contains(selectedName)) {
+    return selectedName;
+  }
+  if (isWindows) {
+    return 'Microsoft YaHei';
+  }
+  return null;
+}
 
 class MyTheme {
   final Color? primaryColor;
   final ColorScheme? colorScheme;
 
-  MyTheme({this.primaryColor, this.colorScheme})
-    : assert(colorScheme == null || primaryColor == null);
+  MyTheme({this.primaryColor, this.colorScheme}) : assert(colorScheme == null || primaryColor == null);
 
   static const FontWeight regular = FontWeight.w400;
   static const FontWeight medium = FontWeight.w500;
@@ -18,25 +36,11 @@ class MyTheme {
   ThemeData get darkThemeData => _buildTheme(Brightness.dark);
 
   String? _resolveFontFamily(String selectedName, List<String> customFonts) {
-    if (customFonts.contains(selectedName)) {
-      return selectedName;
-    }
-    if (PlatformUtils.isWindows) {
-      // PingFang is not bundled and is normally absent on Windows. Falling
-      // back to it makes every glyph perform another font lookup, which is
-      // especially visible while scrolling long danmaku/settings lists.
-      return 'Microsoft YaHei';
-    }
-    if (PlatformUtils.isAndroid) {
-      return GoogleFonts.roboto().fontFamily;
-    }
-    if (PlatformUtils.isLinux) {
-      // Linux 桌面默认不携带中文字体，很多精简系统（如树莓派）
-      // 缺 CJK 字体导致中文显示为方框。应用已打包完整中文字体
-      // PingFangSC.ttf（见 pubspec fonts），故 Linux 直接使用它。
-      return 'PingFang';
-    }
-    return null;
+    return resolveAppFontFamily(
+      selectedName: selectedName,
+      customFonts: customFonts,
+      isWindows: PlatformUtils.isWindows,
+    );
   }
 
   TextTheme _buildTextTheme({required TextTheme base, required String? fontFamily}) {
@@ -57,27 +61,15 @@ class MyTheme {
       headlineMedium: scale(localized.headlineMedium, font.fontSizeTitleLarge.v * 1.4),
       headlineSmall: scale(localized.headlineSmall, font.fontSizeTitleLarge.v * 1.2),
 
-      titleLarge: scale(
-        localized.titleLarge,
-        font.fontSizeTitleLarge.v,
-      ).copyWith(fontWeight: semiBold),
-      titleMedium: scale(
-        localized.titleMedium,
-        font.fontSizeTitleMedium.v,
-      ).copyWith(fontWeight: medium),
-      titleSmall: scale(
-        localized.titleSmall,
-        font.fontSizeBodyLarge.v,
-      ).copyWith(fontWeight: medium),
+      titleLarge: scale(localized.titleLarge, font.fontSizeTitleLarge.v).copyWith(fontWeight: semiBold),
+      titleMedium: scale(localized.titleMedium, font.fontSizeTitleMedium.v).copyWith(fontWeight: medium),
+      titleSmall: scale(localized.titleSmall, font.fontSizeBodyLarge.v).copyWith(fontWeight: medium),
 
       bodyLarge: scale(localized.bodyLarge, font.fontSizeBodyLarge.v),
       bodyMedium: scale(localized.bodyMedium, font.fontSizeBodyMedium.v),
       bodySmall: scale(localized.bodySmall, font.fontSizeBodySmall.v),
 
-      labelLarge: scale(
-        localized.labelLarge,
-        font.fontSizeBodyMedium.v,
-      ).copyWith(fontWeight: medium),
+      labelLarge: scale(localized.labelLarge, font.fontSizeBodyMedium.v).copyWith(fontWeight: medium),
       labelMedium: scale(localized.labelMedium, font.fontSizeBodySmall.v),
       labelSmall: scale(localized.labelSmall, font.fontSizeBodySmall.v - 1),
     );
@@ -148,9 +140,7 @@ class MyTheme {
       listTileTheme: ListTileThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         titleTextStyle: textTheme.bodyLarge?.copyWith(fontWeight: medium),
-        subtitleTextStyle: textTheme.bodyMedium?.copyWith(
-          color: baseTheme.colorScheme.onSurfaceVariant,
-        ),
+        subtitleTextStyle: textTheme.bodyMedium?.copyWith(color: baseTheme.colorScheme.onSurfaceVariant),
         leadingAndTrailingTextStyle: textTheme.labelMedium,
         selectedColor: baseTheme.colorScheme.primary,
         selectedTileColor: baseTheme.colorScheme.primary.withValues(alpha: 0.06),
@@ -160,9 +150,7 @@ class MyTheme {
         fillColor: baseTheme.colorScheme.surfaceContainerLow,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         labelStyle: textTheme.bodyMedium,
-        hintStyle: textTheme.bodyMedium?.copyWith(
-          color: baseTheme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-        ),
+        hintStyle: textTheme.bodyMedium?.copyWith(color: baseTheme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -173,9 +161,7 @@ class MyTheme {
         elevation: 0,
         showDragHandle: true,
         backgroundColor: baseTheme.colorScheme.surfaceContainer,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       ),
       dialogTheme: DialogThemeData(
         elevation: 0,

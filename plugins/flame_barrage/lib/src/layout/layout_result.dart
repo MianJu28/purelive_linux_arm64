@@ -1,12 +1,7 @@
 import 'layout_span.dart';
 
 class LayoutResult {
-  LayoutResult({
-    required this.width,
-    required this.height,
-    required this.spans,
-    required this.cacheKey,
-  });
+  LayoutResult({required this.width, required this.height, required this.spans, required this.cacheKey});
 
   final double width;
 

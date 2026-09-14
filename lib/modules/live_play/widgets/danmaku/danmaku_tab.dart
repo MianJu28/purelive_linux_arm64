@@ -13,7 +13,7 @@ class DanmakuTabView extends GetView<LivePlayController> {
     return Obx(() {
       final state = controller.state.value;
       if (state.room.detail == null || state.player.videoController == null) {
-        return const AppStatusView(type: AppStatusType.loading, title: '', subtitle: '');
+        return AppStatusView(type: AppStatusType.loading, title: "", subtitle: "");
       }
       return ColoredBox(
         color: Theme.of(context).colorScheme.surface,
@@ -30,16 +30,13 @@ class DanmakuTabView extends GetView<LivePlayController> {
                       : Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
-                            child: Text(
-                              i18n('danmaku_display_disabled_hint'),
-                              textAlign: TextAlign.center,
-                            ),
+                            child: Text(i18n('danmaku_display_disabled_hint'), textAlign: TextAlign.center),
                           ),
                         ),
                   // RxList mutations do not invalidate this outer Obx unless
                   // its value is read while building. Snapshot it here so new
                   // SC entries appear immediately without switching tabs.
-                  const SuperChatPage(),
+                  Obx(() => SuperChatPage(messages: controller.superChats.toList(growable: false))),
                   DanmakuSettingsPage(controller: state.player.videoController!),
                   const KeywordBlockPage(),
                 ],

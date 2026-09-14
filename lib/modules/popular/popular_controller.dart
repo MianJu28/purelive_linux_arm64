@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/modules/popular/popular_grid_controller.dart';
+import 'package:pure_live/common/base/live_directory_controller.dart';
+import 'package:pure_live/core/interface/live_directory.dart';
 
 class PopularController extends GetxController with GetTickerProviderStateMixin {
   late TabController tabController;
@@ -27,14 +29,8 @@ class PopularController extends GetxController with GetTickerProviderStateMixin 
       if (_isClosing) return;
       _initTabController(isFirstLoad: false);
     }, time: const Duration(milliseconds: 150));
-    _audienceModeWorker = ever(
-      SettingsService.to.app.preferRealOnlineCounts,
-      (_) => _scheduleAudienceRefresh(),
-    );
-    _audiencePlatformsWorker = ever(
-      SettingsService.to.app.realOnlinePlatforms,
-      (_) => _scheduleAudienceRefresh(),
-    );
+    _audienceModeWorker = ever(SettingsService.to.app.preferRealOnlineCounts, (_) => _scheduleAudienceRefresh());
+    _audiencePlatformsWorker = ever(SettingsService.to.app.realOnlinePlatforms, (_) => _scheduleAudienceRefresh());
   }
 
   void initControllers(List<Site> sites) {
@@ -47,6 +43,17 @@ class PopularController extends GetxController with GetTickerProviderStateMixin 
 
       Get.lazyPut<BasePageScrollAndStateBone<LiveRoom>>(
         () {
+          final directory = site.liveSite;
+          if (directory is LiveSiteDirectoryPager) {
+            return LiveDirectoryController(
+              directory: directory as LiveSiteDirectoryPager,
+              transform: (rooms) => rankPopularRoomsByAudience(
+                rooms,
+                preferRealOnline: SettingsService.to.app.preferRealOnlineCounts.v,
+                realOnlinePlatforms: SettingsService.to.app.realOnlinePlatforms,
+              ),
+            );
+          }
           if (site.id == Sites.iptvSite) {
             return PopularLocalReactiveController(site);
           }
@@ -65,6 +72,20 @@ class PopularController extends GetxController with GetTickerProviderStateMixin 
 
           if (site.id == Sites.soopSite) {
             return PopularServerFixedController(site, fixedSize: 60);
+          }
+
+          if (site.id == Sites.twitcastingSite) {
+            // One top window, filtered before local slicing. Remote pagination
+            // changes requested sizes after exclusions and can skip cards.
+            return PopularServerFixedController(site, fixedSize: 60);
+          }
+
+          if (site.id == Sites.twitchSite) {
+            // Twitch currently permits a large first directory page without
+            // browser integrity, while follow-up cursor requests can be
+            // challenged. Cache that stable first window and slice it locally
+            // so normal mobile scrolling neither stalls nor discards cards.
+            return PopularServerFixedController(site, fixedSize: 100);
           }
 
           if (site.id == Sites.ccSite) {
@@ -138,8 +159,7 @@ class PopularController extends GetxController with GetTickerProviderStateMixin 
     }
 
     final oldIndex = index;
-    final oldSiteId =
-        _isTabControllerInitialized && sites.isNotEmpty && index >= 0 && index < sites.length
+    final oldSiteId = _isTabControllerInitialized && sites.isNotEmpty && index >= 0 && index < sites.length
         ? sites[index].id
         : null;
 
@@ -225,16 +245,11 @@ class PopularController extends GetxController with GetTickerProviderStateMixin 
     });
   }
 
-  void _warmNextPlatform(
-    int currentIndex,
-    BasePageScrollAndStateBone<LiveRoom> current,
-    int generation,
-  ) {
+  void _warmNextPlatform(int currentIndex, BasePageScrollAndStateBone<LiveRoom> current, int generation) {
     if (_isClosing || generation != _generation) return;
     if (currentIndex != index || sites.length < 2) return;
 
-    if (current.scrollController.hasClients &&
-        current.scrollController.position.isScrollingNotifier.value) {
+    if (current.scrollController.hasClients && current.scrollController.position.isScrollingNotifier.value) {
       _adjacentWarmTimer?.cancel();
       _adjacentWarmTimer = Timer(const Duration(milliseconds: 450), () {
         if (_isClosing || generation != _generation) return;

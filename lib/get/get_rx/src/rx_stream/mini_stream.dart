@@ -8,7 +8,8 @@ class Node<T> {
 }
 
 class MiniSubscription<T> {
-  const MiniSubscription(this.data, this.onError, this.onDone, this.cancelOnError, this.listener);
+  const MiniSubscription(
+      this.data, this.onError, this.onDone, this.cancelOnError, this.listener);
   final OnData<T> data;
   final Function? onError;
   final Callback? onDone;
@@ -45,13 +46,17 @@ class MiniStream<T> {
 
   bool get isClosed => _isClosed;
 
-  MiniSubscription<T> listen(
-    void Function(T event) onData, {
-    Function? onError,
-    void Function()? onDone,
-    bool cancelOnError = false,
-  }) {
-    final subs = MiniSubscription<T>(onData, onError, onDone, cancelOnError, listenable);
+  MiniSubscription<T> listen(void Function(T event) onData,
+      {Function? onError,
+      void Function()? onDone,
+      bool cancelOnError = false}) {
+    final subs = MiniSubscription<T>(
+      onData,
+      onError,
+      onDone,
+      cancelOnError,
+      listenable,
+    );
     listenable.addListener(subs);
     return subs;
   }

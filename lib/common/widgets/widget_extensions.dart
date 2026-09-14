@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:pure_live/get/get.dart';
-import 'package:pure_live/common/index.dart';
+import 'package:pure_live/plugins/locale_helper.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
+import 'package:pure_live/common/style/app_text_styles.dart';
 
 extension AppLayoutFactory on BuildContext {
   Widget buildGroupTitle(String text) {
@@ -20,44 +22,24 @@ extension AppLayoutFactory on BuildContext {
 
   Widget buildPlatformTag(String platform, {bool mini = false}) {
     final theme = Theme.of(this);
+    final colorScheme = theme.colorScheme;
     final id = platform.trim().toLowerCase();
 
-    final site = Sites.supportSites.firstWhere((e) => e.id == id);
-
-    final gradient = Sites.gradientOf(id);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: mini ? 5 : 7, vertical: mini ? 2 : 4),
+      padding: EdgeInsets.symmetric(horizontal: mini ? 6 : 8, vertical: mini ? 2 : 4),
       decoration: BoxDecoration(
-        gradient: gradient,
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(999),
-        border: isDark ? Border.all(color: Colors.white.withValues(alpha: 0.12), width: 0.5) : null,
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2), width: 0.5),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: mini ? 13 : 16,
-            height: mini ? 13 : 16,
-            padding: EdgeInsets.all(mini ? 1.8 : 2),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
-              shape: BoxShape.circle,
-            ),
-            child: Image.asset(site.logo, fit: BoxFit.contain),
-          ),
-          SizedBox(width: mini ? 3 : 4),
-          Text(
-            i18n('site_$id'),
-            style: AppTextStyles.t11.copyWith(
-              color: Colors.white,
-              fontSize: mini ? 8 : 9,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
+      child: Text(
+        i18n('site_$id'),
+        style: AppTextStyles.t11.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: mini ? 10 : 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.15,
+        ),
       ),
     );
   }
@@ -92,13 +74,9 @@ extension AppLayoutFactory on BuildContext {
         ShapeBorder effectiveShape;
 
         if (validChildren.length == 1) {
-          effectiveShape = const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(20)),
-          );
+          effectiveShape = const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20)));
         } else if (i == 0) {
-          effectiveShape = const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          );
+          effectiveShape = const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20)));
         } else if (i == validChildren.length - 1) {
           effectiveShape = const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -163,49 +141,29 @@ extension AppLayoutFactory on BuildContext {
     Color? iconColor,
     Color? subtitleColor,
     bool isLong = false,
-    bool enabled = true,
     ValueChanged<bool>? onChanged,
   }) {
     final theme = Theme.of(this);
-
     return Obx(
       () => SwitchListTile(
-        secondary: icon != null
-            ? Icon(
-                icon,
-                color: enabled ? (iconColor ?? theme.colorScheme.primary) : theme.disabledColor,
-                size: 22,
-              )
-            : null,
-        title: Text(
-          title,
-          style: AppTextStyles.t15.copyWith(
-            color: enabled ? null : theme.disabledColor,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        secondary: icon != null ? Icon(icon, color: iconColor ?? theme.colorScheme.primary, size: 22) : null,
+        title: Text(title, style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600)),
         subtitle: subtitle != null && subtitle.isNotEmpty
             ? Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   subtitle,
-                  style: AppTextStyles.t12.copyWith(
-                    color: enabled
-                        ? (subtitleColor ?? theme.hintColor.withValues(alpha: 0.75))
-                        : theme.disabledColor,
-                  ),
+                  style: AppTextStyles.t12.copyWith(color: subtitleColor ?? theme.hintColor.withValues(alpha: 0.75)),
                   maxLines: isLong ? null : 1,
                   overflow: isLong ? TextOverflow.visible : TextOverflow.ellipsis,
                 ),
               )
             : null,
         value: value.value,
-        onChanged: enabled
-            ? (val) {
-                value.value = val;
-                onChanged?.call(val);
-              }
-            : null,
+        onChanged: (val) {
+          value.value = val;
+          onChanged?.call(val);
+        },
         contentPadding: const EdgeInsets.only(left: 16, top: 2, bottom: 2, right: 8),
       ),
     );
@@ -221,7 +179,8 @@ extension AppLayoutFactory on BuildContext {
     Color? subtitleColor,
     Widget? trailing,
     bool isLong = false,
-    bool enabled = true,
+    bool stackTrailingOnNarrow = false,
+    bool showNavigationChevronWhenStacked = true,
   }) {
     final theme = Theme.of(this);
 
@@ -253,36 +212,27 @@ extension AppLayoutFactory on BuildContext {
       );
     }
 
-    return ListTile(
+    final titleWidget = Text(title, style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600));
+    final subtitleWidget = subtitle != null && subtitle.isNotEmpty
+        ? Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              subtitle,
+              style: AppTextStyles.t12.copyWith(color: subtitleColor ?? theme.hintColor.withValues(alpha: 0.75)),
+              maxLines: isLong ? null : 1,
+              overflow: isLong ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+          )
+        : null;
+
+    Widget standardTile() => ListTile(
       horizontalTitleGap: 12,
       minLeadingWidth: 0,
       minVerticalPadding: 0,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: leadingWidget,
-      title: Text(
-        title,
-        style: AppTextStyles.t15.copyWith(
-          fontWeight: FontWeight.w600,
-          color: enabled ? null : theme.hintColor.withValues(alpha: 0.4),
-        ),
-      ),
-      subtitle: subtitle != null && subtitle.isNotEmpty
-          ? Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                subtitle,
-                style: AppTextStyles.t12.copyWith(
-                  color:
-                      subtitleColor ??
-                      (enabled
-                          ? theme.hintColor.withValues(alpha: 0.75)
-                          : theme.hintColor.withValues(alpha: 0.25)),
-                ),
-                maxLines: isLong ? null : 1,
-                overflow: isLong ? TextOverflow.visible : TextOverflow.ellipsis,
-              ),
-            )
-          : null,
+      title: titleWidget,
+      subtitle: subtitleWidget,
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -292,19 +242,36 @@ extension AppLayoutFactory on BuildContext {
             child:
                 trailing ??
                 (onTap != null
-                    ? Icon(
-                        Icons.chevron_right_rounded,
-                        color: enabled
-                            ? theme.hintColor.withValues(alpha: 0.4)
-                            : theme.hintColor.withValues(alpha: 0.15),
-                        size: 20,
-                      )
+                    ? Icon(Icons.chevron_right_rounded, color: theme.hintColor.withValues(alpha: 0.4), size: 20)
                     : null),
           ),
         ],
       ),
-      onTap: enabled ? onTap : null,
-      enabled: enabled,
+      onTap: onTap,
+    );
+
+    if (!stackTrailingOnNarrow || trailing == null) return standardTile();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        if (constraints.maxWidth >= 360 && textScale <= 1.5) return standardTile();
+        return ListTile(
+          horizontalTitleGap: 12,
+          minLeadingWidth: 0,
+          minVerticalPadding: 0,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: leadingWidget,
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [titleWidget, ?subtitleWidget, const SizedBox(height: 8), trailing],
+          ),
+          trailing: onTap != null && showNavigationChevronWhenStacked
+              ? Icon(Icons.chevron_right_rounded, color: theme.hintColor.withValues(alpha: 0.4), size: 20)
+              : null,
+          onTap: onTap,
+        );
+      },
     );
   }
 
@@ -320,7 +287,7 @@ extension AppLayoutFactory on BuildContext {
     bool isLong = false,
   }) {
     final theme = Theme.of(this);
-    final rawValueString = valueMap[value] ?? '$value';
+    final rawValueString = valueMap[value] ?? "$value";
     final displayValue = rawValueString.tr;
 
     return buildTile(
@@ -330,9 +297,12 @@ extension AppLayoutFactory on BuildContext {
       iconColor: iconColor,
       subtitleColor: subtitleColor,
       isLong: isLong,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
+      stackTrailingOnNarrow: true,
+      showNavigationChevronWhenStacked: false,
+      trailing: Wrap(
+        spacing: 4,
+        runSpacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
             displayValue,
@@ -341,16 +311,10 @@ extension AppLayoutFactory on BuildContext {
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(width: 4),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: theme.hintColor.withValues(alpha: 0.4),
-            size: 20,
-          ),
+          Icon(Icons.chevron_right_rounded, color: theme.hintColor.withValues(alpha: 0.4), size: 20),
         ],
       ),
-      onTap: () =>
-          _openMenuDialog<T>(title: title, value: value, valueMap: valueMap, onChanged: onChanged),
+      onTap: () => _openMenuDialog<T>(title: title, value: value, valueMap: valueMap, onChanged: onChanged),
     );
   }
 
@@ -366,62 +330,36 @@ extension AppLayoutFactory on BuildContext {
         final innerTheme = Theme.of(dialogContext);
 
         return AlertDialog(
+          scrollable: true,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           titlePadding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 8),
           contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           title: Text(title, style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold)),
-          content: Container(
-            width: double.maxFinite,
-            constraints: const BoxConstraints(maxWidth: 340, maxHeight: 400),
-            child: SingleChildScrollView(
-              child: RadioGroup<T>(
-                groupValue: value,
-                onChanged: (T? newValue) {
-                  if (newValue != null) {
-                    Navigator.of(dialogContext).pop();
-                    onChanged.call(newValue);
-                  }
-                },
-                child: buildModernCard(
-                  valueMap.keys.map<Widget>((e) {
-                    final itemRawText = valueMap[e] ?? '$e';
-                    final itemDisplayText = itemRawText.tr;
-                    final bool isSelected = (e == value);
-
-                    return Material(
-                      color: Colors.transparent,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(width: 8),
-                          Radio<T>(value: e, activeColor: innerTheme.colorScheme.primary),
-                          Expanded(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () {
-                                Navigator.of(dialogContext).pop();
-                                onChanged.call(e);
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-                                child: Text(
-                                  itemDisplayText,
-                                  style: AppTextStyles.t15.copyWith(
-                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                    color: isSelected
-                                        ? innerTheme.colorScheme.primary
-                                        : innerTheme.textTheme.bodyLarge?.color,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+          content: RadioGroup<T>(
+            groupValue: value,
+            onChanged: (T? newValue) {
+              if (newValue != null) {
+                Navigator.of(dialogContext).pop();
+                onChanged.call(newValue);
+              }
+            },
+            child: buildModernCard(
+              valueMap.entries.map<Widget>((entry) {
+                final itemDisplayText = (entry.value).tr;
+                final isSelected = entry.key == value;
+                return RadioListTile<T>(
+                  value: entry.key,
+                  activeColor: innerTheme.colorScheme.primary,
+                  title: Text(
+                    itemDisplayText,
+                    style: AppTextStyles.t15.copyWith(
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected ? innerTheme.colorScheme.primary : innerTheme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         );
@@ -433,12 +371,12 @@ extension AppLayoutFactory on BuildContext {
     BuildContext context, {
     required IconData icon,
     required String title,
+    String? subtitle,
     required double value,
     required double min,
     required double max,
     required String displayValue,
     required ValueChanged<double> onChanged,
-    double? step,
   }) {
     final theme = Theme.of(context);
     return Padding(
@@ -448,10 +386,7 @@ extension AppLayoutFactory on BuildContext {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: SizedBox(
-              width: 24,
-              child: Icon(icon, size: 22, color: theme.colorScheme.primary),
-            ),
+            child: SizedBox(width: 24, child: Icon(icon, size: 22, color: theme.colorScheme.primary)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -459,26 +394,60 @@ extension AppLayoutFactory on BuildContext {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(title, style: AppTextStyles.t16.copyWith(fontWeight: FontWeight.w600)),
-                    Container(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final titleStyle = AppTextStyles.t16.copyWith(fontWeight: FontWeight.w600);
+                    final valueStyle = AppTextStyles.t13.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    );
+                    final scaler = MediaQuery.textScalerOf(context);
+                    final titlePainter = TextPainter(
+                      text: TextSpan(text: title, style: titleStyle),
+                      textDirection: Directionality.of(context),
+                      textScaler: scaler,
+                      maxLines: 1,
+                    )..layout();
+                    final valuePainter = TextPainter(
+                      text: TextSpan(text: displayValue, style: valueStyle),
+                      textDirection: Directionality.of(context),
+                      textScaler: scaler,
+                      maxLines: 1,
+                    )..layout();
+                    final valueBadge = Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        displayValue,
-                        style: AppTextStyles.t13.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ],
+                      child: Text(displayValue, style: valueStyle),
+                    );
+                    final useRow = titlePainter.width + valuePainter.width + 28 <= constraints.maxWidth;
+                    if (useRow) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: Text(title, style: titleStyle)),
+                          const SizedBox(width: 12),
+                          valueBadge,
+                        ],
+                      );
+                    }
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: titleStyle),
+                        const SizedBox(height: 6),
+                        valueBadge,
+                      ],
+                    );
+                  },
                 ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: AppTextStyles.t12.copyWith(color: theme.hintColor.withValues(alpha: 0.75))),
+                ],
                 const SizedBox(height: 2),
                 Transform.translate(
                   offset: const Offset(-4, 0),
@@ -487,7 +456,6 @@ extension AppLayoutFactory on BuildContext {
                     child: SfSlider(
                       min: min,
                       max: max,
-                      stepSize: step,
                       value: value,
                       activeColor: theme.colorScheme.primary,
                       inactiveColor: theme.colorScheme.primary.withValues(alpha: 0.15),

@@ -12,7 +12,8 @@ import 'package:media_kit_video/media_kit_video_controls/src/controls/methods/vi
 import 'package:media_kit_video/media_kit_video_controls/src/controls/widgets/video_controls_theme_data_injector.dart';
 
 /// Whether a [Video] present in the current [BuildContext] is in fullscreen or not.
-bool isFullscreen(BuildContext context) => FullscreenInheritedWidget.maybeOf(context) != null;
+bool isFullscreen(BuildContext context) =>
+    FullscreenInheritedWidget.maybeOf(context) != null;
 
 /// Makes the [Video] present in the current [BuildContext] enter fullscreen.
 Future<void> enterFullscreen(BuildContext context) {
@@ -21,7 +22,8 @@ Future<void> enterFullscreen(BuildContext context) {
       if (context.mounted) {
         final stateValue = state(context);
         final contextNotifierValue = contextNotifier(context);
-        final videoViewParametersNotifierValue = videoViewParametersNotifier(context);
+        final videoViewParametersNotifierValue =
+            videoViewParametersNotifier(context);
         final controllerValue = controller(context);
         Navigator.of(context, rootNavigator: true).push(
           PageRouteBuilder(
@@ -40,7 +42,8 @@ Future<void> enterFullscreen(BuildContext context) {
                     child: VideoStateInheritedWidget(
                       state: stateValue,
                       contextNotifier: contextNotifierValue,
-                      videoViewParametersNotifier: videoViewParametersNotifierValue,
+                      videoViewParametersNotifier:
+                          videoViewParametersNotifierValue,
                       disposeNotifiers: false,
                       child: Video(
                         controller: controllerValue,
@@ -49,10 +52,14 @@ Future<void> enterFullscreen(BuildContext context) {
                         height: null,
                         fit: videoViewParametersNotifierValue.value.fit,
                         fill: videoViewParametersNotifierValue.value.fill,
-                        alignment: videoViewParametersNotifierValue.value.alignment,
-                        aspectRatio: videoViewParametersNotifierValue.value.aspectRatio,
-                        filterQuality: videoViewParametersNotifierValue.value.filterQuality,
-                        controls: videoViewParametersNotifierValue.value.controls,
+                        alignment:
+                            videoViewParametersNotifierValue.value.alignment,
+                        aspectRatio:
+                            videoViewParametersNotifierValue.value.aspectRatio,
+                        filterQuality: videoViewParametersNotifierValue
+                            .value.filterQuality,
+                        controls:
+                            videoViewParametersNotifierValue.value.controls,
                         // Do not acquire or modify existing wakelock in fullscreen mode:
                         wakelock: false,
                         pauseUponEnteringBackgroundMode:
@@ -60,7 +67,8 @@ Future<void> enterFullscreen(BuildContext context) {
                         resumeUponEnteringForegroundMode:
                             stateValue.widget.resumeUponEnteringForegroundMode,
                         subtitleViewConfiguration:
-                            videoViewParametersNotifierValue.value.subtitleViewConfiguration,
+                            videoViewParametersNotifierValue
+                                .value.subtitleViewConfiguration,
                         onEnterFullscreen: stateValue.widget.onEnterFullscreen,
                         onExitFullscreen: stateValue.widget.onExitFullscreen,
                       ),

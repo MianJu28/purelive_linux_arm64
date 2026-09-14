@@ -1,12 +1,8 @@
 import 'dart:ui';
 import 'dart:async';
-
 import '../../get_navigation.dart';
-
 import 'package:flutter/material.dart';
-
 import '../../../get_core/get_core.dart';
-
 import 'package:pure_live/common/style/app_text_styles.dart';
 
 typedef OnTap = void Function(GetSnackBar snack);
@@ -272,9 +268,7 @@ class GetSnackBarState extends State<GetSnackBar> with TickerProviderStateMixin 
     return Align(
       heightFactor: 1.0,
       child: Material(
-        color: widget.snackStyle == SnackStyle.floating
-            ? Colors.transparent
-            : widget.backgroundColor,
+        color: widget.snackStyle == SnackStyle.floating ? Colors.transparent : widget.backgroundColor,
         child: SafeArea(
           minimum: widget.snackPosition == SnackPosition.bottom
               ? EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom)
@@ -362,11 +356,7 @@ You need to either use message[String], or messageText[Widget] or define a userI
         future: _boxHeightCompleter.future,
         builder: (buildContext, snapshot) {
           if (snapshot.hasData) {
-            return Container(
-              color: widget.leftBarIndicatorColor,
-              width: 5.0,
-              height: snapshot.data!.height,
-            );
+            return Container(color: widget.leftBarIndicatorColor, width: 5.0, height: snapshot.data!.height);
           } else {
             return _emptyWidget;
           }
@@ -391,10 +381,7 @@ You need to either use message[String], or messageText[Widget] or define a userI
     if (widget.showProgressIndicator && widget.progressIndicatorController != null) {
       widget.progressIndicatorController!.addListener(_updateProgress);
 
-      _progressAnimation = CurvedAnimation(
-        curve: Curves.linear,
-        parent: widget.progressIndicatorController!,
-      );
+      _progressAnimation = CurvedAnimation(curve: Curves.linear, parent: widget.progressIndicatorController!);
     }
   }
 
@@ -426,9 +413,7 @@ You need to either use message[String], or messageText[Widget] or define a userI
         gradient: widget.backgroundGradient,
         boxShadow: widget.boxShadows,
         borderRadius: BorderRadius.circular(widget.borderRadius),
-        border: widget.borderColor != null
-            ? Border.all(color: widget.borderColor!, width: widget.borderWidth!)
-            : null,
+        border: widget.borderColor != null ? Border.all(color: widget.borderColor!, width: widget.borderWidth!) : null,
       ),
       child: Padding(
         padding: const EdgeInsets.only(left: 8.0, right: 8.0, bottom: 8.0, top: 16.0),
@@ -439,12 +424,8 @@ You need to either use message[String], or messageText[Widget] or define a userI
 
   Widget _containerWithoutForm() {
     final iconPadding = widget.padding.left > 16.0 ? widget.padding.left : 0.0;
-    final left = _rowStyle == RowStyle.icon || _rowStyle == RowStyle.all
-        ? 4.0
-        : widget.padding.left;
-    final right = _rowStyle == RowStyle.action || _rowStyle == RowStyle.all
-        ? 8.0
-        : widget.padding.right;
+    final left = _rowStyle == RowStyle.icon || _rowStyle == RowStyle.all ? 4.0 : widget.padding.left;
+    final right = _rowStyle == RowStyle.action || _rowStyle == RowStyle.all ? 8.0 : widget.padding.right;
     return Container(
       key: _backgroundBoxKey,
       constraints: widget.maxWidth != null ? BoxConstraints(maxWidth: widget.maxWidth!) : null,
@@ -453,18 +434,14 @@ You need to either use message[String], or messageText[Widget] or define a userI
         gradient: widget.backgroundGradient,
         boxShadow: widget.boxShadows,
         borderRadius: BorderRadius.circular(widget.borderRadius),
-        border: widget.borderColor != null
-            ? Border.all(color: widget.borderColor!, width: widget.borderWidth!)
-            : null,
+        border: widget.borderColor != null ? Border.all(color: widget.borderColor!, width: widget.borderWidth!) : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           widget.showProgressIndicator
               ? LinearProgressIndicator(
-                  value: widget.progressIndicatorController != null
-                      ? _progressAnimation.value
-                      : null,
+                  value: widget.progressIndicatorController != null ? _progressAnimation.value : null,
                   backgroundColor: widget.progressIndicatorBackgroundColor,
                   valueColor: widget.progressIndicatorValueColor,
                 )
@@ -490,11 +467,8 @@ You need to either use message[String], or messageText[Widget] or define a userI
                         child:
                             widget.titleText ??
                             Text(
-                              widget.title ?? '',
-                              style: AppTextStyles.t16.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              widget.title ?? "",
+                              style: AppTextStyles.t16.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                             ),
                       )
                     else
@@ -508,10 +482,7 @@ You need to either use message[String], or messageText[Widget] or define a userI
                       ),
                       child:
                           widget.messageText ??
-                          Text(
-                            widget.message ?? '',
-                            style: AppTextStyles.t14.copyWith(color: Colors.white),
-                          ),
+                          Text(widget.message ?? "", style: AppTextStyles.t14.copyWith(color: Colors.white)),
                     ),
                   ],
                 ),

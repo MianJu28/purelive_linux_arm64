@@ -38,11 +38,7 @@ class GetDialogRoute<T> extends PopupRoute<T> {
   final RouteTransitionsBuilder? transitionBuilder;
 
   @override
-  Widget buildPage(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-  ) {
+  Widget buildPage(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) {
     return Semantics(
       scopesRoute: true,
       explicitChildNodes: true,

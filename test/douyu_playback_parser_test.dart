@@ -1,26 +1,56 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/common/models/live_room.dart';
+import 'package:pure_live/core/interface/live_site.dart';
 import 'package:pure_live/core/site/douyu/douyu_site.dart';
 import 'package:pure_live/model/live_play_quality.dart';
 
 void main() {
   test('Douyu room state accepts numeric strings without misclassifying a live room', () {
     expect(
-      DouyuSite.isLiveRoomPayload(<String, dynamic>{
-        'show_status': '1',
-        'videoLoop': '0',
-        'room_name': '直播中',
-      }),
+      DouyuSite.isLiveRoomPayload(<String, dynamic>{'show_status': '1', 'videoLoop': '0', 'room_name': '直播中'}),
       isTrue,
     );
     expect(
-      DouyuSite.isLiveRoomPayload(<String, dynamic>{
-        'show_status': 1,
-        'videoLoop': 1,
-        'room_name': '【回放】上一场',
-      }),
+      DouyuSite.isLiveRoomPayload(<String, dynamic>{'show_status': 1, 'videoLoop': 1, 'room_name': '【回放】上一场'}),
       isFalse,
     );
+  });
+
+  test('recovery refreshes CDN metadata and preserves the server quality acknowledgement', () async {
+    final site = _FakeDouyuRecoverySite();
+    final requested = LivePlayQuality(quality: '蓝光4M', id: 1, data: DouyuPlayData(1, const <String>['expired']));
+    final result = await site.resolvePlayUrlsForRecovery(
+      detail: LiveRoom(roomId: '123'),
+      quality: requested,
+    );
+    expect(site, isA<LivePlayRecoveryResolver>());
+    expect(site.metadataCalls, 1);
+    expect(site.calls, ['1/new-main', '1/new-backup']);
+    expect(result.urls, ['https://new-main.example/fresh.flv', 'https://new-backup.example/fresh.flv']);
+    expect(result.appliedQualityData, 3);
+    expect(result.qualityUnconfirmed, isFalse);
+  });
+
+  test('a rate absent from fresh options still requests that rate with current CDNs', () async {
+    final site = _FakeDouyuRecoverySite()..advertisedRate = 3;
+    final result = await site.resolvePlayUrlsForRecovery(
+      detail: LiveRoom(roomId: '123'),
+      quality: LivePlayQuality(quality: '蓝光4M', id: 1, data: DouyuPlayData(1, ['expired'])),
+    );
+    expect(site.calls, ['1/new-main', '1/new-backup']);
+    expect(result.appliedQualityData, 3);
+    expect(result.urls, hasLength(2));
+  });
+
+  test('recovery keeps missing acknowledgement unknown and does not reuse old URLs', () async {
+    final site = _FakeDouyuRecoverySite()..appliedRate = null;
+    final result = await site.resolvePlayUrlsForRecovery(
+      detail: LiveRoom(roomId: '123'),
+      quality: LivePlayQuality(quality: '蓝光4M', id: 1, data: DouyuPlayData(1, ['expired'])),
+    );
+    expect(result.qualityUnconfirmed, isTrue);
+    expect(result.appliedQualityData, isNull);
+    expect(result.urls.every((url) => !url.contains('expired')), isTrue);
   });
 
   group('Douyu H5 playback response', () {
@@ -38,10 +68,7 @@ void main() {
         () => DouyuSite.parsePlayResponse(<String, dynamic>{'error': 102, 'msg': 'expired'}),
         throwsA(isA<DouyuPlayApiException>()),
       );
-      expect(
-        () => DouyuSite.parsePlayResponse(<String, dynamic>{'error': 0}),
-        throwsA(isA<DouyuPlayApiException>()),
-      );
+      expect(() => DouyuSite.parsePlayResponse(<String, dynamic>{'error': 0}), throwsA(isA<DouyuPlayApiException>()));
     });
 
     test('deduplicates CDN codes and always provides a fallback line', () {
@@ -95,9 +122,7 @@ void main() {
         throwsA(isA<DouyuPlayApiException>()),
       );
       expect(
-        DouyuSite.parsePlayUrl(<String, dynamic>{
-          'flv_url': 'https://cdn.example.test/live/room.flv',
-        }),
+        DouyuSite.parsePlayUrl(<String, dynamic>{'flv_url': 'https://cdn.example.test/live/room.flv'}),
         'https://cdn.example.test/live/room.flv',
       );
     });
@@ -122,11 +147,7 @@ void main() {
 
     test('recording cursor signs only the requested CDN line', () async {
       final site = _FakeDouyuCursorSite();
-      final quality = LivePlayQuality(
-        quality: '原画',
-        id: 0,
-        data: DouyuPlayData(0, const <String>['main', 'backup']),
-      );
+      final quality = LivePlayQuality(quality: '原画', id: 0, data: DouyuPlayData(0, const <String>['main', 'backup']));
 
       final resolved = await site.resolvePlayUrlAtRaw(
         detail: LiveRoom(roomId: '123'),
@@ -150,8 +171,37 @@ class _FakeDouyuCursorSite extends DouyuSite {
   final List<String> calls = <String>[];
 
   @override
-  Future<String> getPlayUrl(String roomId, int rate, String cdn) async {
+  Future<LivePlayUrlResolution> resolvePlayUrl(String roomId, int rate, String cdn) async {
     calls.add(cdn);
-    return 'https://$cdn.example/$roomId-$rate.flv';
+    return LivePlayUrlResolution(urls: ['https://$cdn.example/$roomId-$rate.flv'], appliedQualityData: rate);
+  }
+}
+
+class _FakeDouyuRecoverySite extends DouyuSite {
+  int metadataCalls = 0;
+  int advertisedRate = 1;
+  int? appliedRate = 3;
+  final calls = <String>[];
+
+  @override
+  Future<List<LivePlayQuality>> getPlayQualites({required LiveRoom detail}) async {
+    metadataCalls++;
+    return [
+      LivePlayQuality(
+        quality: 'current',
+        id: advertisedRate,
+        data: DouyuPlayData(advertisedRate, ['new-main', 'new-backup']),
+      ),
+    ];
+  }
+
+  @override
+  Future<LivePlayUrlResolution> resolvePlayUrl(String roomId, int rate, String cdn) async {
+    calls.add('$rate/$cdn');
+    return LivePlayUrlResolution(
+      urls: ['https://$cdn.example/fresh.flv'],
+      appliedQualityData: appliedRate,
+      qualityUnconfirmed: appliedRate == null,
+    );
   }
 }

@@ -13,6 +13,7 @@ import 'package:pure_live/modules/live_play/states/ui_state.dart';
 import 'package:pure_live/modules/live_play/controllers/player_state.dart';
 import 'package:pure_live/modules/live_play/controllers/live_play_controller.dart';
 import 'package:pure_live/modules/live_play/widgets/danmaku/danmaku_message_actions.dart';
+import 'package:pure_live/modules/live_play/widgets/danmaku/danmaku_arrival_counter.dart';
 import 'package:pure_live/modules/live_play/widgets/local_interaction/local_danmaku_style_editor.dart';
 
 bool isDanmakuUserScrollStart(
@@ -20,12 +21,8 @@ bool isDanmakuUserScrollStart(
   bool acceptDirectionOnlyUserScroll = false,
   bool hasActivePointer = true,
 }) {
-  return (hasActivePointer &&
-          notification is ScrollStartNotification &&
-          notification.dragDetails != null) ||
-      (hasActivePointer &&
-          notification is ScrollUpdateNotification &&
-          notification.dragDetails != null) ||
+  return (hasActivePointer && notification is ScrollStartNotification && notification.dragDetails != null) ||
+      (hasActivePointer && notification is ScrollUpdateNotification && notification.dragDetails != null) ||
       (acceptDirectionOnlyUserScroll &&
           notification is UserScrollNotification &&
           notification.direction != ScrollDirection.idle);
@@ -69,11 +66,9 @@ class DanmakuListViewState extends State<DanmakuListView> {
   bool userScrolling = false;
   bool _autoScrollEnabled = true;
   final ValueNotifier<int> _pendingMessageCount = ValueNotifier<int>(0);
-  int _lastControllerLength = 0;
-  LiveMessage? _lastControllerTail;
+  final _arrivalCounter = DanmakuArrivalCounter<LiveMessage>();
   List<LiveMessage> _visibleMessages = const [];
-  final LinkedHashMap<LiveMessage, DanmakuItem> _itemCache =
-      LinkedHashMap<LiveMessage, DanmakuItem>.identity();
+  final LinkedHashMap<LiveMessage, DanmakuItem> _itemCache = LinkedHashMap<LiveMessage, DanmakuItem>.identity();
   final DanmakuTailFollowGuard _tailFollowGuard = DanmakuTailFollowGuard();
   int _activeScrollPointers = 0;
 
@@ -84,6 +79,7 @@ class DanmakuListViewState extends State<DanmakuListView> {
   Worker? windowFullscreenWorker;
   Worker? presentationWorker;
   StreamSubscription? messagesSub;
+  StreamSubscription? removalsSub;
 
   LivePlayController get controller => Get.find<LivePlayController>();
 
@@ -91,10 +87,18 @@ class DanmakuListViewState extends State<DanmakuListView> {
   void initState() {
     super.initState();
     _visibleMessages = List<LiveMessage>.from(controller.danmakuMessages);
-    _lastControllerLength = _visibleMessages.length;
-    _lastControllerTail = _visibleMessages.isEmpty ? null : _visibleMessages.last;
+    _arrivalCounter.update(_visibleMessages);
 
     messagesSub = controller.danmakuMessages.listen((_) => _onMessagesChanged());
+    removalsSub = controller.danmakuRemovals.listen((predicate) {
+      if (!mounted) return;
+      // A paused snapshot can contain rows already evicted from live history.
+      // Remove only explicitly blocked rows; preserve unrelated frozen rows
+      // and the user's paused position instead of replacing the snapshot.
+      final filtered = _visibleMessages.where((message) => !predicate(message)).toList(growable: false);
+      _itemCache.removeWhere((message, _) => predicate(message));
+      if (filtered.length != _visibleMessages.length) setState(() => _visibleMessages = filtered);
+    });
 
     fullscreenWorker = ever(GlobalPlayerState.to.isFullscreen, (value) {
       if (value == false && _autoScrollEnabled) {
@@ -115,23 +119,15 @@ class DanmakuListViewState extends State<DanmakuListView> {
     // transition from this short-lived widget. The initial post-frame restore
     // also wins over synthetic viewport notifications emitted while Android
     // lays the portrait list out again.
-    presentationWorker = ever<int>(
-      controller.danmakuPresentationRevision,
-      (_) => _scheduleLiveTailRestore(),
-    );
+    presentationWorker = ever<int>(controller.danmakuPresentationRevision, (_) => _scheduleLiveTailRestore());
     _scheduleLiveTailRestore();
   }
 
   void _onMessagesChanged() {
     if (!mounted) return;
     final currentMessages = controller.danmakuMessages;
-    final nextLength = currentMessages.length;
     final nextTail = currentMessages.isEmpty ? null : currentMessages.last;
-    final tailChanged = !identical(nextTail, _lastControllerTail);
-    final lengthDelta = nextLength - _lastControllerLength;
-    final addedCount = lengthDelta > 0 ? lengthDelta : (tailChanged ? 1 : 0);
-    _lastControllerLength = nextLength;
-    _lastControllerTail = nextTail;
+    final addedCount = _arrivalCounter.update(currentMessages);
 
     if (!_autoScrollEnabled) {
       if (addedCount > 0) {
@@ -151,9 +147,7 @@ class DanmakuListViewState extends State<DanmakuListView> {
     throttleTimer ??= Timer(throttleDuration, () {
       throttleTimer = null;
       if (!mounted || !_autoScrollEnabled) return;
-      setState(
-        () => _visibleMessages = List<LiveMessage>.of(controller.danmakuMessages, growable: false),
-      );
+      setState(() => _visibleMessages = List<LiveMessage>.of(controller.danmakuMessages, growable: false));
       WidgetsBinding.instance.addPostFrameCallback((_) => forceScrollToBottom());
     });
   }
@@ -162,6 +156,7 @@ class DanmakuListViewState extends State<DanmakuListView> {
   void dispose() {
     _tailFollowGuard.invalidate();
     messagesSub?.cancel();
+    removalsSub?.cancel();
     fullscreenWorker?.dispose();
     windowFullscreenWorker?.dispose();
     presentationWorker?.dispose();
@@ -223,8 +218,7 @@ class DanmakuListViewState extends State<DanmakuListView> {
       _autoScrollEnabled = true;
       userScrolling = false;
     });
-    _lastControllerLength = messages.length;
-    _lastControllerTail = messages.isEmpty ? null : messages.last;
+    _arrivalCounter.update(messages);
     _pendingMessageCount.value = 0;
     await forceScrollToBottom();
   }
@@ -303,19 +297,10 @@ class DanmakuListViewState extends State<DanmakuListView> {
             borderRadius: radius,
             border: edgeToEdge
                 ? null
-                : Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
-                    width: 0.5,
-                  ),
+                : Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35), width: 0.5),
             boxShadow: edgeToEdge
                 ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: ClipRRect(
             borderRadius: radius,
@@ -348,9 +333,7 @@ class DanmakuListViewState extends State<DanmakuListView> {
                             reverse: true,
                             dragStartBehavior: DragStartBehavior.down,
                             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                            physics: const PureLiveScrollPhysics(
-                              parent: AlwaysScrollableScrollPhysics(),
-                            ),
+                            physics: const PureLiveScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
                             scrollCacheExtent: const ScrollCacheExtent.pixels(360),
                             itemCount: _visibleMessages.length,
@@ -367,38 +350,40 @@ class DanmakuListViewState extends State<DanmakuListView> {
                       ),
                       if (userScrolling)
                         Positioned(
+                          left: 12,
                           right: 12,
                           bottom: 12,
-                          child: FilledButton.icon(
-                            key: const ValueKey('danmaku-resume-live'),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.92),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                          // Bound long localized labels without stretching a
+                          // short desktop action or reducing the user's font.
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.icon(
+                              key: const ValueKey('danmaku-resume-live'),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.92),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                            ),
-                            icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-                            label: ValueListenableBuilder<int>(
-                              valueListenable: _pendingMessageCount,
-                              builder: (context, count, _) => Text(
-                                count > 0
-                                    ? i18n('danmaku_new_messages', args: {'count': '$count'})
-                                    : i18n('scroll_to_bottom'),
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                              label: ValueListenableBuilder<int>(
+                                valueListenable: _pendingMessageCount,
+                                builder: (context, count, _) => Text(
+                                  count > 0
+                                      ? i18n('danmaku_new_messages', args: {'count': '$count'})
+                                      : i18n('scroll_to_bottom'),
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
                               ),
+                              onPressed: _resumeAutoScroll,
                             ),
-                            onPressed: _resumeAutoScroll,
                           ),
                         ),
                     ],
                   ),
                 ),
                 Obx(() {
-                  if (!controller.localInteractionController.enabled.v) {
-                    return const SizedBox.shrink();
-                  }
+                  if (!controller.localInteractionController.enabled.v) return const SizedBox.shrink();
                   final state = controller.state.value;
                   final screenMode = state.ui.screenMode;
                   return Material(
@@ -429,14 +414,10 @@ class DanmakuListViewState extends State<DanmakuListView> {
                                       size: 19,
                                       color: screenMode == VideoMode.normal
                                           ? Theme.of(context).primaryColor
-                                          : Color(
-                                              controller.localInteractionController.danmakuColor.v,
-                                            ),
+                                          : Color(controller.localInteractionController.danmakuColor.v),
                                     ),
                                   ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(22),
-                                  ),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(22)),
                                 ),
                               ),
                             ),
@@ -467,7 +448,7 @@ class DanmakuItem extends StatelessWidget {
   const DanmakuItem({super.key, required this.danmaku});
 
   Future<void> _copyMessage() async {
-    await Clipboard.setData(ClipboardData(text: '${danmaku.userName}: ${danmaku.message}'));
+    await Clipboard.setData(ClipboardData(text: "${danmaku.userName}: ${danmaku.message}"));
     ToastUtil.show(i18n('copied_to_clipboard'));
   }
 
@@ -481,17 +462,11 @@ class DanmakuItem extends StatelessWidget {
     final baseColor = Color.fromARGB(255, danmaku.color.r, danmaku.color.g, danmaku.color.b);
 
     final vibrantColor =
-        baseColor.toARGB32() == Colors.white.toARGB32() ||
-            baseColor.toARGB32() == Colors.black.toARGB32()
+        baseColor.toARGB32() == Colors.white.toARGB32() || baseColor.toARGB32() == Colors.black.toARGB32()
         ? (isDark ? Colors.white : Colors.black)
-        : HSLColor.fromColor(baseColor)
-              .withLightness(isDark ? 0.75 : 0.52)
-              .withSaturation(1)
-              .toColor();
+        : HSLColor.fromColor(baseColor).withLightness(isDark ? 0.75 : 0.52).withSaturation(1).toColor();
 
-    final cardBgColor = isDark
-        ? theme.cardColor.withValues(alpha: 0.65)
-        : Colors.white.withValues(alpha: 0.72);
+    final cardBgColor = isDark ? theme.cardColor.withValues(alpha: 0.65) : Colors.white.withValues(alpha: 0.72);
 
     final textColor = isDark ? Colors.white70 : Colors.black87;
 
@@ -527,18 +502,11 @@ class DanmakuItem extends StatelessWidget {
                       TextSpan(
                         children: [
                           TextSpan(
-                            text: '${danmaku.userName}: ',
-                            style: AppTextStyles.t14.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: textColor,
-                            ),
+                            text: "${danmaku.userName}: ",
+                            style: AppTextStyles.t14.copyWith(fontWeight: FontWeight.w700, color: textColor),
                           ),
                           TextSpan(
-                            children: parseEmojis(
-                              danmaku.message,
-                              AppTextStyles.t14.fontSize!,
-                              textColor,
-                            ),
+                            children: parseEmojis(danmaku.message, AppTextStyles.t14.fontSize!, textColor),
                             style: AppTextStyles.t14.copyWith(
                               height: 1.45,
                               fontWeight: FontWeight.w500,
@@ -563,8 +531,7 @@ class DanmakuItem extends StatelessWidget {
 /// overnight stream.  The old unbounded map was one of the main causes of the
 /// steadily rising desktop heap.
 const int emojiTokenCacheCapacity = 512;
-final LinkedHashMap<String, List<EmojiToken>> emojiCache =
-    LinkedHashMap<String, List<EmojiToken>>();
+final LinkedHashMap<String, List<EmojiToken>> emojiCache = LinkedHashMap<String, List<EmojiToken>>();
 
 class EmojiToken {
   final bool isEmoji;

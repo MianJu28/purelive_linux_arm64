@@ -1,5 +1,9 @@
 # Android 高刷新率与 Windows 性能验证
 
+## 性能采样上下文（2026-09-07补充）
+
+窗口是否可见、最小化或被遮挡，以及截图/无障碍观察、CPU profiler、页面内容和距启动时间，均须随样本记录。不要直接比较不匹配条件下的CPU数字，也不把Debug样本外推为Release结论。[本轮Windows对照](WINDOWS_CPU_CONTEXT_AUDIT_2026_09_07.md) 已观察到同一空页面的可见性差异，但尚未定位根因；观察工具相关性假设经重复样本修正，不用暂停业务功能或给消息循环加固定延时代替诊断。
+
 Pure Live 在 Android 上提供省电、均衡、最高（设备上限）三档刷新率。新安装默认省电并交由系统动态选择；均衡只在触摸、滚动和转场期间请求当前设备最高刷新率；最高档在应用前台持续请求当前分辨率支持的设备上限。切换立即生效，不需要重启。原生层监听显示器模式变化，折叠屏切换、外接屏变化、应用恢复前台或系统调整显示模式后都会重新检测并回传当前/最高 Hz。设置入口为“设置 → 通用 → 界面刷新率”。
 
 ## 本次性能路径
@@ -54,19 +58,31 @@ Pure Live 在 Android 上提供省电、均衡、最高（设备上限）三档�
 
 以下命令只在当前任务明确要求设备性能验收时使用。日常卡顿、PiP、弹幕或生命周期问题先通过代码路径分析、时间线回归测试、Flutter Analyze 和本地构建完成修复闭环；设备连接不是代码诊断的前置条件，也不会由历史连接状态自动触发。
 
-安装本地 APK 后，可先确认系统给应用分配的显示模式：
+安装本地 APK 后，可先确认系统给应用分配的显示模式。所有目标命令显式指定序列号：
 
 ```powershell
-adb shell dumpsys display | Select-String -Pattern "mMode|supportedModes|refreshRate"
+$adb = 'C:\Users\123\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+$serial = 'SERIAL'
+& $adb -s $serial shell dumpsys display | Select-String -Pattern "mMode|supportedModes|refreshRate"
 ```
 
-检查应用渲染帧统计：
+Flutter 画面通常位于独立 BLAST Surface，`gfxinfo` 的 Android View 样本不能代替 Flutter 帧结论。首页滚动使用项目工具采集目标 BLAST layer 的 SurfaceFlinger timestats 和进程主线程 schedstat：
 
 ```powershell
-adb shell dumpsys gfxinfo com.mystyle.purelive reset
-# 在手机上连续滚动首页、收藏页并进入/退出直播间
-adb shell dumpsys gfxinfo com.mystyle.purelive framestats > .\local-artifacts\gfxinfo-framestats.txt
+.\tool\run_android_device_test_turn.ps1 -NoRotation -Serial $serial -CommandLine `
+  "& '.\tool\android_home_scroll_performance.ps1' -Serial `$env:PURELIVE_ADB_SERIAL -ExpectedApkSha256 'EXPECTED_SHA256'"
 ```
+
+默认执行热门直播网格 20 上+20 下及相邻平台 20 左+20 右，每个输入前核对精确前台所有权；原始 layer dump、P50/P90/P95/P99、两帧/四帧间隔比例、主线程运行/排队时间、温控、内存、截图和日志统一写入 `local-artifacts/diagnostics/android-home-scroll-performance-*/`。`totalTimelineFrames=0` 时只使用 present 间隔和 dropped/lateAcquire/badDesiredPresent，不将分类字段的零值解释为零卡顿。
+
+直播间重复进入、音频模式与退出后的资源恢复使用同一身份/哈希门禁：
+
+```powershell
+.\tool\run_android_device_test_turn.ps1 -NoRotation -Serial $serial -CommandLine `
+  "& '.\tool\android_room_resource_recovery.ps1' -Serial `$env:PURELIVE_ADB_SERIAL -ExpectedApkSha256 'EXPECTED_SHA256' -Cycles 50 -SampleEvery 5 -IdleReleaseSeconds 52"
+```
+
+该工具每 5 轮采集 `/proc/PID/status`、`dumpsys meminfo`、FD 类型、逐线程 `comm` 与目标 SurfaceFlinger layer；退出应用内悬浮播放后等待 52 秒，覆盖播放器默认 45 秒空闲硬释放窗口。每次模式输入先解析精确且启用的可点击动作，只有持久状态仍未变化时才有限重试。首轮 K90 Debug 数据和当前边界见 [Android 50 次资源恢复审计](ANDROID_ROOM_RESOURCE_RECOVERY_AUDIT_2026_09_13.md)。
 
 重点观察：
 

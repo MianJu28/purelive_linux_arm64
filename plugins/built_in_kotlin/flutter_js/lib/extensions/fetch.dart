@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_js/javascript_runtime.dart';
-
 import './xhr.dart';
 
 var _fetchDebug = false;
@@ -12,7 +11,8 @@ extension JavascriptRuntimeFetchExtension on JavascriptRuntime {
     debug('Before enable xhr');
     enableXhr();
     debug('After enable xhr');
-    final fetchPolyfill = await rootBundle.loadString('packages/flutter_js/assets/js/fetch.js');
+    final fetchPolyfill =
+        await rootBundle.loadString('packages/flutter_js/assets/js/fetch.js');
     debug('Loaded fetchPolyfill');
     final evalFetchResult = evaluate(fetchPolyfill);
     debug('Eval Fetch Result: $evalFetchResult');

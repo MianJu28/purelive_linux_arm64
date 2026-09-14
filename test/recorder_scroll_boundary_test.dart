@@ -24,10 +24,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.descendant(of: find.byType(RecorderStatusSelector), matching: find.byType(Scrollable)),
-      findsNothing,
-    );
+    expect(find.descendant(of: find.byType(RecorderStatusSelector), matching: find.byType(Scrollable)), findsNothing);
     await tester.tap(find.byKey(const ValueKey('recorder-status-8')));
     await tester.pumpAndSettle();
     expect(controller.index, 8);
@@ -46,10 +43,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final scrollable = find.descendant(
-      of: find.byType(RecorderBoundedTaskList),
-      matching: find.byType(Scrollable),
-    );
+    final scrollable = find.descendant(of: find.byType(RecorderBoundedTaskList), matching: find.byType(Scrollable));
     final position = tester.state<ScrollableState>(scrollable).position;
     await tester.drag(scrollable, const Offset(0, 2000));
     await tester.pumpAndSettle();
@@ -73,10 +67,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final scrollable = find.descendant(
-      of: find.byType(RecorderBoundedTaskList),
-      matching: find.byType(Scrollable),
-    );
+    final scrollable = find.descendant(of: find.byType(RecorderBoundedTaskList), matching: find.byType(Scrollable));
     final position = tester.state<ScrollableState>(scrollable).position;
     expect(position.minScrollExtent, position.maxScrollExtent);
     await tester.drag(scrollable, const Offset(0, -1200));
@@ -104,10 +95,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final scrollable = find.descendant(
-      of: find.byType(RecorderBoundedTaskList),
-      matching: find.byType(Scrollable),
-    );
+    final scrollable = find.descendant(of: find.byType(RecorderBoundedTaskList), matching: find.byType(Scrollable));
     final position = tester.state<ScrollableState>(scrollable).position;
     await tester.drag(scrollable, const Offset(0, -5000));
     await tester.pumpAndSettle();

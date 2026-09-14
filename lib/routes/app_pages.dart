@@ -72,29 +72,16 @@ class AppPages {
   }
 
   static final routes = [
-    GetPage(
-      name: RoutePath.kInitial,
-      page: HomePage.new,
-      participatesInRootNavigator: true,
-      preventDuplicates: true,
-    ),
+    GetPage(name: RoutePath.kInitial, page: HomePage.new, participatesInRootNavigator: true, preventDuplicates: true),
     GetPage(name: RoutePath.kSignIn, page: _smoothPage(SignInPage.new)),
     GetPage(name: RoutePath.kMine, page: _smoothPage(MinePage.new)),
     GetPage(name: RoutePath.kUserManage, page: _smoothPage(UserManager.new)),
     GetPage(name: RoutePath.kFavorite, page: _smoothPage(FavoritePage.new)),
     GetPage(name: RoutePath.kPopular, page: _smoothPage(PopularPage.new)),
     GetPage(name: RoutePath.kAreas, page: _smoothPage(AreasPage.new)),
-    GetPage(
-      name: RoutePath.kSettings,
-      page: _smoothPage(SettingsPage.new),
-      bindings: [SettingsBinding()],
-    ),
+    GetPage(name: RoutePath.kSettings, page: _smoothPage(SettingsPage.new), bindings: [SettingsBinding()]),
     GetPage(name: RoutePath.kHistory, page: _smoothPage(HistoryPage.new)),
-    GetPage(
-      name: RoutePath.kSearch,
-      page: _smoothPage(SearchPage.new),
-      bindings: [SearchBinding()],
-    ),
+    GetPage(name: RoutePath.kSearch, page: _smoothPage(SearchPage.new), bindings: [SearchBinding()]),
     GetPage(name: RoutePath.kBackup, page: _smoothPage(BackupPage.new)),
     GetPage(name: RoutePath.kIptv, page: _smoothPage(IptvPage.new)),
     GetPage(name: RoutePath.kAbout, page: _smoothPage(AboutPage.new)),
@@ -105,7 +92,7 @@ class AppPages {
     ),
     GetPage(
       name: RoutePath.kLivePlay,
-      page: LivePlayPage.new,
+      page: () => LivePlayPage(),
       preventDuplicates: false,
       bindings: [LivePlayBinding()],
     ),
@@ -146,11 +133,7 @@ class AppPages {
 
     GetPage(name: RoutePath.kVersionHistory, page: _smoothPage(() => const VersionHistoryPage())),
 
-    GetPage(
-      name: RoutePath.kToolbox,
-      page: _smoothPage(() => const ToolBoxPage()),
-      bindings: [ToolBoxBinding()],
-    ),
+    GetPage(name: RoutePath.kToolbox, page: _smoothPage(() => const ToolBoxPage()), bindings: [ToolBoxBinding()]),
 
     GetPage(
       name: RoutePath.kFavoriteAreas,
@@ -165,6 +148,14 @@ class AppPages {
     ),
 
     GetPage(
+      name: RoutePath.kDouyinCookie,
+      page: _smoothPage(() => const DouyinCookiePage()),
+      bindings: [DouyinCookieBinding()],
+    ),
+
+    // Preserve the historical misnamed deep link while all in-app navigation
+    // uses the canonical Douyin path above.
+    GetPage(
       name: RoutePath.kDouyuCookie,
       page: _smoothPage(() => const DouyinCookiePage()),
       bindings: [DouyinCookieBinding()],
@@ -175,17 +166,9 @@ class AppPages {
       page: _smoothPage(() => const TwitchCookiePage()),
       bindings: [TwitchCookieBinding()],
     ),
-    GetPage(
-      name: RoutePath.kYyCookie,
-      page: _smoothPage(() => const YyCookiePage()),
-      bindings: [YyCookieBinding()],
-    ),
+    GetPage(name: RoutePath.kYyCookie, page: _smoothPage(() => const YyCookiePage()), bindings: [YyCookieBinding()]),
 
-    GetPage(
-      name: RoutePath.kSoop,
-      page: _smoothPage(() => const SoopCookiePage()),
-      bindings: [SoopCookieBinding()],
-    ),
+    GetPage(name: RoutePath.kSoop, page: _smoothPage(() => const SoopCookiePage()), bindings: [SoopCookieBinding()]),
 
     GetPage(
       name: RoutePath.kKuaishouCookie,
@@ -193,11 +176,7 @@ class AppPages {
       bindings: [KuaishouCookieBinding()],
     ),
 
-    GetPage(
-      name: RoutePath.kWebDavPage,
-      page: _smoothPage(WebDavPage.new),
-      bindings: [WebDavBinding()],
-    ),
+    GetPage(name: RoutePath.kWebDavPage, page: _smoothPage(WebDavPage.new), bindings: [WebDavBinding()]),
 
     GetPage(
       name: RoutePath.kSplash,
@@ -225,7 +204,7 @@ class AppPages {
           bgGradient: bgGradient,
           logo: Image.asset('assets/icons/icon.png', width: 150),
           showTextLogo: true,
-          logoText: i18n('welcome_use'),
+          logoText: i18n("welcome_use"),
           textStyle: AppTextStyles.t20.copyWith(fontWeight: FontWeight.bold, color: textColor),
           loaderType: LoaderType.progressBar,
           onNextPressed: () async {
@@ -248,33 +227,21 @@ class AppPages {
       },
     ),
     // VersionPage
-    GetPage(
-      name: RoutePath.kVersionPage,
-      page: _smoothPage(() => const VersionPage()),
-      bindings: [VersionBinding()],
-    ),
-    GetPage(
-      name: RoutePath.kRecordPage,
-      page: _smoothPage(() => const RecorderPage()),
-      bindings: [RecorderBinding()],
-    ),
+    GetPage(name: RoutePath.kVersionPage, page: _smoothPage(() => const VersionPage()), bindings: [VersionBinding()]),
+    GetPage(name: RoutePath.kRecordPage, page: _smoothPage(() => const RecorderPage()), bindings: [RecorderBinding()]),
     GetPage(
       name: RoutePath.kRecordSettings,
       page: _smoothPage(() => const RecordSettingsPage()),
       bindings: [RecordSettingsBinding()],
     ),
-    GetPage(
-      name: RoutePath.kWebSearch,
-      page: _smoothPage(() => const WebSearchPage()),
-      bindings: [WebSearchBinding()],
-    ),
+    GetPage(name: RoutePath.kWebSearch, page: _smoothPage(() => const WebSearchPage()), bindings: [WebSearchBinding()]),
 
     GetPage(
       name: RoutePath.kSettingsTags,
       page: _smoothPage(() => const TagManagementPage()),
       bindings: [TagManagementBinding()],
     ),
-    GetPage(
+     GetPage(
       name: RoutePath.kRemoteSync,
       page: _smoothPage(() => const RemoteSyncPage()),
       bindings: [RemoteSyncBinding()],

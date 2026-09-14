@@ -3,6 +3,8 @@ import 'package:pure_live/common/consts/app_consts.dart';
 import 'package:pure_live/common/services/utils/backup_migration_util.dart';
 
 class FavoriteRoomController extends GetxController {
+  static const int maxShieldKeywordLength = 40;
+
   final RxList<String> shieldList = hiveStringList('shieldList', <String>[]);
 
   final RxList<String> blockedDanmakuUsers = hiveStringList('blockedDanmakuUsers', <String>[]);
@@ -38,24 +40,81 @@ class FavoriteRoomController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _normalizeDanmakuBlocks();
     _normalizeSiteCatalogIds();
     _normalizeFavoriteRoomIdentities();
     _migrateSiteCatalog();
   }
 
   void _migrateSiteCatalog() {
-    if (siteCatalogMigration.v >= 2) return;
-
     final updated = List<String>.from(hotAreasList);
-
-    for (final site in Sites.supportSites) {
-      if (!updated.contains(site.id)) {
-        updated.add(site.id);
+    if (siteCatalogMigration.v < 2) {
+      for (final site in Sites.supportSites) {
+        if (!updated.contains(site.id)) updated.add(site.id);
       }
     }
-
-    hotAreasList.assignAll(updated);
-    siteCatalogMigration.v = 2;
+    // Add only the new platform. Re-enabling all supported IDs here would
+    // discard the user's deliberately hidden platforms on each new release.
+    if (siteCatalogMigration.v < 3) {
+      if (!updated.contains(Sites.acfunSite)) updated.add(Sites.acfunSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 3;
+    }
+    if (siteCatalogMigration.v < 4) {
+      if (!updated.contains(Sites.picartoSite)) updated.add(Sites.picartoSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 4;
+    }
+    if (siteCatalogMigration.v < 5) {
+      if (!updated.contains(Sites.twitcastingSite)) updated.add(Sites.twitcastingSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 5;
+    }
+    if (siteCatalogMigration.v < 6) {
+      if (!updated.contains(Sites.missevanSite)) updated.add(Sites.missevanSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 6;
+    }
+    if (siteCatalogMigration.v < 7) {
+      if (!updated.contains(Sites.inkeSite)) updated.add(Sites.inkeSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 7;
+    }
+    if (siteCatalogMigration.v < 8) {
+      if (!updated.contains(Sites.kilakilaSite)) updated.add(Sites.kilakilaSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 8;
+    }
+    if (siteCatalogMigration.v < 9) {
+      if (!updated.contains(Sites.huajiaoSite)) updated.add(Sites.huajiaoSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 9;
+    }
+    if (siteCatalogMigration.v < 10) {
+      if (!updated.contains(Sites.openrecSite)) updated.add(Sites.openrecSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 10;
+    }
+    if (siteCatalogMigration.v < 11) {
+      if (!updated.contains(Sites.ttingSite)) updated.add(Sites.ttingSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 11;
+    }
+    if (siteCatalogMigration.v < 12) {
+      if (!updated.contains(Sites.xiaohongshuSite)) updated.add(Sites.xiaohongshuSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 12;
+    }
+    if (siteCatalogMigration.v < 13) {
+      if (!updated.contains(Sites.niconicoSite)) updated.add(Sites.niconicoSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 13;
+    }
+    if (siteCatalogMigration.v < 14) {
+      if (!updated.contains(Sites.weiboSite)) updated.add(Sites.weiboSite);
+      hotAreasList.assignAll(updated);
+      siteCatalogMigration.v = 14;
+    }
   }
 
   void _normalizeSiteCatalogIds() {
@@ -194,7 +253,7 @@ class FavoriteRoomController extends GetxController {
   }
 
   bool isFavoriteArea(LiveArea area) {
-    return favoriteAreas.v.any((e) => e.areaId == area.areaId);
+    return favoriteAreas.v.any((candidate) => candidate.hasSameIdentity(area));
   }
 
   bool addRoom(LiveRoom room) {
@@ -246,7 +305,7 @@ class FavoriteRoomController extends GetxController {
   }
 
   bool addArea(LiveArea area) {
-    if (isFavoriteArea(area)) return false;
+    if (area.identityKey == null || isFavoriteArea(area)) return false;
 
     final updated = List<LiveArea>.from(favoriteAreas.v);
     updated.add(area);
@@ -257,23 +316,24 @@ class FavoriteRoomController extends GetxController {
 
   bool removeArea(LiveArea area) {
     final updated = List<LiveArea>.from(favoriteAreas.v);
-    final removed = updated.remove(area);
+    updated.removeWhere((candidate) => candidate.hasSameIdentity(area));
 
-    if (!removed) return false;
+    if (updated.length == favoriteAreas.v.length) return false;
 
     favoriteAreas.v = updated;
 
     return true;
   }
 
-  void addShieldList(String value) {
+  bool addShieldList(String value) {
     final text = value.trim();
 
-    if (text.isEmpty || shieldList.contains(text)) return;
+    if (text.isEmpty || shieldList.any((item) => item.trim().toLowerCase() == text.toLowerCase())) return false;
 
     final updated = List<String>.from(shieldList);
     updated.add(text);
     shieldList.assignAll(updated);
+    return true;
   }
 
   void removeShieldList(int index) {
@@ -284,16 +344,17 @@ class FavoriteRoomController extends GetxController {
     shieldList.assignAll(updated);
   }
 
-  void addBlockedDanmakuUser(String value) {
+  bool addBlockedDanmakuUser(String value) {
     final user = value.trim();
 
-    if (user.isEmpty || blockedDanmakuUsers.contains(user)) {
-      return;
+    if (user.isEmpty || blockedDanmakuUsers.any((item) => item.trim().toLowerCase() == user.toLowerCase())) {
+      return false;
     }
 
     final updated = List<String>.from(blockedDanmakuUsers);
     updated.add(user);
     blockedDanmakuUsers.assignAll(updated);
+    return true;
   }
 
   void removeBlockedDanmakuUser(int index) {
@@ -337,27 +398,27 @@ class FavoriteRoomController extends GetxController {
     };
   }
 
+  static Map<String, dynamic> parseConfig(Map<String, dynamic> json) {
+    return {
+      'shieldList': _normalizeDanmakuBlockValues(List<String>.from(json['shieldList'] ?? const <String>[])),
+      'blockedDanmakuUsers': _normalizeDanmakuBlockValues(
+        List<String>.from(json['blockedDanmakuUsers'] ?? const <String>[]),
+      ),
+      'hotAreasList': List<String>.from(json['hotAreasList'] ?? AppConsts.supportSites),
+      'preferPlatform': json['preferPlatform']?.toString().trim().toLowerCase() ?? Sites.bilibiliSite,
+      'favoriteRooms': BackupMigrationUtil.parseObjectList(json['favoriteRooms'], LiveRoom.fromJson, strict: true),
+      'favoriteAreas': BackupMigrationUtil.parseObjectList(json['favoriteAreas'], LiveArea.fromJson, strict: true),
+    };
+  }
+
   void fromJson(Map<String, dynamic> json) {
-    shieldList.assignAll(List<String>.from(json['shieldList'] ?? const <String>[]));
-
-    blockedDanmakuUsers.assignAll(
-      List<String>.from(json['blockedDanmakuUsers'] ?? const <String>[]),
-    );
-
-    hotAreasList.assignAll(List<String>.from(json['hotAreasList'] ?? AppConsts.supportSites));
-
-    final preferred = json['preferPlatform']?.toString();
-
-    preferPlatform.v = preferred?.trim().toLowerCase() ?? Sites.bilibiliSite;
-
-    favoriteRooms.v = List<LiveRoom>.from(
-      BackupMigrationUtil.parseObjectList(json['favoriteRooms'], LiveRoom.fromJson),
-    );
-
-    favoriteAreas.v = List<LiveArea>.from(
-      BackupMigrationUtil.parseObjectList(json['favoriteAreas'], LiveArea.fromJson),
-    );
-
+    final parsed = parseConfig(json);
+    shieldList.assignAll(parsed['shieldList']);
+    blockedDanmakuUsers.assignAll(parsed['blockedDanmakuUsers']);
+    hotAreasList.assignAll(parsed['hotAreasList']);
+    preferPlatform.v = parsed['preferPlatform'];
+    favoriteRooms.v = parsed['favoriteRooms'];
+    favoriteAreas.v = parsed['favoriteAreas'];
     _normalizeSiteCatalogIds();
     _normalizeFavoriteRoomIdentities();
   }
@@ -366,8 +427,10 @@ class FavoriteRoomController extends GetxController {
     final favorite = rootConfig?['favorite'] as Map<String, dynamic>? ?? {};
 
     return {
-      'shieldList': List<String>.from(favorite['shieldList'] ?? const <String>[]),
-      'blockedDanmakuUsers': List<String>.from(favorite['blockedDanmakuUsers'] ?? const <String>[]),
+      'shieldList': _normalizeDanmakuBlockValues(List<String>.from(favorite['shieldList'] ?? const <String>[])),
+      'blockedDanmakuUsers': _normalizeDanmakuBlockValues(
+        List<String>.from(favorite['blockedDanmakuUsers'] ?? const <String>[]),
+      ),
       'hotAreasList': List<String>.from(favorite['hotAreasList'] ?? AppConsts.supportSites),
       'preferPlatform': favorite['preferPlatform'] ?? Sites.bilibiliSite,
       'favoriteRooms': BackupMigrationUtil.parseObjectList(
@@ -402,10 +465,24 @@ class FavoriteRoomController extends GetxController {
     return true;
   }
 
-  static Map<String, dynamic> mergeConfig(
-    Map<String, dynamic> rootConfig,
-    Map<String, dynamic> updateFields,
-  ) {
+  void _normalizeDanmakuBlocks() {
+    final keywords = _normalizeDanmakuBlockValues(shieldList);
+    if (!_sameStrings(shieldList, keywords)) shieldList.assignAll(keywords);
+    final users = _normalizeDanmakuBlockValues(blockedDanmakuUsers);
+    if (!_sameStrings(blockedDanmakuUsers, users)) blockedDanmakuUsers.assignAll(users);
+  }
+
+  static List<String> _normalizeDanmakuBlockValues(Iterable<String> values) {
+    final seen = <String>{};
+    final normalized = <String>[];
+    for (final rawValue in values) {
+      final value = rawValue.trim();
+      if (value.isNotEmpty && seen.add(value.toLowerCase())) normalized.add(value);
+    }
+    return normalized;
+  }
+
+  static Map<String, dynamic> mergeConfig(Map<String, dynamic> rootConfig, Map<String, dynamic> updateFields) {
     final favorite = Map<String, dynamic>.from(rootConfig['favorite'] ?? {});
 
     updateFields.forEach((key, value) {

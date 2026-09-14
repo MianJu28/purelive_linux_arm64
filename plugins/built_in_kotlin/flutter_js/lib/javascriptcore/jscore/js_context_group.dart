@@ -1,5 +1,4 @@
 import 'dart:ffi';
-
 import '../binding/js_context_ref.dart' as JSContextRef;
 
 /// JSContextGroupRef A group that associates JavaScript contexts with one another. Contexts in the same group may share and exchange JavaScript objects.

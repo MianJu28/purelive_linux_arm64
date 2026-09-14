@@ -12,18 +12,18 @@ class LineSelector extends StatelessWidget {
     return Obx(() {
       final state = controller.state.value;
 
-      if (!state.room.success || state.player.playUrls.isEmpty) {
+      if (!state.room.success || !state.player.hasPlaybackSource) {
         return const SizedBox.shrink();
       }
 
-      final currentIndex = state.player.currentLineIndex.clamp(0, state.player.playUrls.length - 1);
+      final currentIndex = state.player.currentLineIndex.clamp(0, state.player.lineCount - 1);
       final switching = controller.playerController.isStreamSwitching.value;
 
-      final currentLineName = i18n('toolbox_line', args: {'index': (currentIndex + 1).toString()});
+      final currentLineName = i18n("toolbox_line", args: {"index": (currentIndex + 1).toString()});
 
       return PopupMenuButton<int>(
         enabled: !switching,
-        tooltip: i18n('select_play_line'),
+        tooltip: i18n("select_play_line"),
         color: Get.theme.colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         offset: const Offset(0.0, 5.0),
@@ -43,38 +43,29 @@ class LineSelector extends StatelessWidget {
                 SizedBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.8,
-                    color: Get.theme.colorScheme.primary,
-                  ),
+                  child: CircularProgressIndicator(strokeWidth: 1.8, color: Get.theme.colorScheme.primary),
                 ),
                 const SizedBox(width: 5),
               ],
               Text(
                 currentLineName,
-                style: Get.theme.textTheme.labelSmall?.copyWith(
-                  color: Get.theme.colorScheme.primary,
-                ),
+                style: Get.theme.textTheme.labelSmall?.copyWith(color: Get.theme.colorScheme.primary),
               ),
             ],
           ),
         ),
         onSelected: (newLineIndex) async {
           controller.updateUI(isMenuOpen: false);
-          await controller.setResolution(
-            ReloadDataType.changeLine,
-            state.player.currentQuality,
-            newLineIndex,
-          );
+          await controller.setResolution(ReloadDataType.changeLine, state.player.currentQuality, newLineIndex);
         },
         itemBuilder: (context) {
-          return List.generate(state.player.playUrls.length, (index) {
+          return List.generate(state.player.lineCount, (index) {
             final isSelected = index == currentIndex;
 
             return PopupMenuItem<int>(
               value: index,
               child: Text(
-                i18n('toolbox_line', args: {'index': (index + 1).toString()}),
+                i18n("toolbox_line", args: {"index": (index + 1).toString()}),
                 style: Theme.of(context).textTheme.labelSmall
                     ?.copyWith(color: isSelected ? Get.theme.colorScheme.primary : null),
               ),

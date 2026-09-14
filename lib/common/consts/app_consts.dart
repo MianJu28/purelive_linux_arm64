@@ -23,31 +23,22 @@ class AppConsts {
   static const Set<String> supportAndroidAbis = {'arm64-v8a', 'armeabi-v7a', 'x86_64'};
   // 主题模式映射
   static const Map<String, ThemeMode> themeModes = {
-    'System': ThemeMode.system,
-    'Dark': ThemeMode.dark,
-    'Light': ThemeMode.light,
+    "System": ThemeMode.system,
+    "Dark": ThemeMode.dark,
+    "Light": ThemeMode.light,
   };
   static const Map<String, String> themeModeI18n = {
-    'System': 'theme_mode_system',
-    'Dark': 'theme_mode_dark',
-    'Light': 'theme_mode_light',
+    "System": "theme_mode_system",
+    "Dark": "theme_mode_dark",
+    "Light": "theme_mode_light",
   };
 
   // 语言映射
-  static const Map<String, Locale> languages = {'English': Locale('en'), '简体中文': Locale('zh')};
+  static const Map<String, Locale> languages = {"English": Locale('en'), "简体中文": Locale('zh')};
 
-  // 视频 Fit 模式
-  static final List<BoxFit> videoFitList = [
-    BoxFit.contain,
-    BoxFit.cover,
-    BoxFit.fill,
-    BoxFit.fitHeight,
-    BoxFit.fitWidth,
-    BoxFit.scaleDown,
-  ];
-
-  /// desc 改成 key
-  static final List<Map<String, dynamic>> videoFitType = [
+  // Video fit values and labels share one ordered source because the stored
+  // setting is an index into this list.
+  List<Map<String, dynamic>> videoFitType = [
     {'attr': BoxFit.contain, 'desc': 'video_fit_default'},
     {'attr': BoxFit.cover, 'desc': 'video_fit_crop_center'},
     {'attr': BoxFit.fill, 'desc': 'video_fit_fill_screen'},
@@ -56,45 +47,25 @@ class AppConsts {
     {'attr': BoxFit.scaleDown, 'desc': 'video_fit_scale_down'},
   ];
 
-  /// 图像滤波质量
-  static final List<Map<String, dynamic>> filterQualityType = [
-    {'attr': FilterQuality.low, 'desc': 'filter_quality_low'},
-    {'attr': FilterQuality.medium, 'desc': 'filter_quality_medium'},
-    {'attr': FilterQuality.high, 'desc': 'filter_quality_high'},
-  ];
-
   static Map<String, Color> themeColors = {
-    'Crimson': const Color.fromARGB(255, 220, 20, 60),
-    'Orange': Colors.orange,
-    'Chrome': const Color.fromARGB(255, 230, 184, 0),
-    'Grass': Colors.lightGreen,
-    'Teal': Colors.teal,
-    'SeaFoam': const Color.fromARGB(255, 112, 193, 207),
-    'Ice': const Color.fromARGB(255, 115, 155, 208),
-    'Blue': Colors.blue,
-    'Indigo': Colors.indigo,
-    'Violet': Colors.deepPurple,
-    'Primary': const Color(0xFF6200EE),
-    'Orchid': const Color.fromARGB(255, 218, 112, 214),
-    'Variant': const Color(0xFF3700B3),
-    'Secondary': const Color(0xFF03DAC6),
+    "Crimson": const Color.fromARGB(255, 220, 20, 60),
+    "Orange": Colors.orange,
+    "Chrome": const Color.fromARGB(255, 230, 184, 0),
+    "Grass": Colors.lightGreen,
+    "Teal": Colors.teal,
+    "SeaFoam": const Color.fromARGB(255, 112, 193, 207),
+    "Ice": const Color.fromARGB(255, 115, 155, 208),
+    "Blue": Colors.blue,
+    "Indigo": Colors.indigo,
+    "Violet": Colors.deepPurple,
+    "Primary": const Color(0xFF6200EE),
+    "Orchid": const Color.fromARGB(255, 218, 112, 214),
+    "Variant": const Color(0xFF3700B3),
+    "Secondary": const Color(0xFF03DAC6),
   };
   static Map<ColorSwatch<Object>, String> colorsNameMap = AppConsts.themeColors.map(
     (key, value) => MapEntry(ColorTools.createPrimarySwatch(value), key),
   );
-
-  static final List<Map<String, dynamic>> fontWeightType = [
-    {'attr': FontWeight.w100, 'desc': fontWeightLabels[100]},
-    {'attr': FontWeight.w200, 'desc': fontWeightLabels[200]},
-    {'attr': FontWeight.w300, 'desc': fontWeightLabels[300]},
-    {'attr': FontWeight.w400, 'desc': fontWeightLabels[400]},
-    {'attr': FontWeight.w500, 'desc': fontWeightLabels[500]},
-    {'attr': FontWeight.w600, 'desc': fontWeightLabels[600]},
-    {'attr': FontWeight.w700, 'desc': fontWeightLabels[700]},
-    {'attr': FontWeight.w800, 'desc': fontWeightLabels[800]},
-    {'attr': FontWeight.w900, 'desc': fontWeightLabels[900]},
-  ];
-
   static const Map<int, String> fontWeightLabels = {
     100: 'font_weight_thin',
     200: 'font_weight_extra_light',
@@ -170,16 +141,8 @@ class AppConsts {
     {'key': 'ballZigZag', 'nameEn': 'Ball ZigZag', 'nameZh': '双球Z字错位'},
     {'key': 'ballZigZagDeflect', 'nameEn': 'Ball ZigZag Deflect', 'nameZh': '双球曲线反弹'},
     {'key': 'ballTrianglePath', 'nameEn': 'Ball Triangle Path', 'nameZh': '三角轨迹循环'},
-    {
-      'key': 'ballTrianglePathColored',
-      'nameEn': 'Ball Triangle Path Colored',
-      'nameZh': '三角彩轨循环',
-    }, // 补齐
-    {
-      'key': 'ballTrianglePathColoredFilled',
-      'nameEn': 'Ball Triangle Filled',
-      'nameZh': '三角实心循环',
-    }, // 补齐
+    {'key': 'ballTrianglePathColored', 'nameEn': 'Ball Triangle Path Colored', 'nameZh': '三角彩轨循环'}, // 补齐
+    {'key': 'ballTrianglePathColoredFilled', 'nameEn': 'Ball Triangle Filled', 'nameZh': '三角实心循环'}, // 补齐
     {'key': 'ballScale', 'nameEn': 'Ball Scale', 'nameZh': '单圆水波脉冲'},
     {'key': 'lineScale', 'nameEn': 'Line Scale', 'nameZh': '五线谱律动'},
     {'key': 'lineScaleParty', 'nameEn': 'Line Scale Party', 'nameZh': '律动线条'},

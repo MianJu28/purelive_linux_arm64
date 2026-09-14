@@ -5,14 +5,16 @@ import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/file_utils.dart';
 import 'package:pure_live/plugins/db_service.dart';
 import 'package:pure_live/modules/iptv/iptv_manage.dart';
-import 'package:pure_live/modules/auth/utils/constants.dart';
 import 'package:pure_live/core/iptv/local/database.dart' as database;
 import 'package:pure_live/core/iptv/services/epg_import_manager.dart';
 import 'package:pure_live/core/iptv/services/iptv_import_manager.dart';
 import 'package:pure_live/core/iptv/services/auto_sync_scheduler.dart';
 
 class IptvPage extends StatefulWidget {
-  const IptvPage({super.key});
+  const IptvPage({super.key, this.importFromNetwork, this.loadDefaultEpg});
+
+  final Future<bool> Function(bool isEpg, String url, String name)? importFromNetwork;
+  final Future<void> Function()? loadDefaultEpg;
 
   @override
   State<IptvPage> createState() => _IptvPageState();
@@ -20,6 +22,11 @@ class IptvPage extends StatefulWidget {
 
 class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _initializing = false;
+  String? _initializationErrorKey;
+  bool _sourceDialogOpen = false;
+  bool _networkDialogOpen = false;
+  bool _networkImporting = false;
 
   final RxList<database.Provider> playlists = <database.Provider>[].obs;
   final RxList<database.EpgSource> epgSources = <database.EpgSource>[].obs;
@@ -42,8 +49,16 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
 
   Future<void> _refreshData() async {
     final db = Get.find<DbService>().db;
-    epgSources.value = await db.getAllEpgSources();
-    playlists.value = await db.getAllProviders();
+    final sources = await db.getAllEpgSources();
+    if (!mounted) return;
+    final providers = await db.getAllProviders();
+    if (!mounted) return;
+    epgSources.value = sources;
+    playlists.value = providers;
+    if (_initializationErrorKey != null &&
+        (_initializationErrorKey == 'iptv_initial_load_failed' || sources.isNotEmpty)) {
+      setState(() => _initializationErrorKey = null);
+    }
 
     if (epgSources.isNotEmpty && SettingsService.to.iptv.selectedSourceId.v.isEmpty) {
       final activeSource = epgSources.first;
@@ -53,173 +68,92 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _initializePageResources() async {
-    await _refreshData();
-    if (!mounted || epgSources.isNotEmpty) return;
+    if (_initializing || !mounted) return;
+    setState(() {
+      _initializing = true;
+      _initializationErrorKey = null;
+    });
+    var errorKey = 'iptv_initial_load_failed';
+    try {
+      await _refreshData();
+      if (!mounted || epgSources.isNotEmpty) return;
 
-    // Preserve the built-in EPG experience without performing a large network
-    // import on every ordinary application launch. The work begins only when
-    // the user opens IPTV settings and no EPG source exists yet.
-    await AutoSyncScheduler.instance.loadDefaultEpgResources();
-    if (!mounted) return;
-    await _refreshData();
+      // Defaults are still imported only at feature entry, not ordinary startup.
+      errorKey = 'iptv_default_epg_unavailable';
+      await (widget.loadDefaultEpg ?? AutoSyncScheduler.instance.loadDefaultEpgResources)();
+      if (!mounted) return;
+      await _refreshData();
+      if (mounted && epgSources.isEmpty) {
+        setState(() => _initializationErrorKey = errorKey);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _initializationErrorKey = errorKey);
+    } finally {
+      if (mounted) setState(() => _initializing = false);
+    }
   }
 
-  void _showSourceSelectionDialog() async {
-    final RxBool isDialogLoading = true.obs;
-    List<database.EpgSource> sources = [];
-    final screenSize = MediaQuery.of(context).size;
-    final double dialogWidth = screenSize.width > 600 ? 520.0 : screenSize.width * 0.90;
-
+  Future<void> _showSourceSelectionDialog() async {
+    if (_sourceDialogOpen) return;
+    _sourceDialogOpen = true;
     try {
       final db = Get.find<DbService>().db;
-      sources = await db.getAllEpgSources();
-    } catch (e) {
-      debugPrint('Dialog source fetch failure: $e');
+      final selected = await showDialog<database.EpgSource>(
+        context: context,
+        builder: (_) => _EpgSourceDialog(load: db.getAllEpgSources),
+      );
+      if (!mounted || selected == null) return;
+      SettingsService.to.iptv.selectedSourceId.v = selected.id;
+      SettingsService.to.iptv.selectedSourceName.v = selected.name;
+      ToastUtil.show(i18n("epg_source_switched"));
     } finally {
-      isDialogLoading.value = false;
+      _sourceDialogOpen = false;
     }
-
-    Get.dialog(
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.only(left: 24, top: 16, right: 12, bottom: 8),
-        contentPadding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
-        actionsPadding: const EdgeInsets.only(right: 16, bottom: 12),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              i18n('select_epg_source'),
-              style: AppTextStyles.t11.copyWith(fontWeight: FontWeight.bold),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 22),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: dialogWidth,
-          height: 400,
-          child: Obx(() {
-            if (isDialogLoading.value) {
-              return const AppStatusView(type: AppStatusType.loading, title: '', subtitle: '');
-            }
-            if (sources.isEmpty) {
-              return Center(
-                child: Text(
-                  i18n('no_epg_sources_found'),
-                  style: AppTextStyles.t14.copyWith(color: Theme.of(context).hintColor),
-                ),
-              );
-            }
-
-            return ListView.separated(
-              physics: const PureLiveScrollPhysics(),
-              shrinkWrap: true,
-              itemCount: sources.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 4),
-              itemBuilder: (context, index) {
-                final source = sources[index];
-
-                return Obx(() {
-                  final isSelected = SettingsService.to.iptv.selectedSourceId.v == source.id;
-
-                  return Card(
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25)
-                        : Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () {
-                        SettingsService.to.iptv.selectedSourceId.v = source.id;
-                        final selectedSource = sources.firstWhereOrNull((s) => s.id == source.id);
-                        if (selectedSource != null) {
-                          SettingsService.to.iptv.selectedSourceName.v = selectedSource.name;
-                        }
-                        Navigator.of(context).pop();
-                        ToastUtil.show(i18n('epg_source_switched'));
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(4.0),
-                              child: Icon(
-                                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                                color: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).unselectedWidgetColor,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    source.name,
-                                    style: TextStyle(
-                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      source.url,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(color: Theme.of(context).hintColor),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                });
-              },
-            );
-          }),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n('cancel'))),
-        ],
-      ),
-      barrierDismissible: true,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(i18n('iptv_settings'))),
+      appBar: AppBar(title: Text(i18n("iptv_settings"))),
       body: ListView(
         physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          context.buildGroupTitle(i18n('iptv_manage')),
+          if (_initializing) ...[
+            LinearProgressIndicator(semanticsLabel: i18n('refresh_loading')),
+            const SizedBox(height: 12),
+          ],
+          if (_initializationErrorKey != null) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(i18n(_initializationErrorKey!)),
+                    TextButton(onPressed: _initializePageResources, child: Text(i18n('retry'))),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          context.buildGroupTitle(i18n("iptv_manage")),
           context.buildModernCard([
             context.buildTile(
               icon: Remix.cloud_line,
-              title: i18n('iptv_list_manage'),
-              subtitle: i18n('download_guide_sub'),
+              title: i18n("iptv_list_manage"),
+              subtitle: i18n("download_guide_sub"),
               onTap: () => Get.to(() => const IptvManagePage()),
             ),
           ]),
           const SizedBox(height: 20),
-          context.buildGroupTitle(i18n('auto_sync_settings')),
+          context.buildGroupTitle(i18n("auto_sync_settings")),
           context.buildModernCard([
             context.buildSwitchTile(
               icon: Remix.refresh_line,
-              title: i18n('auto_sync_title'),
-              subtitle: i18n('auto_sync_desc'),
+              title: i18n("auto_sync_title"),
+              subtitle: i18n("auto_sync_desc"),
               value: SettingsService.to.iptv.isAutoSyncEnabled,
             ),
             Obx(() {
@@ -229,55 +163,53 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 children: [
                   context.buildTile(
                     icon: Remix.time_line,
-                    title: i18n('sync_interval_title'),
+                    title: i18n("sync_interval_title"),
                     subtitle: i18n(
-                      'sync_interval_hours',
-                      args: {'hour': '${SettingsService.to.iptv.autoSyncHoursInterval.v}'},
+                      "sync_interval_hours",
+                      args: {"hour": "${SettingsService.to.iptv.autoSyncHoursInterval.v}"},
                     ),
                     onTap: () => _showIntervalSelectionMenu(context),
                   ),
                 ],
               );
             }),
-            context.buildTile(
-              icon: Remix.tv_line,
-              title: i18n('custom_ua_title'),
-              subtitle: SettingsService.to.iptv.customIptvUserAgent.v.length > 30
-                  ? '${SettingsService.to.iptv.customIptvUserAgent.v.substring(0, 30)}...'
-                  : SettingsService.to.iptv.customIptvUserAgent.v,
-              onTap: () => _showEditUserAgentDialog(context),
+            Obx(
+              () => context.buildTile(
+                icon: Remix.tv_line,
+                title: i18n("custom_ua_title"),
+                subtitle: SettingsService.to.iptv.customIptvUserAgent.v,
+                onTap: () => _showEditUserAgentDialog(context),
+              ),
             ),
           ]),
           const SizedBox(height: 20),
-          context.buildGroupTitle(i18n('playlist_settings')),
+          context.buildGroupTitle(i18n("playlist_settings")),
           context.buildModernCard([
             context.buildTile(
               icon: Remix.download_2_line,
-              title: i18n('import_playlist'),
-              subtitle: i18n('playlist_file_type'),
-              onTap: showIptvImportDialog,
+              title: i18n("import_playlist"),
+              subtitle: i18n("playlist_file_type"),
+              onTap: () => showIptvImportDialog(),
             ),
           ]),
           const SizedBox(height: 20),
-          context.buildGroupTitle(i18n('epg_settings')),
+          context.buildGroupTitle(i18n("epg_settings")),
           context.buildModernCard([
             context.buildTile(
               icon: Remix.file_add_line,
-              title: i18n('import_epg_source'),
-              subtitle: i18n('epg_file_type'),
-              onTap: showEpgImportDialog,
+              title: i18n("import_epg_source"),
+              subtitle: i18n("epg_file_type"),
+              onTap: () => showEpgImportDialog(),
             ),
             Obx(
               () => context.buildTile(
                 icon: Remix.tv_2_line,
-                title: i18n('active_epg_source'),
+                title: i18n("active_epg_source"),
                 subtitle: SettingsService.to.iptv.selectedSourceId.v.isEmpty
-                    ? i18n('please_select_epg_source')
+                    ? i18n("please_select_epg_source")
                     : SettingsService.to.iptv.selectedSourceName.v,
-                subtitleColor: SettingsService.to.iptv.selectedSourceId.v.isEmpty
-                    ? Colors.orange
-                    : null,
-                onTap: _showSourceSelectionDialog,
+                subtitleColor: SettingsService.to.iptv.selectedSourceId.v.isEmpty ? Colors.orange : null,
+                onTap: () => _showSourceSelectionDialog(),
               ),
             ),
           ]),
@@ -287,141 +219,14 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
     );
   }
 
-  void _showEditUserAgentDialog(BuildContext context) {
-    final controller = TextEditingController(text: SettingsService.to.iptv.customIptvUserAgent.v);
-    final RxDouble customInputHeight = 100.0.obs;
-
-    showDialog(
+  Future<void> _showEditUserAgentDialog(BuildContext context) async {
+    final value = await showDialog<String>(
       context: context,
-      builder: (BuildContext context) {
-        final theme = Theme.of(context);
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final dialogWidth = constraints.maxWidth > 640 ? 560.0 : constraints.maxWidth * 0.9;
-
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              titlePadding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 12),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              actionsPadding: const EdgeInsets.only(bottom: 16, right: 24, left: 24),
-              title: Row(
-                children: [
-                  Icon(Remix.tv_line, color: theme.colorScheme.primary, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      i18n('edit_ua_title'),
-                      style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: dialogWidth,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      i18n('custom_ua_desc'),
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
-                    ),
-                    const SizedBox(height: 16),
-                    Obx(
-                      () => Container(
-                        height: customInputHeight.value,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: controller,
-                                maxLines: null,
-                                expands: true,
-                                maxLength: 500,
-                                decoration: InputDecoration(
-                                  hintText: 'Mozilla/5.0...',
-                                  border: InputBorder.none,
-                                  counterText: '',
-                                  contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
-                                  suffixIcon: IconButton(
-                                    icon: const Icon(Remix.close_circle_line, size: 18),
-                                    onPressed: controller.clear,
-                                  ),
-                                ),
-                                style: AppTextStyles.t13.copyWith(fontFamily: 'monospace'),
-                              ),
-                            ),
-                            GestureDetector(
-                              behavior: HitTestBehavior.translucent,
-                              onVerticalDragUpdate: (details) {
-                                final newHeight = customInputHeight.value + details.delta.dy;
-                                if (newHeight >= 80 && newHeight <= 350) {
-                                  customInputHeight.value = newHeight;
-                                }
-                              },
-                              child: Container(
-                                width: double.infinity,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: theme.dividerColor.withValues(alpha: 0.03),
-                                  borderRadius: const BorderRadius.only(
-                                    bottomLeft: Radius.circular(14),
-                                    bottomRight: Radius.circular(14),
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Container(
-                                    width: 36,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: theme.hintColor.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(i18n('cancel')),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  ),
-                  onPressed: () {
-                    final trimmedValue = controller.text.trim();
-                    SettingsService.to.iptv.customIptvUserAgent.v = trimmedValue;
-                    Navigator.of(context).pop();
-                    ToastUtil.show(i18n('settings_saved'));
-                  },
-                  child: Text(i18n('confirm')),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
-      controller.dispose();
-      customInputHeight.close();
-    });
+      builder: (_) => _UserAgentDialog(initialValue: SettingsService.to.iptv.customIptvUserAgent.v),
+    );
+    if (!mounted || value == null) return;
+    SettingsService.to.iptv.customIptvUserAgent.v = value;
+    ToastUtil.show(i18n("settings_saved"));
   }
 
   void _showIntervalSelectionMenu(BuildContext context) {
@@ -432,6 +237,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
         final List<int> hoursOptions = [2, 6, 12, 24, 48, 72];
 
         return AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           titlePadding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 8),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -441,7 +247,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  i18n('select_sync_interval'),
+                  i18n("select_sync_interval"),
                   style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -457,14 +263,10 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
 
                   return ListTile(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    tileColor: isSelected
-                        ? theme.colorScheme.primary.withValues(alpha: 0.08)
-                        : null,
+                    tileColor: isSelected ? theme.colorScheme.primary.withValues(alpha: 0.08) : null,
                     leading: Icon(
                       isSelected ? Remix.checkbox_circle_fill : Remix.checkbox_blank_circle_line,
-                      color: isSelected
-                          ? theme.colorScheme.primary
-                          : theme.hintColor.withValues(alpha: 0.5),
+                      color: isSelected ? theme.colorScheme.primary : theme.hintColor.withValues(alpha: 0.5),
                       size: 22,
                     ),
                     title: Text(
@@ -477,7 +279,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                     onTap: () {
                       SettingsService.to.iptv.autoSyncHoursInterval.v = hours;
                       Navigator.of(context).pop();
-                      ToastUtil.show(i18n('settings_saved'));
+                      ToastUtil.show(i18n("settings_saved"));
                     },
                   );
                 }),
@@ -495,6 +297,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
       builder: (BuildContext context) {
         final theme = Theme.of(context);
         return AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           titlePadding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 8),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -504,7 +307,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  i18n('dialog_import_playlist_title'),
+                  i18n("dialog_import_playlist_title"),
                   style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -517,7 +320,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.folder_open_line, color: theme.colorScheme.primary),
-                  title: Text(i18n('local_import')),
+                  title: Text(i18n("local_import")),
                   onTap: () {
                     Navigator.of(context).pop();
                     IptvImportManager().importFromLocalPicker().then((_) => _refreshData());
@@ -529,7 +332,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.global_line, color: theme.colorScheme.primary),
-                  title: Text(i18n('network_import')),
+                  title: Text(i18n("network_import")),
                   onTap: () {
                     Navigator.of(context).pop();
                     showEditTextDialog(isEpg: false);
@@ -549,6 +352,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
       builder: (BuildContext context) {
         final theme = Theme.of(context);
         return AlertDialog(
+          scrollable: true,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           titlePadding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 8),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -558,7 +362,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  i18n('dialog_import_epg_title'),
+                  i18n("dialog_import_epg_title"),
                   style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -571,7 +375,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.draft_line, color: theme.colorScheme.primary),
-                  title: Text(i18n('local_import')),
+                  title: Text(i18n("local_import")),
                   onTap: () {
                     Navigator.of(context).pop();
                     EpgImportManager().importFromLocalPicker().then((_) => _refreshData());
@@ -583,7 +387,7 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
                 color: Colors.transparent,
                 child: ListTile(
                   leading: Icon(Remix.cloud_windy_line, color: theme.colorScheme.primary),
-                  title: Text(i18n('network_import')),
+                  title: Text(i18n("network_import")),
                   onTap: () {
                     Navigator.of(context).pop();
                     showEditTextDialog(isEpg: true);
@@ -597,88 +401,437 @@ class _IptvPageState extends State<IptvPage> with SingleTickerProviderStateMixin
     );
   }
 
-  Future<String?> showEditTextDialog({required bool isEpg}) async {
-    final TextEditingController urlEditingController = TextEditingController();
-    final TextEditingController textEditingController = TextEditingController();
-
+  Future<void> showEditTextDialog({required bool isEpg}) async {
+    if (_networkDialogOpen) return;
+    if (_networkImporting) {
+      ToastUtil.show(i18n("iptv_import_in_progress"));
+      return;
+    }
+    _networkDialogOpen = true;
     try {
-      return await Get.dialog<String?>(
-        AlertDialog(
-          title: Text(i18n('enter_download_url')),
-          content: SizedBox(
-            width: 400.0,
-            height: 300.0,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: urlEditingController,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.all(12),
-                      hintText: i18n('download_url'),
-                    ),
-                    autofocus: true,
-                  ),
-                  spacer(12.0),
-                  TextField(
-                    controller: textEditingController,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.all(12),
-                      hintText: i18n('file_name'),
-                    ),
-                  ),
-                ],
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _NetworkImportDialog(
+          submit: (url, name) async {
+            if (_networkImporting) return false;
+            _networkImporting = true;
+            try {
+              final success = widget.importFromNetwork != null
+                  ? await widget.importFromNetwork!(isEpg, url, name)
+                  : isEpg
+                  ? await EpgImportManager().importFromNetworkUrl(url, name)
+                  : await IptvImportManager().importFromNetworkUrl(url, name);
+              if (success && mounted) {
+                try {
+                  await _refreshData();
+                } catch (_) {
+                  if (mounted) ToastUtil.show(i18n('iptv_import_refresh_failed'));
+                }
+              }
+              return success;
+            } finally {
+              _networkImporting = false;
+            }
+          },
+        ),
+      );
+    } finally {
+      _networkDialogOpen = false;
+    }
+  }
+}
+
+// Draft fields belong to the route subtree, not the earlier pop-result Future.
+class _UserAgentDialog extends StatefulWidget {
+  const _UserAgentDialog({required this.initialValue});
+  final String initialValue;
+  @override
+  State<_UserAgentDialog> createState() => _UserAgentDialogState();
+}
+
+class _UserAgentDialogState extends State<_UserAgentDialog> {
+  late final TextEditingController controller;
+  final RxDouble customInputHeight = 100.0.obs;
+  @override
+  void initState() {
+    super.initState();
+    controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    customInputHeight.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dialogWidth = constraints.maxWidth > 640 ? 560.0 : constraints.maxWidth * 0.9;
+
+        return AlertDialog(
+          scrollable: true,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          titlePadding: const EdgeInsets.only(top: 24, left: 24, right: 24, bottom: 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          actionsPadding: const EdgeInsets.only(bottom: 16, right: 24, left: 24),
+          title: Row(
+            children: [
+              Icon(Remix.tv_line, color: theme.colorScheme.primary, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(i18n("edit_ua_title"), style: AppTextStyles.t18.copyWith(fontWeight: FontWeight.bold)),
               ),
+            ],
+          ),
+          content: SizedBox(
+            width: dialogWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(i18n("custom_ua_desc"), style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                const SizedBox(height: 16),
+                Obx(
+                  () => Container(
+                    height: customInputHeight.value,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            maxLines: null,
+                            expands: true,
+                            maxLength: 500,
+                            decoration: InputDecoration(
+                              hintText: "Mozilla/5.0...",
+                              border: InputBorder.none,
+                              counterText: "",
+                              contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Remix.close_circle_line, size: 18),
+                                onPressed: () => controller.clear(),
+                              ),
+                            ),
+                            style: AppTextStyles.t13.copyWith(fontFamily: 'monospace'),
+                          ),
+                        ),
+                        GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onVerticalDragUpdate: (details) {
+                            final newHeight = customInputHeight.value + details.delta.dy;
+                            if (newHeight >= 80 && newHeight <= 350) {
+                              customInputHeight.value = newHeight;
+                            }
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: theme.dividerColor.withValues(alpha: 0.03),
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(14),
+                                bottomRight: Radius.circular(14),
+                              ),
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: 36,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: theme.hintColor.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(Get.context!).pop(),
-              child: Text(i18n('cancel')),
-            ),
-            TextButton(
-              onPressed: () async {
-                final urlText = urlEditingController.text.trim();
-                final fileNameText = textEditingController.text.trim();
-
-                if (urlText.isEmpty) {
-                  ToastUtil.show(i18n('enter_download_link'));
-                  return;
-                }
-                if (!FileUtils.isValidUrl(urlText)) {
-                  ToastUtil.show(i18n('invalid_download_link'));
-                  return;
-                }
-                if (fileNameText.isEmpty) {
-                  ToastUtil.show(i18n('enter_file_name'));
-                  return;
-                }
-
-                bool isSuccess = false;
-
-                if (isEpg) {
-                  isSuccess = await EpgImportManager().importFromNetworkUrl(urlText, fileNameText);
-                } else {
-                  isSuccess = await IptvImportManager().importFromNetworkUrl(urlText, fileNameText);
-                }
-
-                if (isSuccess) {
-                  Navigator.of(Get.context!).pop();
-                  await _refreshData();
-                }
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n("cancel"))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+              onPressed: () {
+                final trimmedValue = controller.text.trim();
+                Navigator.of(context).pop(trimmedValue);
               },
-              child: Text(i18n('confirm')),
+              child: Text(i18n("confirm")),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _NetworkImportDialog extends StatefulWidget {
+  const _NetworkImportDialog({required this.submit});
+  final Future<bool> Function(String url, String name) submit;
+  @override
+  State<_NetworkImportDialog> createState() => _NetworkImportDialogState();
+}
+
+class _NetworkImportDialogState extends State<_NetworkImportDialog> {
+  final _url = TextEditingController();
+  final _name = TextEditingController();
+  bool _submitting = false;
+  String? _errorKey;
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    final url = _url.text.trim();
+    final name = _name.text.trim();
+    final validation = url.isEmpty
+        ? 'enter_download_link'
+        : !FileUtils.isValidUrl(url)
+        ? 'invalid_download_link'
+        : name.isEmpty
+        ? 'enter_file_name'
+        : null;
+    if (validation != null) {
+      setState(() => _errorKey = validation);
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _errorKey = null;
+    });
+    final route = ModalRoute.of(context)!;
+    final navigator = Navigator.of(context);
+    var succeeded = false;
+    try {
+      succeeded = await widget.submit(url, name);
+    } catch (_) {
+      // Keep the editable draft and expose a generic failure, not server credentials.
+    }
+    if (!mounted) return;
+    if (succeeded) {
+      // A newer route may cover this dialog while its request completes.
+      // Finish only our own route, never pop that newer UI using global context.
+      if (route.isCurrent) {
+        navigator.pop(true);
+      } else if (route.isActive) {
+        navigator.removeRoute(route, true);
+      }
+    } else {
+      setState(() {
+        _submitting = false;
+        _errorKey = 'network_import_failed';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      scrollable: true,
+      title: Text(i18n('enter_download_url')),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _url,
+              readOnly: _submitting,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.all(12),
+                hintText: i18n('download_url'),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _name,
+              readOnly: _submitting,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.all(12),
+                hintText: i18n('file_name'),
+              ),
+            ),
+            if (_errorKey != null) ...[
+              const SizedBox(height: 12),
+              Text(i18n(_errorKey!), style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ],
+            if (_submitting) ...[
+              const SizedBox(height: 12),
+              const LinearProgressIndicator(),
+              const SizedBox(height: 8),
+              Text(i18n('iptv_import_close_hint')),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n(_submitting ? 'close' : 'cancel'))),
+        TextButton(onPressed: _submitting ? null : _submit, child: Text(i18n('confirm'))),
+      ],
+    );
+  }
+}
+
+class _EpgSourceDialog extends StatefulWidget {
+  const _EpgSourceDialog({required this.load});
+  final Future<List<database.EpgSource>> Function() load;
+  @override
+  State<_EpgSourceDialog> createState() => _EpgSourceDialogState();
+}
+
+class _EpgSourceDialogState extends State<_EpgSourceDialog> {
+  bool _loading = false;
+  bool _failed = false;
+  List<database.EpgSource> _sources = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final sources = List<database.EpgSource>.unmodifiable(await widget.load());
+      if (!mounted) return;
+      setState(() {
+        _sources = sources;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _failed = true;
+        _loading = false;
+      });
+    }
+  }
+
+  Widget _content(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_failed || _sources.isEmpty) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(i18n(_failed ? 'epg_sources_load_failed' : 'no_epg_sources_found')),
+            if (_failed) TextButton(onPressed: _load, child: Text(i18n('retry'))),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      physics: const PureLiveScrollPhysics(),
+      itemCount: _sources.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 4),
+      itemBuilder: (context, index) {
+        final source = _sources[index];
+        return Obx(() {
+          final selected = SettingsService.to.iptv.selectedSourceId.v == source.id;
+          return Card(
+            color: selected
+                ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25)
+                : Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context).pop(source),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                      color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).unselectedWidgetColor,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(source.name, style: TextStyle(fontWeight: selected ? FontWeight.w600 : FontWeight.w500)),
+                          const SizedBox(height: 4),
+                          Text(
+                            source.url,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Theme.of(context).hintColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => AlertDialog(
+        scrollable: false,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.only(left: 24, top: 16, right: 12, bottom: 8),
+        contentPadding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+        actionsPadding: const EdgeInsets.only(right: 16, bottom: 12),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(i18n('select_epg_source'), style: AppTextStyles.t11.copyWith(fontWeight: FontWeight.bold)),
+            ),
+            IconButton(
+              tooltip: i18n('close'),
+              icon: const Icon(Icons.close, size: 22),
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ],
         ),
-        barrierDismissible: false,
-      );
-    } finally {
-      urlEditingController.dispose();
-      textEditingController.dispose();
-    }
+        content: SizedBox(
+          width: 520,
+          height: (constraints.maxHeight * 0.6).clamp(100.0, 400.0),
+          child: _content(context),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(i18n('cancel')))],
+      ),
+    );
   }
 }

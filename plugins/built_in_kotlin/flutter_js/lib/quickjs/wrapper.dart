@@ -28,7 +28,13 @@ void _definePropertyValue(
 }) {
   final jsAtomVal = _dartToJs(ctx, key, cache: cache);
   final jsAtom = jsValueToAtom(ctx, jsAtomVal);
-  jsDefinePropertyValue(ctx, obj, jsAtom, _dartToJs(ctx, val, cache: cache), JSProp.C_W_E);
+  jsDefinePropertyValue(
+    ctx,
+    obj,
+    jsAtom,
+    _dartToJs(ctx, val, cache: cache),
+    JSProp.C_W_E,
+  );
   jsFreeAtom(ctx, jsAtom);
   jsFreeValue(ctx, jsAtomVal);
 }
@@ -47,11 +53,8 @@ Pointer<JSValue> _jsGetPropertyValue(
   return jsProp;
 }
 
-Pointer<JSValue> _dartToJs(
-  Pointer<JSContext> ctx,
-  dynamic val, {
-  Map<dynamic, Pointer<JSValue>>? cache,
-}) {
+Pointer<JSValue> _dartToJs(Pointer<JSContext> ctx, dynamic val,
+    {Map<dynamic, Pointer<JSValue>>? cache}) {
   if (val == null) return jsUNDEFINED();
   if (val is Error) return _dartToJs(ctx, JSError(val, val.stackTrace));
   if (val is Exception) return _dartToJs(ctx, JSError(val));
@@ -65,7 +68,8 @@ Pointer<JSValue> _dartToJs(
   if (val is _JSObject) return jsDupValue(ctx, val._val!);
   if (val is Future) {
     final resolvingFunc = malloc<Uint8>(sizeOfJSValue * 2).cast<JSValue>();
-    final resolvingFunc2 = Pointer<JSValue>.fromAddress(resolvingFunc.address + sizeOfJSValue);
+    final resolvingFunc2 =
+        Pointer<JSValue>.fromAddress(resolvingFunc.address + sizeOfJSValue);
     final ret = jsNewPromiseCapability(ctx, resolvingFunc);
     final _JSFunction res = _jsToDart(ctx, resolvingFunc);
     final _JSFunction rej = _jsToDart(ctx, resolvingFunc2);
@@ -76,19 +80,14 @@ Pointer<JSValue> _dartToJs(
     final refRej = _DartObject(ctx, rej);
     res.free();
     rej.free();
-    val
-        .then(
-          (value) {
-            res.invoke([value]);
-          },
-          onError: (e) {
-            rej.invoke([e]);
-          },
-        )
-        .whenComplete(() {
-          refRes.free();
-          refRej.free();
-        });
+    val.then((value) {
+      res.invoke([value]);
+    }, onError: (e) {
+      rej.invoke([e]);
+    }).whenComplete(() {
+      refRes.free();
+      refRej.free();
+    });
     return ret;
   }
   if (cache == null) cache = Map();
@@ -125,7 +124,8 @@ Pointer<JSValue> _dartToJs(
   }
   // wrap Function to JSInvokable
   final valWrap = JSInvokable._wrap(val);
-  final dartObjectClassId = runtimeOpaques[jsGetRuntime(ctx)]?.dartObjectClassId ?? 0;
+  final dartObjectClassId =
+      runtimeOpaques[jsGetRuntime(ctx)]?.dartObjectClassId ?? 0;
   if (dartObjectClassId == 0) return jsUNDEFINED();
   final dartObject = jsNewObjectClass(
     ctx,
@@ -140,7 +140,8 @@ Pointer<JSValue> _dartToJs(
   return dartObject;
 }
 
-dynamic _jsToDart(Pointer<JSContext> ctx, Pointer<JSValue> val, {Map<int, dynamic>? cache}) {
+dynamic _jsToDart(Pointer<JSContext> ctx, Pointer<JSValue> val,
+    {Map<int, dynamic>? cache}) {
   if (cache == null) cache = Map();
   final tag = jsValueGetTag(val);
   if (jsTagIsFloat64(tag) != 0) {
@@ -157,7 +158,8 @@ dynamic _jsToDart(Pointer<JSContext> ctx, Pointer<JSValue> val, {Map<int, dynami
       final rt = jsGetRuntime(ctx);
       final dartObjectClassId = runtimeOpaques[rt]?.dartObjectClassId;
       if (dartObjectClassId != null) {
-        final dartObject = _DartObject.fromAddress(rt, jsGetObjectOpaque(val, dartObjectClassId));
+        final dartObject = _DartObject.fromAddress(
+            rt, jsGetObjectOpaque(val, dartObjectClassId));
         if (dartObject != null) return dartObject._obj;
       }
       final psize = malloc<IntPtr>();
@@ -176,12 +178,14 @@ dynamic _jsToDart(Pointer<JSContext> ctx, Pointer<JSValue> val, {Map<int, dynami
       } else if (jsIsError(ctx, val) != 0) {
         final err = jsToCString(ctx, val);
         final pstack = _jsGetPropertyValue(ctx, val, 'stack');
-        final stack = jsToBool(ctx, pstack) != 0 ? jsToCString(ctx, pstack) : null;
+        final stack =
+            jsToBool(ctx, pstack) != 0 ? jsToCString(ctx, pstack) : null;
         jsFreeValue(ctx, pstack);
         return JSError(err, stack);
       } else if (jsIsPromise(ctx, val) != 0) {
         final jsPromiseThen = _jsGetPropertyValue(ctx, val, 'then');
-        final _JSFunction promiseThen = _jsToDart(ctx, jsPromiseThen, cache: cache);
+        final _JSFunction promiseThen =
+            _jsToDart(ctx, jsPromiseThen, cache: cache);
         jsFreeValue(ctx, jsPromiseThen);
         final completer = Completer();
         completer.future.catchError((e) {});
@@ -229,7 +233,8 @@ dynamic _jsToDart(Pointer<JSContext> ctx, Pointer<JSValue> val, {Map<int, dynami
           final jsAtom = jsPropertyEnumGetAtom(ptab.value, i);
           final jsAtomValue = jsAtomToValue(ctx, jsAtom);
           final jsProp = jsGetProperty(ctx, val, jsAtom);
-          ret[_jsToDart(ctx, jsAtomValue, cache: cache)] = _jsToDart(ctx, jsProp, cache: cache);
+          ret[_jsToDart(ctx, jsAtomValue, cache: cache)] =
+              _jsToDart(ctx, jsProp, cache: cache);
           jsFreeValue(ctx, jsAtomValue);
           jsFreeValue(ctx, jsProp);
           jsFreeAtom(ctx, jsAtom);

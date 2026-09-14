@@ -1,96 +1,55 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/model/live_category.dart';
-import 'package:pure_live/core/common/core_log.dart';
+import 'package:pure_live/core/site/cc/cc_catalog.dart';
 import 'package:pure_live/model/live_anchor_item.dart';
 import 'package:pure_live/core/common/http_client.dart';
 import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/core/interface/live_site.dart';
 import 'package:pure_live/core/danmaku/empty_danmaku.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
-import 'package:pure_live/core/utils/live_quality_label.dart';
 import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
+import 'package:pure_live/core/utils/live_quality_label.dart';
+import 'package:pure_live/core/interface/live_directory.dart';
 
-class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResolver {
+class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResolver, LiveSiteCategoryDirectoryProvider {
+  @override
+  late final LiveSiteDirectoryPager categoryDirectory = _CCCategoryDirectory(this);
+
   @override
   String id = Sites.ccSite;
 
   @override
-  String name = '网易CC直播';
+  String name = "网易CC直播";
 
   @override
   LiveDanmaku getDanmaku() => EmptyDanmaku();
   final String kUserAgent =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
   @override
   Future<List<LiveCategory>> getCategores(int page, int pageSize) async {
-    try {
-      final payload = await HttpClient.instance.getText(
-        'https://cc.163.com/category/',
-        queryParameters: {'format': 'json'},
-        header: {'user-agent': kUserAgent},
-      );
-      return parseCategoryPayload(payload);
-    } catch (error) {
-      // CC now redirects this legacy JSON endpoint to the official
-      // `ds.163.com/glive` HTML application in some regions. Category
-      // navigation must remain usable while the platform migrates the API.
-      CoreLog.error(error);
-      return defaultCategories();
-    }
-  }
-
-  static List<LiveCategory> defaultCategories() => [
-    LiveCategory(id: '1', name: '全部', children: []),
-    LiveCategory(id: '2', name: '端游', children: []),
-    LiveCategory(id: '4', name: '手游', children: []),
-    LiveCategory(id: '5', name: '其他', children: []),
-  ];
-
-  /// Parses the legacy CC category payload without allowing an HTML redirect,
-  /// empty response, or a partially migrated schema to break the whole page.
-  static List<LiveCategory> parseCategoryPayload(String payload) {
-    final categories = defaultCategories();
-    try {
-      final result = jsonDecode(payload);
-      if (result is! Map || result['game_list'] is! List) return categories;
-      final allGames = List<dynamic>.from(result['game_list'] as List);
-      for (var item in categories) {
-        var games = allGames;
-        if (item.id == '2') {
-          games = games.where((x) => x['game_tag'] == 'pc_game').toList();
-        } else if (item.id == '4') {
-          games = games.where((x) => x['game_tag'] == 'mobile_game').toList();
-        } else if (item.id == '5') {
-          games = games.where((x) => x['game_tag'] == 'other').toList();
-        }
-        item.children.addAll(_getSubCategories(item, games));
-      }
-    } catch (_) {
-      // Keep the stable top-level categories. The recommendation feed still
-      // provides rooms even when CC withdraws the legacy game-list payload.
-    }
-    return categories;
-  }
-
-  static List<LiveArea> _getSubCategories(LiveCategory liveCategory, List<dynamic> result) {
-    final subs = <LiveArea>[];
-    for (var item in result) {
-      if (item is! Map) continue;
-      var gid = item['gametype'].toString();
-      var subCategory = LiveArea(
-        areaId: gid,
-        areaName: item['gamename'] ?? '',
-        areaType: liveCategory.id,
-        platform: Sites.ccSite,
-        areaPic: item['img'],
-        typeName: liveCategory.name,
-      );
-      subs.add(subCategory);
-    }
-    return subs;
+    // The legacy category endpoint now serves the Dashen HTML application.
+    // Fetch its public metadata and live-entry configuration, not an HTML
+    // fallback or a guessed static list of games.
+    final headers = {'user-agent': kUserAgent, 'referer': 'https://ds.163.com/glive/', 'origin': 'https://ds.163.com'};
+    final games = await HttpClient.instance.getJson(
+      'https://inf.ds.163.com/v1/web/game-center/basic/base-info-list/by-type',
+      queryParameters: {'gameType': 'NETEASE'},
+      header: headers,
+    );
+    final configuration = await HttpClient.instance.postJson(
+      'https://inf-act.ds.163.com/v1/act-web/pageConf/commonAppConfig',
+      data: {'id': CCCatalog.configurationId},
+      header: headers,
+    );
+    return CCCatalog.parse(
+      games,
+      configuration,
+      categoryLabel: i18n('cc_live_categories'),
+      officialLabel: i18n('cc_official_entries'),
+    );
   }
 
   @override
@@ -98,37 +57,70 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
     LiveArea category, {
     int page = 1,
     int pageSize = 30,
+    CancelToken? cancel,
   }) async {
-    var result = await HttpClient.instance.getJson(
-      'https://cc.163.com/_next/data/nextjs/category/${category.areaId}.json',
-      queryParameters: {'game': category.areaId},
+    final game = category.areaId?.trim() ?? '';
+    final platform = category.platform?.trim().toLowerCase() ?? '';
+    if (!RegExp(r'^[1-9][0-9]{0,15}$').hasMatch(game) ||
+        (platform.isNotEmpty && platform != Sites.ccSite) ||
+        page < 1 ||
+        page > 100000 ||
+        pageSize < 1 ||
+        pageSize > 1000) {
+      throw ArgumentError('Invalid CC category or pagination');
+    }
+    // The Next.js page contains only the initial showcase. The current CC
+    // category component requests this feed for every offset, including after
+    // the official site moved its main navigation into Dashen.
+    final result = await HttpClient.instance.getJson(
+      'https://cc.163.com/api/category/$game/',
+      queryParameters: {'format': 'json', 'tag_id': 0, 'start': (page - 1) * pageSize, 'size': pageSize},
+      header: {'user-agent': kUserAgent},
+      cancel: cancel,
     );
-    var items = <LiveRoom>[];
-    try {
-      for (var item in result['pageProps']['gametypeData']['lives']) {
-        final audience = parseRoomAudience(Map<String, dynamic>.from(item as Map));
-        var roomItem = LiveRoom(
-          roomId: item['cuteid'].toString(),
-          title: item['title'].toString(),
-          cover: item['cover'].toString(),
-          nick: item['nickname'].toString(),
+    if (result is! Map || result['gametype']?.toString() != game || result['lives'] is! List) {
+      throw const FormatException('Invalid CC category response');
+    }
+    final rows = result['lives'] as List;
+    if (rows.length > 1000) throw const FormatException('CC category response exceeds row limit');
+    final items = <LiveRoom>[];
+    for (final item in rows) {
+      if (item is! Map) throw const FormatException('Invalid CC category room');
+      final rawId = item['cuteid'];
+      if ((rawId is! String && rawId is! int) ||
+          (rawId is int && rawId > 9007199254740991) ||
+          !RegExp(r'^[1-9][0-9]{0,31}$').hasMatch(rawId.toString())) {
+        throw const FormatException('Invalid CC category room identity');
+      }
+      String text(Object? value) => value is String ? value : '';
+      final audience = parseRoomAudience(Map<String, dynamic>.from(item));
+      final status = int.tryParse(item['status']?.toString() ?? '');
+      items.add(
+        LiveRoom(
+          roomId: rawId.toString(),
+          title: text(item['title']),
+          cover: text(item['cover']),
+          nick: text(item['nickname']),
           watching: audience.popularity.isNotEmpty ? audience.popularity : audience.onlineViewers,
           popularity: audience.popularity,
           onlineViewers: audience.onlineViewers,
           audienceMetricType: audience.popularity.isNotEmpty
               ? AudienceMetricType.popularity
               : AudienceMetricType.onlineViewers,
-          avatar: item['purl'],
-          area: item['game_name'] ?? '',
-          liveStatus: LiveStatus.live,
-          status: true,
+          avatar: text(item['purl']),
+          area: text(item['game_name']).isNotEmpty ? text(item['game_name']) : text(item['gamename']),
+          liveStatus: status == 1
+              ? LiveStatus.live
+              : status == 0
+              ? LiveStatus.offline
+              : LiveStatus.unknown,
+          status: status == 1,
           platform: Sites.ccSite,
-        );
-        items.add(roomItem);
-      }
-    } catch (e) {
-      CoreLog.error(e);
+        ),
+      );
     }
+    // Only the API's lives collection is consumed. Its videos fallback is not
+    // a live room, and malformed responses must not commit an empty page.
     return items;
   }
 
@@ -164,9 +156,7 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
             ? _resolveLiveCdnUrl(baseUrl, lineValue)
             : _normalizeDirectUrl(lineValue);
         if (Uri.tryParse(url)?.hasScheme != true) return;
-        final target = priority.contains(line.toString().toLowerCase())
-            ? preferredLines
-            : otherLines;
+        final target = priority.contains(line.toString().toLowerCase()) ? preferredLines : otherLines;
         if (!target.contains(url)) target.add(url);
       });
       final lines = <String>[...preferredLines, ...otherLines];
@@ -226,42 +216,36 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   }
 
   @override
-  Future<List<String>> getPlayUrls({
-    required LiveRoom detail,
-    required LivePlayQuality quality,
-  }) async {
+  Future<List<String>> getPlayUrls({required LiveRoom detail, required LivePlayQuality quality}) async {
     final data = quality.data;
     if (data is! List) return const <String>[];
-    return data
-        .map((item) => item.toString().trim())
-        .where((url) => url.isNotEmpty)
-        .toList(growable: false);
+    return data.map((item) => item.toString().trim()).where((url) => url.isNotEmpty).toList(growable: false);
   }
 
   @override
   Future<List<LiveRoom>> getRecommendRooms({int page = 1, int pageSize = 30}) async {
     try {
       var result = await HttpClient.instance.getJson(
-        'https://cc.163.com/api/category/live/',
-        queryParameters: {'format': 'json', 'start': (page - 1) * pageSize, 'size': pageSize},
+        "https://cc.163.com/api/category/live/",
+        queryParameters: {"format": "json", "start": (page - 1) * pageSize, "size": pageSize},
       );
 
       var items = <LiveRoom>[];
-      for (var item in result['lives']) {
+      for (var item in result["lives"]) {
         final audience = parseRoomAudience(Map<String, dynamic>.from(item as Map));
         var roomItem = LiveRoom(
-          roomId: item['cuteid'].toString(),
-          title: item['title'].toString(),
-          cover: item['cover'].toString(),
-          nick: item['nickname'].toString(),
+          roomId: item["cuteid"].toString(),
+          title: item["title"].toString(),
+          cover: item["cover"].toString(),
+          nick: item["nickname"].toString(),
           watching: audience.popularity.isNotEmpty ? audience.popularity : audience.onlineViewers,
           popularity: audience.popularity,
           onlineViewers: audience.onlineViewers,
           audienceMetricType: audience.popularity.isNotEmpty
               ? AudienceMetricType.popularity
               : AudienceMetricType.onlineViewers,
-          avatar: item['purl'],
-          area: item['game_name'] ?? '',
+          avatar: item["purl"],
+          area: item["game_name"] ?? '',
           liveStatus: LiveStatus.live,
           status: true,
           platform: Sites.ccSite,
@@ -304,27 +288,22 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   }
 
   Future<LiveRoom> _loadRoomDetail(String roomId) async {
-    const url = 'https://api.cc.163.com/v1/activitylives/anchor/lives';
+    const url = "https://api.cc.163.com/v1/activitylives/anchor/lives";
     final result = await HttpClient.instance.getJson(
       url,
       queryParameters: {'anchor_ccid': roomId},
-      header: {'user-agent': kUserAgent},
+      header: {"user-agent": kUserAgent},
     );
     final channelId = result['data'][roomId]['channel_id'];
-    final urlToGetReal = 'https://cc.163.com/live/channel/?channelids=$channelId';
-    final resultReal = await HttpClient.instance.getJson(
-      urlToGetReal,
-      queryParameters: {'anchor_ccid': roomId},
-    );
-    final roomInfo = resultReal['data'][0];
+    final urlToGetReal = "https://cc.163.com/live/channel/?channelids=$channelId";
+    final resultReal = await HttpClient.instance.getJson(urlToGetReal, queryParameters: {'anchor_ccid': roomId});
+    final roomInfo = resultReal["data"][0];
     final audience = parseRoomAudience(Map<String, dynamic>.from(roomInfo as Map));
-    final nativeMetric = audience.popularity.isNotEmpty
-        ? audience.popularity
-        : audience.onlineViewers;
+    final nativeMetric = audience.popularity.isNotEmpty ? audience.popularity : audience.onlineViewers;
     final live = int.tryParse(roomInfo['status']?.toString() ?? '') == 1;
     return LiveRoom(
-      cover: roomInfo['cover'],
-      watching: nativeMetric.isNotEmpty ? nativeMetric : roomInfo['follower_num'].toString(),
+      cover: roomInfo["cover"],
+      watching: nativeMetric.isNotEmpty ? nativeMetric : roomInfo["follower_num"].toString(),
       popularity: audience.popularity,
       onlineViewers: audience.onlineViewers,
       audienceMetricType: audience.popularity.isNotEmpty
@@ -332,19 +311,19 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
           : audience.onlineViewers.isNotEmpty
           ? AudienceMetricType.onlineViewers
           : AudienceMetricType.followers,
-      roomId: roomInfo['ccid'].toString(),
-      area: roomInfo['gamename'],
-      title: roomInfo['title'],
-      nick: roomInfo['nickname'].toString(),
-      avatar: roomInfo['purl'].toString(),
-      introduction: roomInfo['personal_label'],
-      notice: roomInfo['personal_label'],
+      roomId: roomInfo["ccid"].toString(),
+      area: roomInfo["gamename"],
+      title: roomInfo["title"],
+      nick: roomInfo["nickname"].toString(),
+      avatar: roomInfo["purl"].toString(),
+      introduction: roomInfo["personal_label"],
+      notice: roomInfo["personal_label"],
       status: live,
       liveStatus: live ? LiveStatus.live : LiveStatus.offline,
       platform: Sites.ccSite,
       link: roomInfo['m3u8'],
       userId: roomInfo['cid'].toString(),
-      data: roomInfo['quickplay'] ?? roomInfo['stream_list'],
+      data: roomInfo["quickplay"] ?? roomInfo["stream_list"],
     );
   }
 
@@ -375,25 +354,23 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   Future<List<LiveRoom>> searchRooms(String keyword, {int page = 1, int pageSize = 30}) async {
     final effectivePageSize = pageSize.clamp(1, 50);
     var result = await HttpClient.instance.getJson(
-      'https://cc.163.com/search/anchor',
-      queryParameters: {'query': keyword, 'size': effectivePageSize, 'page': page},
+      "https://cc.163.com/search/anchor",
+      queryParameters: {"query": keyword, "size": effectivePageSize, "page": page},
     );
     var items = <LiveRoom>[];
-    var queryList = result['webcc_anchor']['result'] ?? [];
+    var queryList = result["webcc_anchor"]["result"] ?? [];
     for (var item in queryList) {
       var roomItem = LiveRoom(
-        roomId: item['cuteid'].toString(),
-        title: item['title'],
-        cover: item['portrait'],
-        nick: item['nickname'].toString(),
-        area: item['game_name'] ?? '',
+        roomId: item["cuteid"].toString(),
+        title: item["title"],
+        cover: item["portrait"],
+        nick: item["nickname"].toString(),
+        area: item["game_name"] ?? '',
         status: item['status'] == 1,
-        liveStatus: item['status'] != null && item['status'] == 1
-            ? LiveStatus.live
-            : LiveStatus.offline,
-        avatar: item['portrait'].toString(),
-        watching: item['follower_num'].toString(),
-        followers: item['follower_num'].toString(),
+        liveStatus: item['status'] != null && item['status'] == 1 ? LiveStatus.live : LiveStatus.offline,
+        avatar: item["portrait"].toString(),
+        watching: item["follower_num"].toString(),
+        followers: item["follower_num"].toString(),
         audienceMetricType: AudienceMetricType.followers,
         platform: Sites.ccSite,
       );
@@ -403,11 +380,7 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   }
 
   @override
-  Future<List<LiveAnchorItem>> searchAnchors(
-    String keyword, {
-    int page = 1,
-    int pageSize = 30,
-  }) async {
+  Future<List<LiveAnchorItem>> searchAnchors(String keyword, {int page = 1, int pageSize = 30}) async {
     final rooms = await searchRooms(keyword, page: page, pageSize: pageSize);
     return rooms
         .map(
@@ -430,5 +403,22 @@ class CCSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   Future<List<LiveSuperChatMessage>> getSuperChatMessage({required String roomId}) {
     //尚不支持
     return Future.value([]);
+  }
+}
+
+class _CCCategoryDirectory implements LiveSiteDirectoryPager {
+  _CCCategoryDirectory(this.site);
+  final CCSite site;
+  static const _nativePageSize = 30;
+
+  @override
+  Future<LiveDirectoryPage> getDirectoryPage({int page = 1, LiveArea? category, CancelToken? cancel}) async {
+    if (category == null) throw ArgumentError('CC category is required');
+    final rooms = await site.getCategoryRooms(category, page: page, pageSize: _nativePageSize, cancel: cancel);
+    // A stable request width keeps offsets independent of visible page size,
+    // exclusions and cached UI tails. The raw lives list is not filtered; a
+    // short page ends this snapshot, while malformed data remains retryable.
+    if (rooms.length > _nativePageSize) throw const FormatException('CC category exceeded requested page size');
+    return LiveDirectoryPage(rooms: rooms, page: page, hasMore: rooms.length == _nativePageSize);
   }
 }

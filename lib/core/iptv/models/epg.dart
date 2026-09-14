@@ -8,13 +8,7 @@ class EpgChannel extends Equatable {
   final String? iconUrl;
   final String? number;
 
-  const EpgChannel({
-    required this.id,
-    required this.sourceId,
-    this.displayNames = const [],
-    this.iconUrl,
-    this.number,
-  });
+  const EpgChannel({required this.id, required this.sourceId, this.displayNames = const [], this.iconUrl, this.number});
 
   String get primaryName => displayNames.isNotEmpty ? displayNames.first : id;
 
@@ -35,6 +29,7 @@ class EpgProgramme extends Equatable {
   final String? iconUrl;
   final String? episodeNum;
   final String? rating;
+  final String? catchupId;
   final bool isNew;
 
   const EpgProgramme({
@@ -49,6 +44,7 @@ class EpgProgramme extends Equatable {
     this.iconUrl,
     this.episodeNum,
     this.rating,
+    this.catchupId,
     this.isNew = false,
   });
 

@@ -4,6 +4,76 @@
 
 ## 开发与发布
 
+- [浏览器日志 HTTP 合同与响应式界面审计](LOG_BROWSER_HTTP_AND_RESPONSIVE_UI_AUDIT_2026_09_13.md)：严格 GET/POST 路由、受保护的清空动作、安全响应头、HTML 转义、空状态和移动端 44 px 响应式动作。
+
+- [本地日志事务、端点与隐私边界审计](LOCAL_LOGGING_TRANSACTION_AND_ENDPOINT_AUDIT_2026_09_13.md)：启停验证事务、运行期端点、回环绑定、原子端口、早期日志安全、Release 浏览器缓冲及双语忙碌/失败反馈。
+
+- [Windows 启动项事务与注册表命令审计](WINDOWS_STARTUP_TRANSACTION_AND_REGISTRY_COMMAND_AUDIT_2026_09_13.md)：注册表回读验证、失败回滚、旧便携路径识别、动态 UTF-16 读取、FFI 资源所有权及双语忙碌/失败反馈。
+
+- [真实在线人数平台偏好持久化审计](AUDIENCE_PLATFORM_PREFERENCE_PERSISTENCE_AUDIT_2026_09_13.md)：同长度旧值修复、小写/去空白/去重/能力过滤合同、备份与导出归一化及安全设置开关。
+
+- [播放器显示模式与首选画质持久化审计](PLAYER_DISPLAY_PREFERENCE_PERSISTENCE_AUDIT_2026_09_13.md)：六种显示模式索引、五个稳定画质键、启动/运行时/备份修复、安全 UI 消费及单一有序来源。
+
+- [Windows 窗口尺寸持久化、PiP 几何与弹窗事务审计](WINDOW_SIZE_PERSISTENCE_AND_DIALOG_TRANSACTION_AUDIT_2026_09_13.md)：400×300～16384 单边合同、首帧/Hive/备份修复、瞬态窗口事件、PiP 有限矩形及路由拥有的事务弹窗。
+
+- [主题设置持久化、备份与首帧安全审计](THEME_SETTINGS_PERSISTENCE_AND_FIRST_FRAME_AUDIT_2026_09_13.md)：模式/语言/颜色/加载样式支持项、0～64 有限间距、启动与运行时修复、旧版字段兼容及安全首帧消费。
+
+- [单页数量设置边界与弹窗生命周期审计](PAGE_SIZE_SETTINGS_BOUNDARY_AND_LIFECYCLE_AUDIT_2026_09_13.md)：1～100 持久化/备份合同、默认值归属、无副作用保存、双语输入反馈与路由退出控制器所有权。
+
+- [代理端点持久化与备份边界审计](PROXY_ENDPOINT_PERSISTENCE_AUDIT_2026_09_13.md)：应用/播放器代理的 Hive 修复、严格备份类型、1～65535 端口合同、7897 回落值与导出归一化。
+
+- [应用退出与 IPTV 自动同步计时设置审计](DEFERRED_TIMER_SETTINGS_AUDIT_2026_09_13.md)：退出分钟数、同步小时数的持久化/备份/调度边界，超范围输入反馈及单次重启语义。
+
+- [网络故障诊断与播放恢复审计](NETWORK_FAILURE_RECOVERY_AUDIT_2026_09_13.md)：Android/curl/POSIX/Windows DNS 语法、HTTP 5xx、具体错误优先级及既有有界线路/源/内核恢复链。
+
+- [Windows PowerShell 5.1 工具链兼容性审计](POWERSHELL_5_TOOLCHAIN_COMPATIBILITY_AUDIT_2026_09_13.md)：非 ASCII 脚本 UTF-8 BOM 合同、代理 journal 跨代解码、双 PowerShell 夹具与端到端质量门禁。
+
+- [录制目录、存储耗尽与自动恢复权限审计](RECORDER_STORAGE_FAILURE_AUDIT_2026_09_13.md)：事务式目录选择、并发安全写探针、自动恢复静默权限探测、独立存储耗尽诊断、续接阻断、计入活动输出的安全额度回收及设置变更即时应用。
+
+- [分享口令交接与导入弹窗审计](SHARE_COMMAND_HANDOFF_AND_IMPORT_DIALOG_AUDIT_2026_09_13.md)：消费者成功提交、失败重试、并发合并、有界自分享抑制、响应式导入弹窗，以及 K90 系统分享面板和返回原应用验证。
+
+- [房间卡片长按与标签分配布局/完整性审计](ROOM_CARD_TAG_ASSIGNMENT_LAYOUT_AND_INTEGRITY_AUDIT_2026_09_13.md)：权威映射、旧键清理、响应式弹窗、所属 Navigator 的关注/取消确认、新增标签自动选择，以及 K90 覆盖安装和原生重开保持验证。
+
+- [2026-09-13 GitHub Issue 增量审计](ISSUE_AUDIT_2026_09_13.md)：维护/参考仓库当前 open 计数、最新更新时间，以及 #859/#860/#861 现有专项窗口复核。
+
+- [Android MPV 音频输出后端审计](ANDROID_AUDIO_OUTPUT_BACKEND_AUDIT_2026_09_13.md)：AudioTrack→AAudio→OpenSL ES 回退、Android `auto`/`null` 语义、原生五项菜单与 K90 五后端真实播放矩阵。
+
+- [主画面与小窗弹幕呈现一致性审计](DANMAKU_RENDERING_CONSISTENCY_AUDIT_2026_09_12.md)：速度/FPS/密度/字体/描边/区域源码矩阵、共享紧凑排版策略、K90 候选回归与 120 Hz 原生待验边界。
+
+- [当前累计 Android 候选覆盖安装与冒烟](CURRENT_ANDROID_CANDIDATE_2026_09_12.md)：基础候选同签名覆盖安装、16/16 播放冒烟、标准流 7/7、竖屏流 9/9、#858 首页软件音量路由，以及小窗设置增量候选专项。
+
+- [Android 小窗弹幕设置原生审计](ANDROID_PIP_DANMAKU_SETTINGS_NATIVE_AUDIT_2026_09_12.md)：K90 实测语义路由、目标页断言、开关即时预览、双向重启持久化、失败夹具修订与规范 Hive 精确恢复。
+
+- [Android 小窗弹幕无障碍与默认恢复审计](ANDROID_PIP_DANMAKU_ACCESSIBILITY_RESET_AUDIT_2026_09_12.md)：具名整行开关、滑块设置名/格式化值、完整恢复范围、当前候选覆盖安装、取消/确认重启持久化与精确数据恢复。
+
+- [Android 物理音量键媒体流路由审计](ANDROID_HARDWARE_VOLUME_ROUTING_AUDIT_2026_09_12.md)：Issue #858 源码宿主缺口、`onResume` 媒体流归属、定向回归、精确提交 arm64 Debug 构建及物理按钮待验矩阵。
+
+- [IPTV 频道 HTTP 请求头、播放与录制链路审计](IPTV_HTTP_HEADER_PLAYBACK_AND_RECORDING_AUDIT_2026_09_12.md)：VLC/EXTHTTP/KODIPROP/URL suffix 解析、schema 9 幂等迁移，以及主播放器、多画面、纯音频和录制字段一致性。
+
+- [IPTV 提供方回看元数据、归档窗口与 URL 策略审计](IPTV_PROVIDER_CATCHUP_METADATA_AND_WINDOW_AUDIT_2026_09_12.md)：M3U/XMLTV 元数据持久化、schema 8 幂等迁移、提供方窗口判定，以及 default/append/shift/Flussonic/Xtream/VOD 地址回归。
+
+- [竖屏播放选择器布局与事务审计](PORTRAIT_PLAYBACK_PICKER_LAYOUT_AND_TRANSACTION_AUDIT_2026_09_12.md)：房间方向/记忆策略的原子提交、竖屏全屏显示模式、取消/系统返回及 320×480 三倍字号回归。
+
+- [Windows 虎牙候选复验与同页面资源对照](WINDOWS_HUYA_CANDIDATE_RECHECK_2026_09_05.md)：b231449e 的 AOT 身份、11 分钟播放、全屏与退出、空载热门页对照，以及 Esc 未闭合观察。
+
+- [关闭与快速重进的播放意图](PLAYER_CLOSE_INTENT_AUDIT_2026_09_05.md)：关闭后旧恢复接管、旧关闭覆盖新播放、取消请求仍开流的受控复现，派发代次修复与相邻回归。
+
+- [HLS 录制排空与地址生命周期](RECORDER_HLS_DRAIN_AUDIT_2026_09_05.md)：停止时冻结媒体列表、完成当前分片、旧地址回收，以及 TS/AES/fMP4/长分片四类 native 回归。
+
+- [FLV 录制停止与输出排空](RECORDER_GRACEFUL_FLV_STOP_2026_09_05.md)：本机固定输入复现取消截断、完整 tag 输入结束、重复停止边界，以及虎牙 325 秒真实录制和 TS/MP4 完整解码复验。
+
+- [虎牙录制租约与停止收尾](HUYA_RECORDER_LEASE_AUDIT_2026_09_05.md)：健康连接不再定时取消、异步凭据所有权，以及原始 TS 保留后定位的取消写尾/封装完整性问题。
+
+- [Windows 虎牙实际客户端与录制审查](WINDOWS_HUYA_GUI_AUDIT_2026_09_05.md)：新源码候选、14 分钟连续播放、12 分半录制、占用采样、菜单 Esc 焦点冲突修复及未覆盖项。
+
+- [虎牙恢复语义与帧看门狗复查](HUYA_RECOVERY_SEMANTICS_AUDIT_2026_09_05.md)：上游 WUP 对比、尾帧误取消明确 EOF 重试的红测与修复、按类型匹配恢复证据、单调截止点和实际原生 500ms 通知边界。
+
+- [录制权限与用户操作顺序审计](RECORDER_USER_INTENT_AUDIT_2026_09_05.md)：权限迟到、开始/停止/移除、启动文件恢复预约、原生取消与实际收尾的区别，以及确定性回归。
+
+- [音频事件与播放器绑定所有权](AUDIO_SESSION_OWNERSHIP_AUDIT_2026_09_05.md)：旧中断/通知串房、停止收尾覆盖新焦点、事件队列饥饿、音量恢复与 131 项定向回归；历史 PiP 观察分开保留。
+
+- [录制轮询与启动意图审计](RECORDER_POLL_OWNERSHIP_AUDIT_2026_09_05.md)：迟到请求、停止/退出、启动历史状态、并发上限、开关逻辑与确定性回归。
+
 - [维护范围与问题处置策略](../MAINTENANCE_POLICY.md)：Android/Windows 维护边界、Issue 分流、Bug 来源判定、上游 Issue 优先级、验证和回滚标准。
 - [上游同步审查策略](../UPSTREAM_REVIEW_POLICY.md)：三方差异、全入站文件审查、语义变更台账、冲突处置与合并门禁。
 - [Bug 根因分析模板](BUG_TRIAGE_TEMPLATE.md)：复现基线、来源分类、首次错误状态、影响矩阵与分层证据模板。
@@ -15,6 +85,14 @@
 - [v3.1.8 录制会话时间修复](STAGE_UPDATE_3_1_8.md)：自动续接尝试与用户录制会话时间解耦、持久化兼容及 Android/Windows 双平台交付。
 - [v3.1.8 K90 Pro Android 运行审计](ANDROID_RUNTIME_AUDIT_3_1_8_K90PRO.md)：新主设备覆盖安装、UI 地图、首页/热门、120 Hz 与资源基线，以及待执行的直播矩阵。
 - [共享 Android 实机轮转](ANDROID_DEVICE_TEST_ROTATION.md)：哔哩哔哩模块、小红书模块与 Pure Live 按 A→B→C 串行占用同一部手机的默认规则与调用方式。
+- [2026-09-04 平台传输与 K90 Pro 实机审计](PLATFORM_TRANSPORT_AUDIT_2026_09_04.md)：Twitch 完整性头、SOOP 安全弹幕端口、YY H5 协议、WebSocket 半开恢复、临时代理和锁屏防误判。
+- [2026-09-04 Issue 与弹幕传输审计](ISSUE_AUDIT_2026_09_04.md)：最新上游 Issue 映射、斗鱼 71415 原始捕获，以及抖音双端点/签名/访客 ID/匿名实时弹幕验证。
+- [2026-09-05 最新 Issue 审计](ISSUE_AUDIT_2026_09_05.md)：#850 Android 颜色/透明度、#849 Win10 启动证据边界与 #848 系统字体语义修复。
+- [虎牙完整链路与后台预取复核](HUYA_PREFETCH_OWNERSHIP_AUDIT_2026_09_05.md)：上游与本分支差异、预取所有权、双 CDN 原画连续解码、868 项回归及发布包证据边界。
+- [虎牙已派发重试与错误去重](HUYA_DISPATCHED_RETRY_AUDIT_2026_09_05.md)：Timer 到点后的旧重试再次打断播放，以及重复错误取消必要恢复的红测、修复与内核边界。
+- [虎牙醒目留言 HTTP 生命周期](HUYA_MESSAGE_BOARD_HTTP_AUDIT_2026_09_05.md)：默认超时单位、连接释放、重复实现合并、实际 Dio/TARS 回归与公开 HTTPS 验证。
+- [AcFun 目录与搜索接入](ACFUN_NAVIGATION_AUDIT_2026_09_05.md)：官网分类、稀疏分页、取消/缓存边界、平台入口和设置迁移；协议、接口与设备验收分开记录。
+- [录制调度与 MP4 收尾生命周期](RECORDER_LIFECYCLE_AUDIT_2026_09_05.md)：同步异常容量泄漏、总时限、取消与写盘所有权、异常进度修复，919 项回归与 Windows 实际录制/完整解码证据。
 - [v3.1.7 虎牙醒目留言事件身份修复](STAGE_UPDATE_3_1_7.md)：平台事件 ID、合法重复留言、有界去重缓存与 Android/Windows 交付。
 - [v3.1.6 虎牙醒目留言实时刷新修复](STAGE_UPDATE_3_1_6.md)：通知先于 WUP 留言板更新的时序根因、非阻塞有界补偿、Android/Windows 交付与证据边界。
 - [v3.1.5 Android / Windows 双平台发布](STAGE_UPDATE_3_1_5.md)：同一冻结源码、双平台版本对齐、串行构建、安装包与校验说明。
@@ -71,6 +149,7 @@
 ## 功能说明
 
 - [WebDAV 配置](WEBDAV.md)：服务地址、账号、应用密码、目录和故障排查。
+- [Linux JM9100（MWV207）硬件解码审查](LINUX_JM9100_HWDECODE_AUDIT.md)：GL 后端与窗口 visual 选择、VA-API dmabuf 直通、实测数据、应用内 GL 兼容层与遗留项。
 - [README](../README.md)：功能概览、小窗弹幕、下载和常见问题。
 
 ## 维护原则

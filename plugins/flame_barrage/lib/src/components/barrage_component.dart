@@ -16,11 +16,7 @@ class BarrageComponent extends PositionComponent with HasGameReference<BarrageEn
   double _lifeTimer = 0.0;
   double _fixedDurationSeconds;
 
-  void reset({
-    required BarrageEntry newEntry,
-    required Picture newPicture,
-    required Duration newFixedDuration,
-  }) {
+  void reset({required BarrageEntry newEntry, required Picture newPicture, required Duration newFixedDuration}) {
     entry = newEntry;
     picture = newPicture;
     fixedDuration = newFixedDuration;

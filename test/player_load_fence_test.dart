@@ -1,4 +1,8 @@
+import 'package:pure_live/player/core/playback_source.dart';
+
 import 'dart:async';
+
+import 'package:pure_live/core/common/hls_source_query_policy.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pure_live/common/models/live_room.dart';
@@ -41,10 +45,7 @@ class _DeferredLiveSite extends LiveSite {
   Future<List<LivePlayQuality>> getPlayQualites({required LiveRoom detail}) => qualities.future;
 
   @override
-  Future<List<String>> getPlayUrls({
-    required LiveRoom detail,
-    required LivePlayQuality quality,
-  }) async {
+  Future<List<String>> getPlayUrls({required LiveRoom detail, required LivePlayQuality quality}) async {
     playUrlCalls++;
     return const ['https://example.invalid/live.flv'];
   }
@@ -76,6 +77,9 @@ class _TestPlayerHost implements PlayerSessionHost {
     List<LivePlayQuality>? qualites,
     int? currentQuality,
     List<String>? playUrls,
+    Map<String, HlsSourceQueryPolicy>? sourceQueryPolicies,
+    OwnedPlaybackSource? ownedSource,
+    bool clearOwnedSource = false,
     int? currentLineIndex,
     bool? isCurrentRoomAudioOnly,
     bool? hasUseDefaultResolution,
@@ -84,13 +88,7 @@ class _TestPlayerHost implements PlayerSessionHost {
   }
 
   @override
-  void updateRoom({
-    LiveRoom? detail,
-    bool? isLiving,
-    bool? success,
-    bool? isLoading,
-    String? loadError,
-  }) {
+  void updateRoom({LiveRoom? detail, bool? isLiving, bool? success, bool? isLoading, String? loadError}) {
     roomUpdateCount++;
   }
 }

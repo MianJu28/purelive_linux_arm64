@@ -1,4 +1,6 @@
+import 'package:pure_live/player/core/playback_source.dart';
 import 'package:flutter/foundation.dart';
+import 'package:pure_live/core/common/hls_source_query_policy.dart';
 import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/modules/live_play/widgets/video_player/video_controller.dart';
 
@@ -19,6 +21,10 @@ class PlayerState {
   final List<LivePlayQuality> qualites;
   final int currentQuality;
   final List<String> playUrls;
+  final OwnedPlaybackSource? ownedSource;
+  int get lineCount => ownedSource == null ? playUrls.length : 1;
+  bool get hasPlaybackSource => lineCount > 0;
+  final Map<String, HlsSourceQueryPolicy> sourceQueryPolicies;
   final int currentLineIndex;
   final bool isCurrentRoomAudioOnly;
   final bool hasUseDefaultResolution;
@@ -28,6 +34,8 @@ class PlayerState {
     this.qualites = const [],
     this.currentQuality = 0,
     this.playUrls = const [],
+    this.ownedSource,
+    this.sourceQueryPolicies = const {},
     this.currentLineIndex = 0,
     this.isCurrentRoomAudioOnly = false,
     this.hasUseDefaultResolution = false,
@@ -43,7 +51,7 @@ class PlayerState {
   }
 
   String get playUrlSafe {
-    if (playUrls.isEmpty) return '';
+    if (ownedSource != null || playUrls.isEmpty) return '';
     final i = currentLineIndex;
     if (i < 0 || i >= playUrls.length) return playUrls.first;
     return playUrls[i];
@@ -54,6 +62,9 @@ class PlayerState {
     List<LivePlayQuality>? qualites,
     int? currentQuality,
     List<String>? playUrls,
+    OwnedPlaybackSource? ownedSource,
+    bool clearOwnedSource = false,
+    Map<String, HlsSourceQueryPolicy>? sourceQueryPolicies,
     int? currentLineIndex,
     bool? isCurrentRoomAudioOnly,
     bool? hasUseDefaultResolution,
@@ -65,6 +76,12 @@ class PlayerState {
       qualites: qualites ?? this.qualites,
       currentQuality: currentQuality ?? this.currentQuality,
       playUrls: playUrls ?? this.playUrls,
+      ownedSource: clearOwnedSource ? null : ownedSource ?? (playUrls == null ? this.ownedSource : null),
+      // Replacing URLs without an explicit capability is a legacy/direct
+      // source. Never carry a previous resolver's policy into that cohort.
+      sourceQueryPolicies: Map<String, HlsSourceQueryPolicy>.unmodifiable(
+        sourceQueryPolicies ?? (playUrls == null ? this.sourceQueryPolicies : const {}),
+      ),
       currentLineIndex: currentLineIndex ?? this.currentLineIndex,
       isCurrentRoomAudioOnly: isCurrentRoomAudioOnly ?? this.isCurrentRoomAudioOnly,
       hasUseDefaultResolution: hasUseDefaultResolution ?? this.hasUseDefaultResolution,
@@ -92,6 +109,8 @@ class PlayerState {
         listEquals(other.qualites, qualites) &&
         other.currentQuality == currentQuality &&
         listEquals(other.playUrls, playUrls) &&
+        other.ownedSource == ownedSource &&
+        mapEquals(other.sourceQueryPolicies, sourceQueryPolicies) &&
         other.currentLineIndex == currentLineIndex &&
         other.isCurrentRoomAudioOnly == isCurrentRoomAudioOnly &&
         other.hasUseDefaultResolution == hasUseDefaultResolution;
@@ -103,6 +122,8 @@ class PlayerState {
     Object.hashAll(qualites),
     currentQuality,
     Object.hashAll(playUrls),
+    ownedSource,
+    Object.hashAllUnordered(sourceQueryPolicies.entries.map((entry) => Object.hash(entry.key, entry.value))),
     currentLineIndex,
     isCurrentRoomAudioOnly,
     hasUseDefaultResolution,

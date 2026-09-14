@@ -5,11 +5,7 @@ import '../models/player_exception.dart';
 import '../models/player_error_type.dart';
 
 class EngineFallbackManager {
-  EngineFallbackManager({
-    required this.defaultEngine,
-    this.maxRetryCount = 1,
-    required this.supportedEngines,
-  });
+  EngineFallbackManager({required this.defaultEngine, this.maxRetryCount = 1, required this.supportedEngines});
   final List<PlayerEngine> supportedEngines;
 
   final PlayerEngine defaultEngine;
@@ -55,7 +51,7 @@ class EngineFallbackManager {
     _permanentlyFailed.add(current);
     for (final engine in _priority) {
       if (!_permanentlyFailed.contains(engine)) {
-        log('🔄 引擎降级成功: $current -> $engine');
+        log("🔄 引擎降级成功: $current -> $engine");
         _retryMap[engine] = 0;
         return engine;
       }

@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pure_live/player/models/player_engine.dart';
-import 'package:pure_live/player/models/player_exception.dart';
-import 'package:pure_live/player/models/player_error_type.dart';
 import 'package:pure_live/player/core/engine_fallback_manager.dart';
+import 'package:pure_live/player/models/player_engine.dart';
+import 'package:pure_live/player/models/player_error_type.dart';
+import 'package:pure_live/player/models/player_exception.dart';
 
 void main() {
   test('the first confirmed terminal decoder failure selects another engine', () async {
@@ -34,11 +34,7 @@ void main() {
   test('fallback priority starts from the configured user engine', () async {
     final manager = EngineFallbackManager(
       defaultEngine: PlayerEngine.fijk,
-      supportedEngines: const <PlayerEngine>[
-        PlayerEngine.mediaKit,
-        PlayerEngine.fijk,
-        PlayerEngine.exo,
-      ],
+      supportedEngines: const <PlayerEngine>[PlayerEngine.mediaKit, PlayerEngine.fijk, PlayerEngine.exo],
     );
     final error = PlayerException(message: 'decoder failed', type: PlayerErrorType.codec);
 

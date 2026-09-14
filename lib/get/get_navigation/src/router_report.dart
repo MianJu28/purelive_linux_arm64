@@ -17,7 +17,8 @@ class RouterReportManager<T> {
 
   RouterReportManager._();
 
-  static RouterReportManager get instance => _instance ??= RouterReportManager._();
+  static RouterReportManager get instance =>
+      _instance ??= RouterReportManager._();
 
   static void dispose() {
     _instance = null;

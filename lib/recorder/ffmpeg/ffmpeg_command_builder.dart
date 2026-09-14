@@ -1,12 +1,12 @@
 import 'dart:io';
 
+import 'package:pure_live/recorder/services/recording_segment_clock.dart';
+
 class FFmpegCommandBuilder {
-  static const String _protocolWhitelist =
-      'httpproxy,udp,rtp,rtsp,rtmp,rtmps,srt,tcp,tls,data,file,http,https,crypto';
+  static const String _protocolWhitelist = 'httpproxy,udp,rtp,rtsp,rtmp,rtmps,srt,tcp,tls,data,file,http,https,crypto';
 
   static String quoteArgument(String value) {
     final escaped = value.replaceAll('\r', '').replaceAll('\n', '').replaceAll('"', r'\"');
-
     return '"$escaped"';
   }
 
@@ -16,15 +16,8 @@ class FFmpegCommandBuilder {
     required int port,
     int rwTimeout = 15,
     Map<String, String>? headers,
-    String? caFile,
   }) => formatArguments(
-    buildAudioStreamArguments(
-      remoteStreamUrl: remoteStreamUrl,
-      port: port,
-      rwTimeout: rwTimeout,
-      headers: headers,
-      caFile: caFile,
-    ),
+    buildAudioStreamArguments(remoteStreamUrl: remoteStreamUrl, port: port, rwTimeout: rwTimeout, headers: headers),
   );
 
   /// Returns native FFmpeg arguments without shell quoting.
@@ -38,7 +31,6 @@ class FFmpegCommandBuilder {
     required int port,
     int rwTimeout = 15,
     Map<String, String>? headers,
-    String? caFile,
   }) {
     final normalizedHeaders = _normalizeHeaders(headers);
     final userAgent = normalizedHeaders.remove('user-agent');
@@ -49,21 +41,18 @@ class FFmpegCommandBuilder {
       'info',
       '-protocol_whitelist',
       _protocolWhitelist,
-      ..._inputProtocolOptions(remoteStreamUrl, rwTimeout: rwTimeout, caFile: caFile),
+      ..._inputProtocolOptions(remoteStreamUrl, rwTimeout: rwTimeout),
       if (userAgent != null && userAgent.isNotEmpty) ...['-user_agent', userAgent],
       if (headerString.isNotEmpty) ...['-headers', headerString],
       '-i',
       remoteStreamUrl,
-
       '-map',
       '0:a:0',
       '-vn',
       '-c:a',
       'copy',
-
       '-listen',
       '1',
-
       '-f',
       'mpegts',
       'http://127.0.0.1:$port/live.ts',
@@ -81,7 +70,6 @@ class FFmpegCommandBuilder {
     required int threadQueueSize,
     String? filePrefix,
     Map<String, String>? headers,
-    String? caFile,
   }) => formatArguments(
     buildRecordArguments(
       url: url,
@@ -92,7 +80,6 @@ class FFmpegCommandBuilder {
       threadQueueSize: threadQueueSize,
       filePrefix: filePrefix,
       headers: headers,
-      caFile: caFile,
     ),
   );
 
@@ -105,20 +92,19 @@ class FFmpegCommandBuilder {
     required int threadQueueSize,
     String? filePrefix,
     Map<String, String>? headers,
-    String? caFile,
   }) {
     final normalizedHeaders = _normalizeHeaders(headers);
     final userAgent = normalizedHeaders.remove('user-agent');
     final headerString = _buildHeader(normalizedHeaders);
     final prefix = _safeFilePrefix(filePrefix ?? _timestampPrefix(DateTime.now()));
-    final normalizedOutputPath = '$outputDir${Platform.pathSeparator}${prefix}_%06d.ts';
+    final normalizedOutputPath = '$outputDir${Platform.pathSeparator}${RecordingSegmentClock.segmentPattern(prefix)}';
+    final journalPath = '$outputDir${Platform.pathSeparator}${RecordingSegmentClock.journalName(prefix)}';
 
     final args = <String>[
-      // Unique prefixes make overwriting a previous recording unnecessary.
-      // `-n` turns an unexpected collision into a visible local error.
+      // Keep no-overwrite intent. Segment muxers open child outputs separately;
+      // FFmpegService also reserves/checks the complete clock-v1 output prefix.
       '-n',
       '-hide_banner',
-
       '-loglevel',
       'info',
       // Recording favours complete stream discovery over playback latency.
@@ -130,7 +116,7 @@ class FFmpegCommandBuilder {
       '+genpts+discardcorrupt',
       '-protocol_whitelist',
       _protocolWhitelist,
-      ..._inputProtocolOptions(url, rwTimeout: rwTimeout, caFile: caFile),
+      ..._inputProtocolOptions(url, rwTimeout: rwTimeout),
       '-thread_queue_size',
       threadQueueSize.clamp(64, 65536).toString(),
       if (userAgent != null && userAgent.isNotEmpty) ...['-user_agent', userAgent],
@@ -150,20 +136,33 @@ class FFmpegCommandBuilder {
       // video tracks without selecting metadata/data streams.
       '-map',
       preferBestStream ? '0:v:0?' : '0:v?',
-
       '-map',
       preferBestStream ? '0:a:0?' : '0:a?',
-
       '-c',
       'copy',
       '-avoid_negative_ts',
       'make_non_negative',
       '-f',
       'segment',
-
       '-segment_format',
       'mpegts',
-
+      // The native cancellation callback also interrupts output IO. Commit
+      // complete packets in each child TS while running, rather than leaving
+      // a partial 512 KiB AVIO prefix when cancellation prevents trailer flush.
+      // This protects already muxed packets; input-integrity checks still apply.
+      '-segment_format_options',
+      // Only the outer muxer normalizes the clock. A second per-child shift
+      // breaks reconstruction from the segment list's reference timestamps.
+      // AVIO flushing alone still groups audio frames into PES packets, losing
+      // interior timestamp anchors when segmentation changes group boundaries.
+      // Zero child mux delay keeps each timestamped audio packet's anchor.
+      // Retain MPEG-TS's former 2 * 700 ms offset explicitly: without this
+      // preroll, concat's inpoint 0 discards leading negative DTS in later TS.
+      'flush_packets=1:avoid_negative_ts=disabled:max_delay=0:output_ts_offset=1.4',
+      '-segment_list',
+      journalPath,
+      '-segment_list_type',
+      'csv',
       '-segment_time',
       segmentTime.clamp(10, 86400).toString(),
       '-segment_start_number',
@@ -178,14 +177,9 @@ class FFmpegCommandBuilder {
 
   /// Human-readable representation for logs and deterministic tests only.
   /// Native execution always receives the original argument list.
-  static String formatArguments(Iterable<String> arguments) =>
-      arguments.map(quoteArgument).join(' ');
+  static String formatArguments(Iterable<String> arguments) => arguments.map(quoteArgument).join(' ');
 
-  static List<String> _inputProtocolOptions(
-    String rawUrl, {
-    required int rwTimeout,
-    String? caFile,
-  }) {
+  static List<String> _inputProtocolOptions(String rawUrl, {required int rwTimeout}) {
     final scheme = Uri.tryParse(rawUrl.trim())?.scheme.toLowerCase() ?? '';
     final timeoutMicros = (rwTimeout.clamp(1, 3600) * 1000000).clamp(1, 2147483647).toString();
     final options = <String>[];
@@ -206,10 +200,6 @@ class FFmpegCommandBuilder {
         '5',
         '-rw_timeout',
         timeoutMicros,
-        if (Platform.isAndroid && scheme == 'https' && caFile != null && caFile.isNotEmpty) ...[
-          '-ca_file',
-          caFile,
-        ],
       ]);
     } else if (scheme == 'rtsp') {
       options.addAll(['-rtsp_transport', 'tcp', '-rw_timeout', timeoutMicros]);
@@ -224,16 +214,7 @@ class FFmpegCommandBuilder {
 
   static bool _usesNetworkInput(String rawUrl) {
     final scheme = Uri.tryParse(rawUrl.trim())?.scheme.toLowerCase() ?? '';
-    return const <String>{
-      'http',
-      'https',
-      'rtmp',
-      'rtmps',
-      'rtsp',
-      'rtp',
-      'udp',
-      'srt',
-    }.contains(scheme);
+    return const <String>{'http', 'https', 'rtmp', 'rtmps', 'rtsp', 'rtp', 'udp', 'srt'}.contains(scheme);
   }
 
   static Map<String, String> _normalizeHeaders(Map<String, String>? headers) {
@@ -255,9 +236,7 @@ class FFmpegCommandBuilder {
   }
 
   static String _safeFilePrefix(String value) {
-    final normalized = value
-        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
-        .replaceAll(RegExp(r'_+'), '_');
+    final normalized = value.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_').replaceAll(RegExp(r'_+'), '_');
     final trimmed = normalized.replaceAll(RegExp(r'^_+|_+$'), '');
     return trimmed.isEmpty ? _timestampPrefix(DateTime.now()) : trimmed;
   }

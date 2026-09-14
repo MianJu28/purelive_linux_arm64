@@ -5,12 +5,7 @@ class PreloadPlayerManager {
 
   UnifiedPlayer? standby;
 
-  Future<void> preload(
-    UnifiedPlayer player,
-    String url,
-    List<String> playUrls,
-    Map<String, String> headers,
-  ) async {
+  Future<void> preload(UnifiedPlayer player, String url, List<String> playUrls, Map<String, String> headers) async {
     standby = player;
 
     await standby!.setDataSource(url, playUrls, headers);

@@ -1,27 +1,15 @@
 import 'package:pure_live/common/index.dart';
 
-class FavoriteAreasController extends GetxController with GetTickerProviderStateMixin {
-  late TabController tabSiteController;
+class FavoriteAreasController extends GetxController {
+  final tabSiteIndex = 0.obs;
+  String selectedSiteId = Sites.allSite;
 
-  var tabSiteIndex = 0.obs;
-  var favoriteAreas = [].obs;
-  @override
-  void onInit() {
-    tabSiteController = TabController(
-      length: Sites().availableSites().length + 1,
-      vsync: this,
-      animationDuration: pureLiveTabTransitionDuration,
-    );
-    tabSiteController.addListener(() {
-      tabSiteIndex.value = tabSiteController.index;
-    });
-    favoriteAreas.value = SettingsService.to.fav.favoriteAreas.v;
-    super.onInit();
-  }
+  // Read the persisted observable inside the page's Obx instead of retaining
+  // the list object that happened to exist when this route was opened.
+  List<LiveArea> get favoriteAreas => SettingsService.to.fav.favoriteAreas.v;
 
-  @override
-  void onClose() {
-    tabSiteController.dispose();
-    super.onClose();
+  void selectSite(int index, String siteId) {
+    selectedSiteId = siteId;
+    tabSiteIndex.value = index;
   }
 }

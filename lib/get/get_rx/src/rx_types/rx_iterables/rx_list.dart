@@ -1,7 +1,8 @@
 part of '../rx_types.dart';
 
 /// Create a list similar to `List<T>`
-class RxList<E> extends GetListenable<List<E>> with ListMixin<E>, RxObjectMixin<List<E>> {
+class RxList<E> extends GetListenable<List<E>>
+    with ListMixin<E>, RxObjectMixin<List<E>> {
   RxList([super.initial = const []]);
 
   factory RxList.filled(int length, E fill, {bool growable = false}) {
@@ -23,7 +24,8 @@ class RxList<E> extends GetListenable<List<E>> with ListMixin<E>, RxObjectMixin<
   }
 
   /// Generates a list of values.
-  factory RxList.generate(int length, E Function(int index) generator, {bool growable = true}) {
+  factory RxList.generate(int length, E Function(int index) generator,
+      {bool growable = true}) {
     return RxList(List.generate(length, generator, growable: growable));
   }
 

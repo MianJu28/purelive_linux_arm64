@@ -82,11 +82,7 @@ void main() {
     final presentationActive = ValueNotifier<bool>(true);
     addTearDown(presentationActive.dispose);
     var exitCount = 0;
-    await openRoom(
-      tester,
-      presentationActive: presentationActive,
-      onExitPresentation: () => exitCount++,
-    );
+    await openRoom(tester, presentationActive: presentationActive, onExitPresentation: () => exitCount++);
     showDialog<void>(
       context: navigatorKey.currentContext!,
       builder: (_) => const AlertDialog(title: Text('menu')),

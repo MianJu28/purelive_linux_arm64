@@ -1,3 +1,6 @@
+import 'package:pure_live/player/core/playback_source.dart';
+import 'package:pure_live/core/common/hls_source_query_policy.dart';
+
 import 'dart:async';
 
 import 'package:media_kit/media_kit.dart';
@@ -6,6 +9,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/player/adapters/media_kit_adapter.dart';
+import 'package:pure_live/player/core/playback_source_transport.dart';
+import 'package:pure_live/player/core/playback_proxy_policy.dart';
 
 /// multiview 单格播放器契约。
 ///
@@ -23,7 +28,11 @@ abstract interface class MultiviewCellPlayerHandle {
   /// 创建播放内核与渲染控制器并静音起播。
   ///
   /// 音频策略：所有格一律以音量 0 起播，只有获得音频焦点的格才会恢复音量。
-  Future<void> start({required String url, required Map<String, String> headers});
+  Future<void> start({
+    required String url,
+    required Map<String, String> headers,
+    HlsSourceQueryPolicy? sourceQueryPolicy,
+  });
 
   /// 静音/取消静音（音频焦点切换时由控制器调用）。
   Future<void> setMuted(bool muted);
@@ -49,7 +58,11 @@ abstract interface class MultiviewCellPlayerHandle {
   /// 在既有播放内核上换流（每格清晰度切换）：同 Player 重新 open，
   /// 纹理保持附着、不重建实例；mpv 音量属性跨加载保留，静音状态不丢失。
   /// 未起播前调用属编程错误，实现必须 Fail Fast。
-  Future<void> open({required String url, required Map<String, String> headers});
+  Future<void> open({
+    required String url,
+    required Map<String, String> headers,
+    HlsSourceQueryPolicy? sourceQueryPolicy,
+  });
 
   /// 暂停播放。既作为释放流程第 1 步，也可用于用户主动的临时暂停
   /// （配合 [resume] 恢复）；两种场景共用同一底层调用。
@@ -57,6 +70,13 @@ abstract interface class MultiviewCellPlayerHandle {
 
   /// 释放步骤 2：销毁播放内核；渲染控制器的原生清理随其 release 钩子完成。
   Future<void> disposePlayer();
+}
+
+/// Optional typed entry points keep URL-only test/backends compatible while
+/// the real per-cell owner acquires independent sessions for each native open.
+abstract interface class MultiviewOwnedInputHandle {
+  Future<void> startOwned(OwnedPlaybackSource source);
+  Future<void> openOwned(OwnedPlaybackSource source);
 }
 
 /// 单格播放器工厂：按目标渲染分辨率创建一格播放器。
@@ -70,16 +90,37 @@ typedef MultiviewCellPlayerFactory = MultiviewCellPlayerHandle Function({
 /// 单格播放器持有者（非 widget）。
 ///
 /// 自持独立的 media_kit Player + VideoController，绕开全局单实例的
-/// PlayerManager/GlobalPlayerService/PlayerPool。每格渲染分辨率在构造时
-/// 由控制器按当前布局计算并固定，避免 Windows 共享渲染线程下多实例
-/// 相互争抢全分辨率输出。
-class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
-  MultiviewCellPlayer({required this.renderWidth, required this.renderHeight});
+/// PlayerManager/GlobalPlayerService/PlayerPool。每格在构造时使用控制器按
+/// 当前布局计算的初始分辨率，Windows 挂载后由视图按实际 cell viewport
+/// 继续协商，避免共享渲染线程下多实例争抢全分辨率输出或大格沿用小纹理。
+class _MediaKitCellPlayer implements MultiviewCellPlayerHandle, MultiviewNativeInputRouting {
+  _MediaKitCellPlayer({required this.renderWidth, required this.renderHeight});
+  bool _disposed = false;
+  bool _privateInput = false;
 
-  /// 固定的渲染输出宽度（物理像素），来自布局均分结果。
+  @override
+  void setPrivateInput(bool value) => _privateInput = value;
+
+  void _checkLive() {
+    if (_disposed) throw StateError('Multiview native owner is disposed');
+  }
+
+  Future<void> _configureInput(Player player) async {
+    _checkLive();
+    if (player.platform is NativePlayer) {
+      final native = player.platform as dynamic;
+      await native.setProperty(
+        'http-proxy',
+        PlaybackProxyPolicy.nativeUrl(PlaybackProxyPolicy.currentDirective(), privateInput: _privateInput),
+      );
+    }
+    _checkLive();
+  }
+
+  /// 初始渲染输出宽度（物理像素），来自布局均分结果。
   final int renderWidth;
 
-  /// 固定的渲染输出高度（物理像素），来自布局均分结果。
+  /// 初始渲染输出高度（物理像素），来自布局均分结果。
   final int renderHeight;
 
   Player? _player;
@@ -109,7 +150,12 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
   }
 
   @override
-  Future<void> start({required String url, required Map<String, String> headers}) async {
+  Future<void> start({
+    required String url,
+    required Map<String, String> headers,
+    HlsSourceQueryPolicy? sourceQueryPolicy,
+  }) async {
+    _checkLive();
     MediaKit.ensureInitialized();
 
     final player = Player();
@@ -120,10 +166,12 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
       // 与主播放器共用同一套低延迟直播 mpv 属性。
       await MediaKitAdapter.applyNativeLiveProperties(native);
     }
+    _checkLive();
 
     // 静音起播：先于 open 设置音量，避免首帧前出现声音毛刺；
     // 获得音频焦点后由 setMuted(false) 恢复到会话音量。
     await player.setVolume(_muted ? 0.0 : _volume * 100);
+    _checkLive();
 
     // 渲染配置与主播放器默认分支一致；multiview 不使用兼容模式与自定义输出
     // 分支（它们面向单画面调优），但必须固定 width/height。
@@ -131,9 +179,7 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
     final controller = VideoController(
       player,
       configuration: VideoControllerConfiguration(
-        enableHardwareAcceleration: PlatformUtils.isMacOS
-            ? false
-            : SettingsService.to.player.enableCodec.v,
+        enableHardwareAcceleration: PlatformUtils.isMacOS ? false : SettingsService.to.player.enableCodec.v,
         hwdec: PlatformUtils.isMacOS ? 'no' : null,
         androidAttachSurfaceAfterVideoParameters: false,
         width: renderWidth,
@@ -142,6 +188,7 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
     );
     _controller = controller;
 
+    await _configureInput(player);
     await player.open(Media(url, httpHeaders: headers), play: true);
   }
 
@@ -176,12 +223,17 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
   }
 
   @override
-  Future<void> open({required String url, required Map<String, String> headers}) async {
+  Future<void> open({
+    required String url,
+    required Map<String, String> headers,
+    HlsSourceQueryPolicy? sourceQueryPolicy,
+  }) async {
     final player = _player;
     if (player == null) {
       // 换流必须发生在已起播的实例上；未起播说明调用方状态机有缺陷。
       throw StateError('MultiviewCellPlayer: open before start');
     }
+    await _configureInput(player);
     await player.open(Media(url, httpHeaders: headers), play: true);
   }
 
@@ -194,6 +246,7 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
 
   @override
   Future<void> disposePlayer() async {
+    _disposed = true;
     final player = _player;
     _player = null;
     // 渲染控制器引用一并摘除；其原生清理由 player.dispose 的 release 钩子
@@ -201,5 +254,164 @@ class MultiviewCellPlayer implements MultiviewCellPlayerHandle {
     _controller = null;
     if (player == null) return;
     await player.dispose();
+  }
+}
+
+/// The native backend must disable its proxy for a private relay input.
+abstract interface class MultiviewNativeInputRouting {
+  void setPrivateInput(bool value);
+}
+
+/// Per-cell input ownership, shared with the main player's transport contract.
+/// The backend retains sole ownership of its video-controller release hook.
+class MultiviewCellPlayer implements MultiviewCellPlayerHandle, MultiviewOwnedInputHandle {
+  MultiviewCellPlayer({
+    required int renderWidth,
+    required int renderHeight,
+    MultiviewCellPlayerHandle? backend,
+    PlaybackInputFactory? createInput,
+  }) : _backend = backend ?? _MediaKitCellPlayer(renderWidth: renderWidth, renderHeight: renderHeight),
+       _transport = PlaybackSourceTransport(createInput: createInput);
+
+  final MultiviewCellPlayerHandle _backend;
+  final PlaybackSourceTransport _transport;
+  Future<void> _tail = Future.value();
+  Future<void>? _closing;
+  bool _started = false;
+  bool _nativeStartIssued = false;
+  bool _closed = false;
+  bool _playRequested = true;
+  int _generation = 0;
+  bool _pendingOwned = false;
+  OwnedPlaybackSource? _committedOwned;
+  Future<void>? _resuming;
+
+  @override
+  VideoController? get videoController => _closed ? null : _backend.videoController;
+  @override
+  bool get isPlaying => !_closed && _backend.isPlaying;
+  @override
+  double get volume => _backend.volume;
+  @override
+  Stream<bool> get playingStream => _backend.playingStream;
+
+  Future<void> _open({
+    required bool start,
+    String? url,
+    Map<String, String> headers = const {},
+    HlsSourceQueryPolicy? policy,
+    OwnedPlaybackSource? ownedSource,
+  }) {
+    if (_closed) return Future.error(StateError('Multiview input owner is closed'));
+    if (start == _started) return Future.error(StateError('Invalid multiview start/open sequence'));
+    if (start) _started = true;
+    final generation = ++_generation;
+    final immutableHeaders = Map<String, String>.unmodifiable(headers);
+    // Superseding a session acquisition cancels it before entering the native
+    // serialization queue. Its late lease/cleanup still belongs to transport.
+    final cancellation = _pendingOwned ? _transport.cancelPending() : Future<void>.value();
+    final operation = Future.wait([_tail, cancellation]).then((_) async {
+      if (_closed || generation != _generation) throw StateError('Multiview input request was superseded');
+      Future<void> nativeOpen(String input, List<String> _, Map<String, String> inputHeaders, bool privateInput) async {
+        if (_closed || generation != _generation) throw StateError('Multiview input request was superseded');
+        final backend = _backend;
+        if (backend is MultiviewNativeInputRouting) {
+          (backend as MultiviewNativeInputRouting).setPrivateInput(privateInput);
+        } else if (privateInput) {
+          throw StateError('Multiview backend does not support private input routing');
+        }
+        if (!_nativeStartIssued) {
+          // An open may supersede initial owned acquisition before a native
+          // player exists. It still owes this backend its one startup call.
+          _nativeStartIssued = true;
+          await backend.start(url: input, headers: inputHeaders);
+        } else {
+          await backend.open(url: input, headers: inputHeaders);
+        }
+        if (!_closed && !_playRequested) await backend.pause();
+      }
+
+      _pendingOwned = ownedSource != null;
+      try {
+        if (ownedSource != null) {
+          await _transport.openOwned(createInput: ownedSource.createInput, nativeOpen: nativeOpen);
+        } else {
+          await _transport.open(
+            url: url!,
+            urls: [url],
+            headers: immutableHeaders,
+            policy: policy,
+            nativeOpen: nativeOpen,
+          );
+        }
+        _committedOwned = ownedSource;
+      } finally {
+        _pendingOwned = false;
+      }
+    });
+    _tail = operation.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return operation;
+  }
+
+  @override
+  Future<void> start({
+    required String url,
+    required Map<String, String> headers,
+    HlsSourceQueryPolicy? sourceQueryPolicy,
+  }) => _open(start: true, url: url, headers: headers, policy: sourceQueryPolicy);
+  @override
+  Future<void> open({
+    required String url,
+    required Map<String, String> headers,
+    HlsSourceQueryPolicy? sourceQueryPolicy,
+  }) => _open(start: false, url: url, headers: headers, policy: sourceQueryPolicy);
+  @override
+  Future<void> startOwned(OwnedPlaybackSource source) => _open(start: true, ownedSource: source);
+  @override
+  Future<void> openOwned(OwnedPlaybackSource source) => _open(start: false, ownedSource: source);
+  @override
+  Future<void> setMuted(bool muted) => _backend.setMuted(muted);
+  @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume);
+  @override
+  Future<void> pause() {
+    _playRequested = false;
+    return _closed ? Future.value() : _backend.pause();
+  }
+
+  @override
+  Future<void> resume() {
+    _playRequested = true;
+    if (_closed) return Future.error(StateError('Multiview input owner is closed'));
+    return _resuming ??= _resume().whenComplete(() => _resuming = null);
+  }
+
+  Future<void> _resume() async {
+    final generation = _generation;
+    await _tail;
+    if (_closed) throw StateError('Multiview input owner is closed');
+    // A newer quality/source request owns playback. Its open already observes
+    // _playRequested, so an older resume must not reacquire the old recipe.
+    if (!_playRequested || generation != _generation) return;
+    final owned = _committedOwned;
+    if (owned != null && !_transport.activeInputIsUsable) {
+      await openOwned(owned);
+    } else {
+      await _backend.resume();
+      if (!_closed && !_playRequested) await _backend.pause();
+    }
+  }
+
+  @override
+  Future<void> disposePlayer() => _closing ??= _dispose();
+  Future<void> _dispose() async {
+    _closed = true;
+    _generation++;
+    _committedOwned = null;
+    try {
+      await _transport.close();
+    } finally {
+      await _backend.disposePlayer();
+    }
   }
 }

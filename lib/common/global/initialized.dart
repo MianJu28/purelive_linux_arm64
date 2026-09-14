@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:developer';
-
 import 'app_path_manager.dart';
-
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/global.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
@@ -18,9 +16,13 @@ import 'package:pure_live/recorder/ffmpeg/ffmpeg_manager.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
 import 'package:pure_live/common/global/platform/mobile_manager.dart';
 import 'package:pure_live/common/global/platform/desktop_manager.dart';
+import 'package:pure_live/recorder/services/recorder_proxy_routing.dart';
 import 'package:pure_live/common/services/settings/backup_controller.dart';
 import 'package:pure_live/common/utils/windows_multi_instance_launcher.dart';
 import 'package:pure_live/common/services/utils/settings_upgrade_migration.dart';
+
+
+
 
 /// Keep decoded cover/avatar memory bounded independently from the encoded
 /// HTTP/disk cache. A 960x540 RGBA cover is roughly 2 MiB after decoding, so
@@ -87,15 +89,13 @@ class AppInitializer {
 
     if (configFilePath != null && configFilePath.isNotEmpty) {
       final restored = await Get.find<BackupController>().recoverAndDelete(File(configFilePath));
-
       log(
         restored
             ? 'Windows multi-instance settings restored: $configFilePath'
             : 'Windows multi-instance settings restore failed: $configFilePath',
       );
     }
-
-    configureWebSocketProxyRouting((_) {
+    configureRecorderProxyRouting((_) {
       final proxy = SettingsService.to.proxy;
       return buildProxyDirective(
         enabled: proxy.enableAppProxy.v,
@@ -103,7 +103,6 @@ class AppInitializer {
         port: proxy.appProxyPort.v,
       );
     });
-
     configureWebSocketProxyRouting((_) {
       final proxy = SettingsService.to.proxy;
       return buildProxyDirective(
@@ -126,9 +125,7 @@ class AppInitializer {
     // startup. Deferring it until after the first frame reintroduced the
     // upstream-recorded I/O failure on the first recording attempt. Keep this
     // non-blocking; FFmpegService awaits the same idempotent future at use.
-    if (shouldStartRecorderPrewarmImmediately(mobile: PlatformUtils.isMobile)) {
-      _startFFmpegPrewarm();
-    }
+    if (shouldStartRecorderPrewarmImmediately(mobile: PlatformUtils.isMobile)) _startFFmpegPrewarm();
     _initSmartDialog();
     initRefresh();
 
@@ -160,11 +157,7 @@ class AppInitializer {
     if (!Platform.isWindows) return;
     try {
       final safeId = instanceId.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
-      await WindowsSingleInstance.ensureSingleInstance(
-        args,
-        'PureLive_InstanceID_$safeId',
-        bringWindowToFront: true,
-      );
+      await WindowsSingleInstance.ensureSingleInstance(args, "PureLive_InstanceID_$safeId", bringWindowToFront: true);
     } catch (e) {
       log('WindowsSingleInstance initialization failed: $e');
     }

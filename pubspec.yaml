@@ -1,7 +1,7 @@
 name: pure_live
 description: 纯粹直播,一款开源的第三方多平台直播聚合播放器.
 publish_to: none
-version: 3.1.2+4100
+version: 3.1.3+4101
 
 environment:
   sdk: ^3.13.0
@@ -15,6 +15,7 @@ dependencies:
 
   hashlib: ^2.0.0 # 哈希计算工具
   crypto: ^3.0.7 # 加密解密工具库
+  pointycastle: ^4.0.0 # 克拉克拉官方分享链接 AES-CBC 读取
   crypto_simple: ^3.0.0 # 简易加密工具
   uuid: ^4.5.3 # 生成唯一标识符
   html_unescape: ^2.0.0 # HTML转义字符解码
@@ -43,6 +44,7 @@ dependencies:
   dio_cookie_manager: ^3.3.0 # Dio的Cookie管理插件
   cookie_jar: ^4.0.8 # Cookie持久化存储
   web_socket_channel: ^3.0.3 # WebSocket通信
+  stream_channel: ^2.1.4 # YY保留请求头大小写的自定义WebSocket通道
   connectivity_plus: ^7.3.1 # 网络连接状态监听
   webdav_client: ^1.2.2 # WebDAV文件存储客户端
 
@@ -54,7 +56,7 @@ dependencies:
   best_form_validator: ^1.4.0
   flutter_spinkit: ^5.2.2
   loading_animation_widget: ^1.3.0
-  loading_indicator: ^3.1.1
+  loading_indicator: ^4.0.2
   flame_barrage:
     path: ./plugins/flame_barrage # Local patch keeps per-item speed effective
 
@@ -76,29 +78,27 @@ dependencies:
     path: plugins/built_in_kotlin/better_player_plus # Local AGP 9 Built‑in Kotlin patch
 
   audio_service: ^0.18.18 # 后台音频服务
-  audio_service_mpris:
-    git:
-      url: https://github.com/Predidit/audio-service-mpris.git
-      ref: d30b53fb7dbdd8f10ceda7447fe0a0218711a220
-  audio_service_win:
-    git:
-      url: https://github.com/Predidit/audio_service_win.git
-      ref: 8ad650c6eb487208b9861d44755c8e58db061c88
+  audio_service_win: ^0.0.3
   audio_session: ^0.2.3 # 音频会话管理
-  ffmpeg_kit_extended_flutter: ^0.6.2
-  bonsoir: ^7.1.5
+  # Keep this exact: each package patch selects a different reviewed native
+  # builders release. 0.6.2 preserves argv through FFmpeg/FFprobe/FFplay and
+  # selects builders 0.11.1 (FFmpeg 9.0.1); the repository prefetch gate pins
+  # the Android and Windows archive hashes.
+  ffmpeg_kit_extended_flutter: 0.6.2
+  bonsoir: ^7.1.5 # 局域网同步
 
   flv_lzc:
     path: plugins/flv_lzc # Vendored from liuchuancong/flv_lzc@030d611
   # -------------------------- UI组件/界面样式 --------------------------
   flutter_svg: ^2.2.1 # SVG图片渲染
   lottie: ^3.3.3 #动画
-  cached_network_image: ^3.3.0 # 网络图片缓存
+  cached_network_image: ^4.0.0 # 网络图片缓存
   dynamic_color: ^2.1.0 # 动态主题色
+  material_ui: ^1.1.1 # dynamic_color 2.x 的独立 Material ColorScheme 桥接
   waterfall_flow: ^3.1.1 # 瀑布流布局
   easy_refresh: ^3.5.0 # 下拉刷新/上拉加载
   flutter_smart_dialog: ^5.1.0 # 自定义弹窗
-  flex_color_picker: ^3.7.2 # 颜色选择器
+  flex_color_picker: ^4.0.0 # 颜色选择器
   bordered_text: ^3.0.2 # 带边框文字
   flutter_color: ^2.1.1 # 颜色工具
   syncfusion_flutter_sliders: ^34.2.5 # 滑块组件
@@ -107,7 +107,6 @@ dependencies:
   # -------------------------- 图标/字体 --------------------------
   font_awesome_flutter: ^11.0.0 # Font Awesome图标
   remixicon: ^4.9.3 # Remix图标库
-  google_fonts: ^8.1.0 # 谷歌字体
 
   # -------------------------- 窗口/桌面端控制 --------------------------
   window_manager: ^0.5.1 # 桌面端窗口管理
@@ -276,7 +275,6 @@ flutter:
     - assets/images/
     - assets/images/video/
     - assets/icons/
-    - assets/shaders/
     - assets/webdav/
     - assets/version.json
     - assets/releases.json
@@ -290,21 +288,18 @@ flutter:
     - assets/animations/empty.json
     - assets/animations/error.json
     - assets/fonts/fonts-manifest.json
-    - assets/cacert.pem
+    - assets/certificates/
   # 字体配置
   fonts:
     - family: CustomIcons
       fonts:
         - asset: assets/icons/CustomIcons.ttf
-    - family: PingFang
-      fonts:
-        - asset: assets/PingFangSC.ttf
 
 # FFmpeg配置
 ffmpeg_kit_extended_config:
-  # type: "base" # 预打包构建：debug, base, full, audio, video, video_hw
-  # gpl: true # 启用以包含 GPL 库
-  # small: true # 启用以使用更小的构建
+  # type: "base" # 预打包构建：debug, base, full, audio, video, video_hw（默认即 base）
+  # gpl: true # 启用以包含 GPL 库（默认关闭）
+  # small: true # 启用以使用更小的构建（默认关闭）
   windows: https://github.com/akashskypatel/ffmpeg-kit-builders/releases/download/v0.10.5-windows/bundle-base-windows-x86_64-shared-lgpl.zip
   android: https://github.com/akashskypatel/ffmpeg-kit-builders/releases/download/v0.10.5-android/bundle-base-shared-lgpl-release.aar
   macos: https://github.com/akashskypatel/ffmpeg-kit-builders/releases/download/v0.10.5-macos/bundle-base-macos-universal-lgpl.xcframework.zip

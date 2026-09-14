@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:uuid/uuid.dart';
 import 'package:path/path.dart' as p;
 import 'package:pure_live/common/global/app_path_manager.dart';
@@ -27,10 +26,7 @@ class PlaylistStorage {
   }
 
   /// 保存网络 playlist
-  static Future<File> saveRemoteContent({
-    required String content,
-    required String extension,
-  }) async {
+  static Future<File> saveRemoteContent({required String content, required String extension}) async {
     final dir = await _playlistDir();
     final filename = '${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4()}.$extension';
     final file = File(p.join(dir.path, filename));

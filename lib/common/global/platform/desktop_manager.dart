@@ -10,13 +10,15 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pure_live/routes/app_navigation.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
-import 'package:pure_live/player/utils/window_helper.dart';
 import 'package:pure_live/common/utils/hive_pref_util.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
 import 'package:pure_live/plugins/share_command_handler.dart';
 import 'package:pure_live/routes/route_observer_controller.dart';
 import 'package:pure_live/common/utils/share_command_handler.dart';
+import 'package:pure_live/common/widgets/share_command_import_dialog.dart';
+import 'package:pure_live/common/services/settings/window_size_controller.dart';
 import 'package:pure_live/modules/live_play/controllers/player_state.dart';
+import 'package:pure_live/player/utils/window_helper.dart';
 
 class DesktopManager {
   static State? _currentState;
@@ -27,13 +29,11 @@ class DesktopManager {
       await windowManager.ensureInitialized();
       await Window.initialize();
 
-      final double width = SettingsService.to.window.storedWidth.v;
-      final double height = SettingsService.to.window.storedHeight.v;
+      final storedSize = SettingsService.to.window.storedSize;
 
       final WindowOptions windowOptions = WindowOptions(
-        title: i18nOr('app_name', '纯粹直播'),
-        size: Size(width, height),
-        minimumSize: const Size(400, 300),
+        size: storedSize,
+        minimumSize: const Size(WindowSizeController.minWindowWidth, WindowSizeController.minWindowHeight),
         center: true,
         backgroundColor: Colors.transparent,
         skipTaskbar: false,
@@ -108,7 +108,7 @@ class DesktopManager {
       final fullscreen = GlobalPlayerState.to.isFullscreen.value;
       final pipMode = GlobalPlayerState.to.isPipMode.value;
 
-      if (!PlatformUtils.isDesktopNotMac) {
+      if (!PlatformUtils.isWindows) {
         return child ?? const SizedBox.shrink();
       }
 
@@ -157,10 +157,7 @@ class DesktopManager {
                 : i18nOr('show_window', useChineseFallback ? '显示窗口' : 'Show Window'),
           ),
           MenuItem.separator(),
-          MenuItem(
-            key: 'exit_app',
-            label: i18nOr('exit_app', useChineseFallback ? '退出应用' : 'Exit'),
-          ),
+          MenuItem(key: 'exit_app', label: i18nOr('exit_app', useChineseFallback ? '退出应用' : 'Exit')),
         ],
       );
 
@@ -281,9 +278,7 @@ class CustomTitleBar extends StatelessWidget {
     return Obx(() {
       final isFullscreen = GlobalPlayerState.to.isWindowFullscreen.value;
       final bgColor = isFullscreen || isDark ? Colors.black : theme.scaffoldBackgroundColor;
-      final iconColor = isFullscreen || isDark
-          ? Colors.white.withValues(alpha: 0.75)
-          : Colors.black;
+      final iconColor = isFullscreen || isDark ? Colors.white.withValues(alpha: 0.75) : Colors.black;
       final currentRoute = RouteObserverController.to.currentRoute.value;
       final currentRouteIskSplash = currentRoute == RoutePath.kSplash;
       final currentSize = SettingsService.to.window.windowSize.value;
@@ -331,9 +326,7 @@ class CustomTitleBar extends StatelessWidget {
                                   IgnorePointer(
                                     child: Text(
                                       '[${currentSize.width.toInt()} × ${currentSize.height.toInt()}]',
-                                      style: AppTextStyles.t12.copyWith(
-                                        color: iconColor.withValues(alpha: 0.6),
-                                      ),
+                                      style: AppTextStyles.t12.copyWith(color: iconColor.withValues(alpha: 0.6)),
                                     ),
                                   ),
                               ],
@@ -460,9 +453,7 @@ class _WindowControlButtonState extends State<WindowControlButton> {
           child: Icon(
             widget.icon,
             size: 16,
-            color: (hover || pressed)
-                ? (widget.hoverIconColor ?? widget.iconColor)
-                : widget.iconColor,
+            color: (hover || pressed) ? (widget.hoverIconColor ?? widget.iconColor) : widget.iconColor,
           ),
         ),
       ),
@@ -472,21 +463,24 @@ class _WindowControlButtonState extends State<WindowControlButton> {
 
 mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
     implements WindowListener, TrayListener, WidgetsBindingObserver {
+  final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'Pure Live navigator');
   bool _isDialogOpen = false;
   Timer? _windowGeometryTimer;
+  Timer? _shareCommandResumeTimer;
   final _sizeController = SettingsService.to.window;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkShareCommand();
+      if (mounted) _checkShareCommand();
     });
   }
 
   @override
   void dispose() {
     _windowGeometryTimer?.cancel();
+    _shareCommandResumeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -494,136 +488,58 @@ mixin DesktopWindowMixin<T extends StatefulWidget> on State<T>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      Future.delayed(const Duration(seconds: 1), _checkShareCommand);
+      _shareCommandResumeTimer?.cancel();
+      _shareCommandResumeTimer = Timer(const Duration(seconds: 1), () {
+        if (mounted) _checkShareCommand();
+      });
     }
   }
 
   void _checkShareCommand() {
-    if (_isDialogOpen) return;
+    if (!mounted) return;
 
-    ShareCommandHandler.instance.checkClipboard((fullText) {
-      try {
-        final isMine = ShareCommandCodec.isMyCommand(fullText);
-        if (isMine) {
-          final roomMap = ShareCommandCodec.decodeShort(fullText);
-          final LiveRoom room = LiveRoom.fromJson(roomMap!);
-          if (_isDialogOpen) return;
-          _isDialogOpen = true;
-          _showProductSelectionDialog(room);
-        }
-      } catch (e) {
-        debugPrint(e.toString());
-      }
-    });
+    unawaited(ShareCommandHandler.instance.checkClipboard(_presentShareCommand));
   }
 
-  void _showProductSelectionDialog(LiveRoom room) {
-    final avatarUrl = normalizeNetworkImageUrl(room.avatar);
-    showDialog(
-      context: Get.context!,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-          contentPadding: const EdgeInsets.all(16),
-          content: SizedBox(
-            width: 320,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-                      child: avatarUrl.isEmpty ? const Icon(Icons.person) : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            room.title ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.t16Bold,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            room.nick ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.t13Muted,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Text('${i18n('platform')}：', style: const TextStyle(color: Colors.grey)),
-                          Text(
-                            room.platform ?? 'UNKNOWN',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Text('${i18n('room_id')}：', style: const TextStyle(color: Colors.grey)),
-                          Text(
-                            room.roomId ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(i18n('cancel')),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        AppNavigator.toLiveRoomDetail(liveRoom: room);
-                      },
-                      child: Text(i18n('enter_room')),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ).then((_) {
+  Future<bool> handleIncomingShareCommand(String fullText) {
+    return ShareCommandHandler.instance.acceptCommandText(fullText, _presentShareCommand);
+  }
+
+  Future<void> _presentShareCommand(String fullText) async {
+    final navigatorContext = await _waitForShareCommandNavigator();
+    if (!mounted || !navigatorContext.mounted) {
+      throw StateError('Share command route owner is no longer mounted.');
+    }
+    if (_isDialogOpen) throw StateError('A share command dialog is already active.');
+
+    final roomMap = ShareCommandCodec.decodeShort(fullText);
+    if (roomMap == null) throw const FormatException('Share command payload disappeared after validation.');
+
+    final room = LiveRoom.fromJson(roomMap).normalizedIdentityCopy();
+    _isDialogOpen = true;
+    try {
+      final enterRoom = await ShareCommandImportDialog.show(context: navigatorContext, room: room);
+      if (enterRoom == true && mounted) {
+        AppNavigator.toLiveRoomDetail(liveRoom: room);
+      }
+    } finally {
       _isDialogOpen = false;
-    });
+    }
+  }
+
+  Future<BuildContext> _waitForShareCommandNavigator() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    while (mounted && DateTime.now().isBefore(deadline)) {
+      final navigatorContext = appNavigatorKey.currentContext;
+      final currentRoute = Get.isRegistered<RouteObserverController>()
+          ? RouteObserverController.to.currentRoute.value
+          : '';
+      if (navigatorContext != null && currentRoute.isNotEmpty && currentRoute != RoutePath.kSplash) {
+        return navigatorContext;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    throw StateError('Share command navigator did not become ready.');
   }
 
   @override

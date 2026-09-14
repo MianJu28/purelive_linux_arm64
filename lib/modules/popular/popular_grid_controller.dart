@@ -10,9 +10,7 @@ List<LiveRoom> rankPopularRoomsByAudience(
   required bool preferRealOnline,
   required Iterable<String> realOnlinePlatforms,
 }) {
-  final enabledPlatforms = realOnlinePlatforms
-      .map((platform) => platform.trim().toLowerCase())
-      .toSet();
+  final enabledPlatforms = realOnlinePlatforms.map((platform) => platform.trim().toLowerCase()).toSet();
   final ranked = rooms.toList(growable: false);
   ranked.sort(
     (left, right) => LiveRoom.compareAudienceRanking(
@@ -38,42 +36,29 @@ class PopularLocalReactiveController extends LocalReactivePageController<LiveRoo
   final Site site;
   PopularLocalReactiveController(this.site) {
     onExternalRefresh = () async {
-      await loadData();
+      final rooms = await getLocalRawData();
+      if (isClosed) return;
+      updateLocalReactivePool(rooms);
     };
   }
 
   @override
-  Future<void> loadData() async {
-    loadding.value = true;
-    pageEmpty.value = false;
-    try {
-      final rooms = await getLocalRawData();
-      updateLocalReactivePool(rooms);
-    } catch (e) {
-      handleError(e, showPageError: list.isEmpty);
-      pageEmpty.value = list.isEmpty;
-      finishRefreshControllers(IndicatorResult.fail);
-    } finally {
-      loadding.value = false;
-    }
-  }
+  Future<void> loadData() => loadExternalSnapshot();
 
   Future<List<LiveRoom>> getLocalRawData() async {
+    if (isClosed) return [];
     final rooms = await site.liveSite.getRecommendRooms(page: 1, pageSize: pageSize.value);
+    if (isClosed) return [];
     return site.id == Sites.iptvSite ? rooms : _rankForCurrentSettings(rooms);
   }
 
-  Future<List<LiveRoom>> refreshNetworkStatus(
-    List<LiveRoom> currentPool,
-    int page,
-    int pageSize,
-  ) async {
+  Future<List<LiveRoom>> refreshNetworkStatus(List<LiveRoom> currentPool, int page, int pageSize) async {
     try {
       final rooms = await site.liveSite.getRecommendRooms(page: page, pageSize: pageSize);
       return site.id == Sites.iptvSite ? rooms : _rankForCurrentSettings(rooms);
     } catch (e) {
-      if (e.toString().contains('NoSuchMethodError') && e.toString().contains("'[]'")) {
-        throw Exception('loginRequired');
+      if (e.toString().contains("NoSuchMethodError") && e.toString().contains("'[]'")) {
+        throw Exception("loginRequired");
       }
       rethrow;
     }
@@ -86,23 +71,24 @@ class PopularServerAllController extends ServerAllPageController<LiveRoom> {
 
   @override
   Future<List<LiveRoom>> fetchAllServerData() async {
-    return _rankForCurrentSettings(
-      await site.liveSite.getRecommendRooms(page: currentPage, pageSize: pageSize.value),
-    );
+    if (isClosed) return [];
+    final rooms = await site.liveSite.getRecommendRooms(page: currentPage, pageSize: pageSize.value);
+    if (isClosed) return [];
+    return _rankForCurrentSettings(rooms);
   }
 }
 
 class PopularServerFixedController extends ServerFixedPageController<LiveRoom> {
   final Site site;
 
-  PopularServerFixedController(this.site, {required int fixedSize})
-    : super(fixedServerPageSize: fixedSize);
+  PopularServerFixedController(this.site, {required int fixedSize}) : super(fixedServerPageSize: fixedSize);
 
   @override
   Future<List<LiveRoom>> fetchFixedNetworkData(int bigPage, int fixedSize) async {
-    return _rankForCurrentSettings(
-      await site.liveSite.getRecommendRooms(page: bigPage, pageSize: fixedSize),
-    );
+    if (isClosed) return [];
+    final rooms = await site.liveSite.getRecommendRooms(page: bigPage, pageSize: fixedSize);
+    if (isClosed) return [];
+    return _rankForCurrentSettings(rooms);
   }
 }
 
@@ -112,8 +98,9 @@ class PopularServerRemoteController extends ServerRemotePageController<LiveRoom>
 
   @override
   Future<List<LiveRoom>> fetchNetworkData(int page, int pageSize) async {
-    return _rankForCurrentSettings(
-      await site.liveSite.getRecommendRooms(page: page, pageSize: pageSize),
-    );
+    if (isClosed) return [];
+    final rooms = await site.liveSite.getRecommendRooms(page: page, pageSize: pageSize);
+    if (isClosed) return [];
+    return _rankForCurrentSettings(rooms);
   }
 }

@@ -155,43 +155,25 @@ class $ProvidersTable extends Providers with TableInfo<$ProvidersTable, Provider
       context.handle(_urlMeta, url.isAcceptableOrUnknown(data['url']!, _urlMeta));
     }
     if (data.containsKey('username')) {
-      context.handle(
-        _usernameMeta,
-        username.isAcceptableOrUnknown(data['username']!, _usernameMeta),
-      );
+      context.handle(_usernameMeta, username.isAcceptableOrUnknown(data['username']!, _usernameMeta));
     }
     if (data.containsKey('password')) {
-      context.handle(
-        _passwordMeta,
-        password.isAcceptableOrUnknown(data['password']!, _passwordMeta),
-      );
+      context.handle(_passwordMeta, password.isAcceptableOrUnknown(data['password']!, _passwordMeta));
     }
     if (data.containsKey('sort_order')) {
-      context.handle(
-        _sortOrderMeta,
-        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
-      );
+      context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
     if (data.containsKey('enabled')) {
       context.handle(_enabledMeta, enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta));
     }
     if (data.containsKey('last_refresh')) {
-      context.handle(
-        _lastRefreshMeta,
-        lastRefresh.isAcceptableOrUnknown(data['last_refresh']!, _lastRefreshMeta),
-      );
+      context.handle(_lastRefreshMeta, lastRefresh.isAcceptableOrUnknown(data['last_refresh']!, _lastRefreshMeta));
     }
     if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
     if (data.containsKey('is_auto_update')) {
-      context.handle(
-        _isAutoUpdateMeta,
-        isAutoUpdate.isAcceptableOrUnknown(data['is_auto_update']!, _isAutoUpdateMeta),
-      );
+      context.handle(_isAutoUpdateMeta, isAutoUpdate.isAcceptableOrUnknown(data['is_auto_update']!, _isAutoUpdateMeta));
     }
     return context;
   }
@@ -206,34 +188,13 @@ class $ProvidersTable extends Providers with TableInfo<$ProvidersTable, Provider
       name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       type: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}type'])!,
       url: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}url']),
-      username: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}username'],
-      ),
-      password: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}password'],
-      ),
-      sortOrder: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}sort_order'],
-      )!,
-      enabled: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}enabled'],
-      )!,
-      lastRefresh: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_refresh'],
-      ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      isAutoUpdate: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_auto_update'],
-      )!,
+      username: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}username']),
+      password: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}password']),
+      sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      enabled: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
+      lastRefresh: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}last_refresh']),
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      isAutoUpdate: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}is_auto_update'])!,
     );
   }
 
@@ -403,19 +364,8 @@ class Provider extends DataClass implements Insertable<Provider> {
   }
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    name,
-    type,
-    url,
-    username,
-    password,
-    sortOrder,
-    enabled,
-    lastRefresh,
-    createdAt,
-    isAutoUpdate,
-  );
+  int get hashCode =>
+      Object.hash(id, name, type, url, username, password, sortOrder, enabled, lastRefresh, createdAt, isAutoUpdate);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -620,6 +570,7 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES providers (id)'),
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
@@ -694,6 +645,51 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     requiredDuringInsert: false,
     defaultValue: const Constant('live'),
   );
+  static const VerificationMeta _catchupModeMeta = const VerificationMeta('catchupMode');
+  @override
+  late final GeneratedColumn<String> catchupMode = GeneratedColumn<String>(
+    'catchup_mode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _catchupSourceMeta = const VerificationMeta('catchupSource');
+  @override
+  late final GeneratedColumn<String> catchupSource = GeneratedColumn<String>(
+    'catchup_source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _catchupDaysMeta = const VerificationMeta('catchupDays');
+  @override
+  late final GeneratedColumn<double> catchupDays = GeneratedColumn<double>(
+    'catchup_days',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _catchupCorrectionHoursMeta = const VerificationMeta('catchupCorrectionHours');
+  @override
+  late final GeneratedColumn<double> catchupCorrectionHours = GeneratedColumn<double>(
+    'catchup_correction_hours',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _httpHeadersJsonMeta = const VerificationMeta('httpHeadersJson');
+  @override
+  late final GeneratedColumn<String> httpHeadersJson = GeneratedColumn<String>(
+    'http_headers_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _favoriteMeta = const VerificationMeta('favorite');
   @override
   late final GeneratedColumn<bool> favorite = GeneratedColumn<bool>(
@@ -749,6 +745,11 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     channelNumber,
     streamUrl,
     streamType,
+    catchupMode,
+    catchupSource,
+    catchupDays,
+    catchupCorrectionHours,
+    httpHeadersJson,
     favorite,
     hidden,
     sortOrder,
@@ -769,10 +770,7 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
       context.missing(_idMeta);
     }
     if (data.containsKey('provider_id')) {
-      context.handle(
-        _providerIdMeta,
-        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
-      );
+      context.handle(_providerIdMeta, providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta));
     } else if (isInserting) {
       context.missing(_providerIdMeta);
     }
@@ -791,10 +789,7 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
       context.handle(_tvgLogoMeta, tvgLogo.isAcceptableOrUnknown(data['tvg_logo']!, _tvgLogoMeta));
     }
     if (data.containsKey('group_title')) {
-      context.handle(
-        _groupTitleMeta,
-        groupTitle.isAcceptableOrUnknown(data['group_title']!, _groupTitleMeta),
-      );
+      context.handle(_groupTitleMeta, groupTitle.isAcceptableOrUnknown(data['group_title']!, _groupTitleMeta));
     }
     if (data.containsKey('channel_number')) {
       context.handle(
@@ -803,39 +798,48 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
       );
     }
     if (data.containsKey('stream_url')) {
-      context.handle(
-        _streamUrlMeta,
-        streamUrl.isAcceptableOrUnknown(data['stream_url']!, _streamUrlMeta),
-      );
+      context.handle(_streamUrlMeta, streamUrl.isAcceptableOrUnknown(data['stream_url']!, _streamUrlMeta));
     } else if (isInserting) {
       context.missing(_streamUrlMeta);
     }
     if (data.containsKey('stream_type')) {
+      context.handle(_streamTypeMeta, streamType.isAcceptableOrUnknown(data['stream_type']!, _streamTypeMeta));
+    }
+    if (data.containsKey('catchup_mode')) {
+      context.handle(_catchupModeMeta, catchupMode.isAcceptableOrUnknown(data['catchup_mode']!, _catchupModeMeta));
+    }
+    if (data.containsKey('catchup_source')) {
       context.handle(
-        _streamTypeMeta,
-        streamType.isAcceptableOrUnknown(data['stream_type']!, _streamTypeMeta),
+        _catchupSourceMeta,
+        catchupSource.isAcceptableOrUnknown(data['catchup_source']!, _catchupSourceMeta),
+      );
+    }
+    if (data.containsKey('catchup_days')) {
+      context.handle(_catchupDaysMeta, catchupDays.isAcceptableOrUnknown(data['catchup_days']!, _catchupDaysMeta));
+    }
+    if (data.containsKey('catchup_correction_hours')) {
+      context.handle(
+        _catchupCorrectionHoursMeta,
+        catchupCorrectionHours.isAcceptableOrUnknown(data['catchup_correction_hours']!, _catchupCorrectionHoursMeta),
+      );
+    }
+    if (data.containsKey('http_headers_json')) {
+      context.handle(
+        _httpHeadersJsonMeta,
+        httpHeadersJson.isAcceptableOrUnknown(data['http_headers_json']!, _httpHeadersJsonMeta),
       );
     }
     if (data.containsKey('favorite')) {
-      context.handle(
-        _favoriteMeta,
-        favorite.isAcceptableOrUnknown(data['favorite']!, _favoriteMeta),
-      );
+      context.handle(_favoriteMeta, favorite.isAcceptableOrUnknown(data['favorite']!, _favoriteMeta));
     }
     if (data.containsKey('hidden')) {
       context.handle(_hiddenMeta, hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta));
     }
     if (data.containsKey('sort_order')) {
-      context.handle(
-        _sortOrderMeta,
-        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
-      );
+      context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
     if (data.containsKey('is_auto_update')) {
-      context.handle(
-        _isAutoUpdateMeta,
-        isAutoUpdate.isAcceptableOrUnknown(data['is_auto_update']!, _isAutoUpdateMeta),
-      );
+      context.handle(_isAutoUpdateMeta, isAutoUpdate.isAcceptableOrUnknown(data['is_auto_update']!, _isAutoUpdateMeta));
     }
     return context;
   }
@@ -847,55 +851,30 @@ class $ChannelsTable extends Channels with TableInfo<$ChannelsTable, Channel> {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return Channel(
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      providerId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}provider_id'],
-      )!,
+      providerId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}provider_id'])!,
       name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
-      tvgId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}tvg_id'],
+      tvgId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}tvg_id']),
+      tvgName: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}tvg_name']),
+      tvgLogo: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}tvg_logo']),
+      groupTitle: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}group_title']),
+      channelNumber: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}channel_number']),
+      streamUrl: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}stream_url'])!,
+      streamType: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}stream_type'])!,
+      catchupMode: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}catchup_mode']),
+      catchupSource: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}catchup_source']),
+      catchupDays: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}catchup_days']),
+      catchupCorrectionHours: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}catchup_correction_hours'],
       ),
-      tvgName: attachedDatabase.typeMapping.read(
+      httpHeadersJson: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}tvg_name'],
+        data['${effectivePrefix}http_headers_json'],
       ),
-      tvgLogo: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}tvg_logo'],
-      ),
-      groupTitle: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}group_title'],
-      ),
-      channelNumber: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}channel_number'],
-      ),
-      streamUrl: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}stream_url'],
-      )!,
-      streamType: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}stream_type'],
-      )!,
-      favorite: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}favorite'],
-      )!,
-      hidden: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}hidden'],
-      )!,
-      sortOrder: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}sort_order'],
-      )!,
-      isAutoUpdate: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_auto_update'],
-      )!,
+      favorite: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}favorite'])!,
+      hidden: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}hidden'])!,
+      sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      isAutoUpdate: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}is_auto_update'])!,
     );
   }
 
@@ -916,6 +895,11 @@ class Channel extends DataClass implements Insertable<Channel> {
   final int? channelNumber;
   final String streamUrl;
   final String streamType;
+  final String? catchupMode;
+  final String? catchupSource;
+  final double? catchupDays;
+  final double? catchupCorrectionHours;
+  final String? httpHeadersJson;
   final bool favorite;
   final bool hidden;
   final int sortOrder;
@@ -931,6 +915,11 @@ class Channel extends DataClass implements Insertable<Channel> {
     this.channelNumber,
     required this.streamUrl,
     required this.streamType,
+    this.catchupMode,
+    this.catchupSource,
+    this.catchupDays,
+    this.catchupCorrectionHours,
+    this.httpHeadersJson,
     required this.favorite,
     required this.hidden,
     required this.sortOrder,
@@ -959,6 +948,21 @@ class Channel extends DataClass implements Insertable<Channel> {
     }
     map['stream_url'] = Variable<String>(streamUrl);
     map['stream_type'] = Variable<String>(streamType);
+    if (!nullToAbsent || catchupMode != null) {
+      map['catchup_mode'] = Variable<String>(catchupMode);
+    }
+    if (!nullToAbsent || catchupSource != null) {
+      map['catchup_source'] = Variable<String>(catchupSource);
+    }
+    if (!nullToAbsent || catchupDays != null) {
+      map['catchup_days'] = Variable<double>(catchupDays);
+    }
+    if (!nullToAbsent || catchupCorrectionHours != null) {
+      map['catchup_correction_hours'] = Variable<double>(catchupCorrectionHours);
+    }
+    if (!nullToAbsent || httpHeadersJson != null) {
+      map['http_headers_json'] = Variable<String>(httpHeadersJson);
+    }
     map['favorite'] = Variable<bool>(favorite);
     map['hidden'] = Variable<bool>(hidden);
     map['sort_order'] = Variable<int>(sortOrder);
@@ -975,11 +979,16 @@ class Channel extends DataClass implements Insertable<Channel> {
       tvgName: tvgName == null && nullToAbsent ? const Value.absent() : Value(tvgName),
       tvgLogo: tvgLogo == null && nullToAbsent ? const Value.absent() : Value(tvgLogo),
       groupTitle: groupTitle == null && nullToAbsent ? const Value.absent() : Value(groupTitle),
-      channelNumber: channelNumber == null && nullToAbsent
-          ? const Value.absent()
-          : Value(channelNumber),
+      channelNumber: channelNumber == null && nullToAbsent ? const Value.absent() : Value(channelNumber),
       streamUrl: Value(streamUrl),
       streamType: Value(streamType),
+      catchupMode: catchupMode == null && nullToAbsent ? const Value.absent() : Value(catchupMode),
+      catchupSource: catchupSource == null && nullToAbsent ? const Value.absent() : Value(catchupSource),
+      catchupDays: catchupDays == null && nullToAbsent ? const Value.absent() : Value(catchupDays),
+      catchupCorrectionHours: catchupCorrectionHours == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catchupCorrectionHours),
+      httpHeadersJson: httpHeadersJson == null && nullToAbsent ? const Value.absent() : Value(httpHeadersJson),
       favorite: Value(favorite),
       hidden: Value(hidden),
       sortOrder: Value(sortOrder),
@@ -1000,6 +1009,11 @@ class Channel extends DataClass implements Insertable<Channel> {
       channelNumber: serializer.fromJson<int?>(json['channelNumber']),
       streamUrl: serializer.fromJson<String>(json['streamUrl']),
       streamType: serializer.fromJson<String>(json['streamType']),
+      catchupMode: serializer.fromJson<String?>(json['catchupMode']),
+      catchupSource: serializer.fromJson<String?>(json['catchupSource']),
+      catchupDays: serializer.fromJson<double?>(json['catchupDays']),
+      catchupCorrectionHours: serializer.fromJson<double?>(json['catchupCorrectionHours']),
+      httpHeadersJson: serializer.fromJson<String?>(json['httpHeadersJson']),
       favorite: serializer.fromJson<bool>(json['favorite']),
       hidden: serializer.fromJson<bool>(json['hidden']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
@@ -1020,6 +1034,11 @@ class Channel extends DataClass implements Insertable<Channel> {
       'channelNumber': serializer.toJson<int?>(channelNumber),
       'streamUrl': serializer.toJson<String>(streamUrl),
       'streamType': serializer.toJson<String>(streamType),
+      'catchupMode': serializer.toJson<String?>(catchupMode),
+      'catchupSource': serializer.toJson<String?>(catchupSource),
+      'catchupDays': serializer.toJson<double?>(catchupDays),
+      'catchupCorrectionHours': serializer.toJson<double?>(catchupCorrectionHours),
+      'httpHeadersJson': serializer.toJson<String?>(httpHeadersJson),
       'favorite': serializer.toJson<bool>(favorite),
       'hidden': serializer.toJson<bool>(hidden),
       'sortOrder': serializer.toJson<int>(sortOrder),
@@ -1038,6 +1057,11 @@ class Channel extends DataClass implements Insertable<Channel> {
     Value<int?> channelNumber = const Value.absent(),
     String? streamUrl,
     String? streamType,
+    Value<String?> catchupMode = const Value.absent(),
+    Value<String?> catchupSource = const Value.absent(),
+    Value<double?> catchupDays = const Value.absent(),
+    Value<double?> catchupCorrectionHours = const Value.absent(),
+    Value<String?> httpHeadersJson = const Value.absent(),
     bool? favorite,
     bool? hidden,
     int? sortOrder,
@@ -1053,6 +1077,11 @@ class Channel extends DataClass implements Insertable<Channel> {
     channelNumber: channelNumber.present ? channelNumber.value : this.channelNumber,
     streamUrl: streamUrl ?? this.streamUrl,
     streamType: streamType ?? this.streamType,
+    catchupMode: catchupMode.present ? catchupMode.value : this.catchupMode,
+    catchupSource: catchupSource.present ? catchupSource.value : this.catchupSource,
+    catchupDays: catchupDays.present ? catchupDays.value : this.catchupDays,
+    catchupCorrectionHours: catchupCorrectionHours.present ? catchupCorrectionHours.value : this.catchupCorrectionHours,
+    httpHeadersJson: httpHeadersJson.present ? httpHeadersJson.value : this.httpHeadersJson,
     favorite: favorite ?? this.favorite,
     hidden: hidden ?? this.hidden,
     sortOrder: sortOrder ?? this.sortOrder,
@@ -1070,6 +1099,13 @@ class Channel extends DataClass implements Insertable<Channel> {
       channelNumber: data.channelNumber.present ? data.channelNumber.value : this.channelNumber,
       streamUrl: data.streamUrl.present ? data.streamUrl.value : this.streamUrl,
       streamType: data.streamType.present ? data.streamType.value : this.streamType,
+      catchupMode: data.catchupMode.present ? data.catchupMode.value : this.catchupMode,
+      catchupSource: data.catchupSource.present ? data.catchupSource.value : this.catchupSource,
+      catchupDays: data.catchupDays.present ? data.catchupDays.value : this.catchupDays,
+      catchupCorrectionHours: data.catchupCorrectionHours.present
+          ? data.catchupCorrectionHours.value
+          : this.catchupCorrectionHours,
+      httpHeadersJson: data.httpHeadersJson.present ? data.httpHeadersJson.value : this.httpHeadersJson,
       favorite: data.favorite.present ? data.favorite.value : this.favorite,
       hidden: data.hidden.present ? data.hidden.value : this.hidden,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
@@ -1090,6 +1126,11 @@ class Channel extends DataClass implements Insertable<Channel> {
           ..write('channelNumber: $channelNumber, ')
           ..write('streamUrl: $streamUrl, ')
           ..write('streamType: $streamType, ')
+          ..write('catchupMode: $catchupMode, ')
+          ..write('catchupSource: $catchupSource, ')
+          ..write('catchupDays: $catchupDays, ')
+          ..write('catchupCorrectionHours: $catchupCorrectionHours, ')
+          ..write('httpHeadersJson: $httpHeadersJson, ')
           ..write('favorite: $favorite, ')
           ..write('hidden: $hidden, ')
           ..write('sortOrder: $sortOrder, ')
@@ -1110,6 +1151,11 @@ class Channel extends DataClass implements Insertable<Channel> {
     channelNumber,
     streamUrl,
     streamType,
+    catchupMode,
+    catchupSource,
+    catchupDays,
+    catchupCorrectionHours,
+    httpHeadersJson,
     favorite,
     hidden,
     sortOrder,
@@ -1129,6 +1175,11 @@ class Channel extends DataClass implements Insertable<Channel> {
           other.channelNumber == this.channelNumber &&
           other.streamUrl == this.streamUrl &&
           other.streamType == this.streamType &&
+          other.catchupMode == this.catchupMode &&
+          other.catchupSource == this.catchupSource &&
+          other.catchupDays == this.catchupDays &&
+          other.catchupCorrectionHours == this.catchupCorrectionHours &&
+          other.httpHeadersJson == this.httpHeadersJson &&
           other.favorite == this.favorite &&
           other.hidden == this.hidden &&
           other.sortOrder == this.sortOrder &&
@@ -1146,6 +1197,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
   final Value<int?> channelNumber;
   final Value<String> streamUrl;
   final Value<String> streamType;
+  final Value<String?> catchupMode;
+  final Value<String?> catchupSource;
+  final Value<double?> catchupDays;
+  final Value<double?> catchupCorrectionHours;
+  final Value<String?> httpHeadersJson;
   final Value<bool> favorite;
   final Value<bool> hidden;
   final Value<int> sortOrder;
@@ -1162,6 +1218,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     this.channelNumber = const Value.absent(),
     this.streamUrl = const Value.absent(),
     this.streamType = const Value.absent(),
+    this.catchupMode = const Value.absent(),
+    this.catchupSource = const Value.absent(),
+    this.catchupDays = const Value.absent(),
+    this.catchupCorrectionHours = const Value.absent(),
+    this.httpHeadersJson = const Value.absent(),
     this.favorite = const Value.absent(),
     this.hidden = const Value.absent(),
     this.sortOrder = const Value.absent(),
@@ -1179,6 +1240,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     this.channelNumber = const Value.absent(),
     required String streamUrl,
     this.streamType = const Value.absent(),
+    this.catchupMode = const Value.absent(),
+    this.catchupSource = const Value.absent(),
+    this.catchupDays = const Value.absent(),
+    this.catchupCorrectionHours = const Value.absent(),
+    this.httpHeadersJson = const Value.absent(),
     this.favorite = const Value.absent(),
     this.hidden = const Value.absent(),
     this.sortOrder = const Value.absent(),
@@ -1199,6 +1265,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     Expression<int>? channelNumber,
     Expression<String>? streamUrl,
     Expression<String>? streamType,
+    Expression<String>? catchupMode,
+    Expression<String>? catchupSource,
+    Expression<double>? catchupDays,
+    Expression<double>? catchupCorrectionHours,
+    Expression<String>? httpHeadersJson,
     Expression<bool>? favorite,
     Expression<bool>? hidden,
     Expression<int>? sortOrder,
@@ -1216,6 +1287,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
       if (channelNumber != null) 'channel_number': channelNumber,
       if (streamUrl != null) 'stream_url': streamUrl,
       if (streamType != null) 'stream_type': streamType,
+      if (catchupMode != null) 'catchup_mode': catchupMode,
+      if (catchupSource != null) 'catchup_source': catchupSource,
+      if (catchupDays != null) 'catchup_days': catchupDays,
+      if (catchupCorrectionHours != null) 'catchup_correction_hours': catchupCorrectionHours,
+      if (httpHeadersJson != null) 'http_headers_json': httpHeadersJson,
       if (favorite != null) 'favorite': favorite,
       if (hidden != null) 'hidden': hidden,
       if (sortOrder != null) 'sort_order': sortOrder,
@@ -1235,6 +1311,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     Value<int?>? channelNumber,
     Value<String>? streamUrl,
     Value<String>? streamType,
+    Value<String?>? catchupMode,
+    Value<String?>? catchupSource,
+    Value<double?>? catchupDays,
+    Value<double?>? catchupCorrectionHours,
+    Value<String?>? httpHeadersJson,
     Value<bool>? favorite,
     Value<bool>? hidden,
     Value<int>? sortOrder,
@@ -1252,6 +1333,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
       channelNumber: channelNumber ?? this.channelNumber,
       streamUrl: streamUrl ?? this.streamUrl,
       streamType: streamType ?? this.streamType,
+      catchupMode: catchupMode ?? this.catchupMode,
+      catchupSource: catchupSource ?? this.catchupSource,
+      catchupDays: catchupDays ?? this.catchupDays,
+      catchupCorrectionHours: catchupCorrectionHours ?? this.catchupCorrectionHours,
+      httpHeadersJson: httpHeadersJson ?? this.httpHeadersJson,
       favorite: favorite ?? this.favorite,
       hidden: hidden ?? this.hidden,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -1293,6 +1379,21 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
     if (streamType.present) {
       map['stream_type'] = Variable<String>(streamType.value);
     }
+    if (catchupMode.present) {
+      map['catchup_mode'] = Variable<String>(catchupMode.value);
+    }
+    if (catchupSource.present) {
+      map['catchup_source'] = Variable<String>(catchupSource.value);
+    }
+    if (catchupDays.present) {
+      map['catchup_days'] = Variable<double>(catchupDays.value);
+    }
+    if (catchupCorrectionHours.present) {
+      map['catchup_correction_hours'] = Variable<double>(catchupCorrectionHours.value);
+    }
+    if (httpHeadersJson.present) {
+      map['http_headers_json'] = Variable<String>(httpHeadersJson.value);
+    }
     if (favorite.present) {
       map['favorite'] = Variable<bool>(favorite.value);
     }
@@ -1324,6 +1425,11 @@ class ChannelsCompanion extends UpdateCompanion<Channel> {
           ..write('channelNumber: $channelNumber, ')
           ..write('streamUrl: $streamUrl, ')
           ..write('streamType: $streamType, ')
+          ..write('catchupMode: $catchupMode, ')
+          ..write('catchupSource: $catchupSource, ')
+          ..write('catchupDays: $catchupDays, ')
+          ..write('catchupCorrectionHours: $catchupCorrectionHours, ')
+          ..write('httpHeadersJson: $httpHeadersJson, ')
           ..write('favorite: $favorite, ')
           ..write('hidden: $hidden, ')
           ..write('sortOrder: $sortOrder, ')
@@ -1377,9 +1483,7 @@ class $EpgSourcesTable extends EpgSources with TableInfo<$EpgSourcesTable, EpgSo
     defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("enabled" IN (0, 1))'),
     defaultValue: const Constant(true),
   );
-  static const VerificationMeta _refreshIntervalHoursMeta = const VerificationMeta(
-    'refreshIntervalHours',
-  );
+  static const VerificationMeta _refreshIntervalHoursMeta = const VerificationMeta('refreshIntervalHours');
   @override
   late final GeneratedColumn<int> refreshIntervalHours = GeneratedColumn<int>(
     'refresh_interval_hours',
@@ -1436,10 +1540,7 @@ class $EpgSourcesTable extends EpgSources with TableInfo<$EpgSourcesTable, EpgSo
   String get actualTableName => $name;
   static const String $name = 'epg_sources';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<EpgSource> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<EpgSource> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -1463,29 +1564,17 @@ class $EpgSourcesTable extends EpgSources with TableInfo<$EpgSourcesTable, EpgSo
     if (data.containsKey('refresh_interval_hours')) {
       context.handle(
         _refreshIntervalHoursMeta,
-        refreshIntervalHours.isAcceptableOrUnknown(
-          data['refresh_interval_hours']!,
-          _refreshIntervalHoursMeta,
-        ),
+        refreshIntervalHours.isAcceptableOrUnknown(data['refresh_interval_hours']!, _refreshIntervalHoursMeta),
       );
     }
     if (data.containsKey('last_refresh')) {
-      context.handle(
-        _lastRefreshMeta,
-        lastRefresh.isAcceptableOrUnknown(data['last_refresh']!, _lastRefreshMeta),
-      );
+      context.handle(_lastRefreshMeta, lastRefresh.isAcceptableOrUnknown(data['last_refresh']!, _lastRefreshMeta));
     }
     if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
     if (data.containsKey('is_auto_update')) {
-      context.handle(
-        _isAutoUpdateMeta,
-        isAutoUpdate.isAcceptableOrUnknown(data['is_auto_update']!, _isAutoUpdateMeta),
-      );
+      context.handle(_isAutoUpdateMeta, isAutoUpdate.isAcceptableOrUnknown(data['is_auto_update']!, _isAutoUpdateMeta));
     }
     return context;
   }
@@ -1499,26 +1588,14 @@ class $EpgSourcesTable extends EpgSources with TableInfo<$EpgSourcesTable, EpgSo
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       url: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}url'])!,
-      enabled: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}enabled'],
-      )!,
+      enabled: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
       refreshIntervalHours: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}refresh_interval_hours'],
       )!,
-      lastRefresh: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}last_refresh'],
-      ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
-      isAutoUpdate: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_auto_update'],
-      )!,
+      lastRefresh: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}last_refresh']),
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      isAutoUpdate: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}is_auto_update'])!,
     );
   }
 
@@ -1654,16 +1731,7 @@ class EpgSource extends DataClass implements Insertable<EpgSource> {
   }
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    name,
-    url,
-    enabled,
-    refreshIntervalHours,
-    lastRefresh,
-    createdAt,
-    isAutoUpdate,
-  );
+  int get hashCode => Object.hash(id, name, url, enabled, refreshIntervalHours, lastRefresh, createdAt, isAutoUpdate);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1832,6 +1900,7 @@ class $EpgChannelsTable extends EpgChannels with TableInfo<$EpgChannelsTable, Ep
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES epg_sources (id)'),
   );
   static const VerificationMeta _channelIdMeta = const VerificationMeta('channelId');
   @override
@@ -1868,10 +1937,7 @@ class $EpgChannelsTable extends EpgChannels with TableInfo<$EpgChannelsTable, Ep
   String get actualTableName => $name;
   static const String $name = 'epg_channels';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<EpgChannel> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<EpgChannel> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -1880,26 +1946,17 @@ class $EpgChannelsTable extends EpgChannels with TableInfo<$EpgChannelsTable, Ep
       context.missing(_idMeta);
     }
     if (data.containsKey('source_id')) {
-      context.handle(
-        _sourceIdMeta,
-        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
-      );
+      context.handle(_sourceIdMeta, sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta));
     } else if (isInserting) {
       context.missing(_sourceIdMeta);
     }
     if (data.containsKey('channel_id')) {
-      context.handle(
-        _channelIdMeta,
-        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
-      );
+      context.handle(_channelIdMeta, channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta));
     } else if (isInserting) {
       context.missing(_channelIdMeta);
     }
     if (data.containsKey('display_name')) {
-      context.handle(
-        _displayNameMeta,
-        displayName.isAcceptableOrUnknown(data['display_name']!, _displayNameMeta),
-      );
+      context.handle(_displayNameMeta, displayName.isAcceptableOrUnknown(data['display_name']!, _displayNameMeta));
     } else if (isInserting) {
       context.missing(_displayNameMeta);
     }
@@ -1916,22 +1973,10 @@ class $EpgChannelsTable extends EpgChannels with TableInfo<$EpgChannelsTable, Ep
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return EpgChannel(
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      sourceId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}source_id'],
-      )!,
-      channelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}channel_id'],
-      )!,
-      displayName: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}display_name'],
-      )!,
-      iconUrl: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}icon_url'],
-      ),
+      sourceId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}source_id'])!,
+      channelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}channel_id'])!,
+      displayName: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}display_name'])!,
+      iconUrl: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}icon_url']),
     );
   }
 
@@ -2180,6 +2225,7 @@ class $EpgProgrammesTable extends EpgProgrammes with TableInfo<$EpgProgrammesTab
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES epg_sources (id)'),
   );
   static const VerificationMeta _titleMeta = const VerificationMeta('title');
   @override
@@ -2226,6 +2272,15 @@ class $EpgProgrammesTable extends EpgProgrammes with TableInfo<$EpgProgrammesTab
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _catchupIdMeta = const VerificationMeta('catchupId');
+  @override
+  late final GeneratedColumn<String> catchupId = GeneratedColumn<String>(
+    'catchup_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _startMeta = const VerificationMeta('start');
   @override
   late final GeneratedColumn<DateTime> start = GeneratedColumn<DateTime>(
@@ -2254,6 +2309,7 @@ class $EpgProgrammesTable extends EpgProgrammes with TableInfo<$EpgProgrammesTab
     subtitle,
     episodeNum,
     category,
+    catchupId,
     start,
     stop,
   ];
@@ -2263,28 +2319,19 @@ class $EpgProgrammesTable extends EpgProgrammes with TableInfo<$EpgProgrammesTab
   String get actualTableName => $name;
   static const String $name = 'epg_programmes';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<EpgProgramme> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<EpgProgramme> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
     if (data.containsKey('epg_channel_id')) {
-      context.handle(
-        _epgChannelIdMeta,
-        epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta),
-      );
+      context.handle(_epgChannelIdMeta, epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta));
     } else if (isInserting) {
       context.missing(_epgChannelIdMeta);
     }
     if (data.containsKey('source_id')) {
-      context.handle(
-        _sourceIdMeta,
-        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
-      );
+      context.handle(_sourceIdMeta, sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta));
     } else if (isInserting) {
       context.missing(_sourceIdMeta);
     }
@@ -2294,28 +2341,19 @@ class $EpgProgrammesTable extends EpgProgrammes with TableInfo<$EpgProgrammesTab
       context.missing(_titleMeta);
     }
     if (data.containsKey('description')) {
-      context.handle(
-        _descriptionMeta,
-        description.isAcceptableOrUnknown(data['description']!, _descriptionMeta),
-      );
+      context.handle(_descriptionMeta, description.isAcceptableOrUnknown(data['description']!, _descriptionMeta));
     }
     if (data.containsKey('subtitle')) {
-      context.handle(
-        _subtitleMeta,
-        subtitle.isAcceptableOrUnknown(data['subtitle']!, _subtitleMeta),
-      );
+      context.handle(_subtitleMeta, subtitle.isAcceptableOrUnknown(data['subtitle']!, _subtitleMeta));
     }
     if (data.containsKey('episode_num')) {
-      context.handle(
-        _episodeNumMeta,
-        episodeNum.isAcceptableOrUnknown(data['episode_num']!, _episodeNumMeta),
-      );
+      context.handle(_episodeNumMeta, episodeNum.isAcceptableOrUnknown(data['episode_num']!, _episodeNumMeta));
     }
     if (data.containsKey('category')) {
-      context.handle(
-        _categoryMeta,
-        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
-      );
+      context.handle(_categoryMeta, category.isAcceptableOrUnknown(data['category']!, _categoryMeta));
+    }
+    if (data.containsKey('catchup_id')) {
+      context.handle(_catchupIdMeta, catchupId.isAcceptableOrUnknown(data['catchup_id']!, _catchupIdMeta));
     }
     if (data.containsKey('start')) {
       context.handle(_startMeta, start.isAcceptableOrUnknown(data['start']!, _startMeta));
@@ -2337,42 +2375,16 @@ class $EpgProgrammesTable extends EpgProgrammes with TableInfo<$EpgProgrammesTab
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return EpgProgramme(
       id: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}id'])!,
-      epgChannelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}epg_channel_id'],
-      )!,
-      sourceId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}source_id'],
-      )!,
-      title: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}title'],
-      )!,
-      description: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}description'],
-      ),
-      subtitle: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}subtitle'],
-      ),
-      episodeNum: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}episode_num'],
-      ),
-      category: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}category'],
-      ),
-      start: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}start'],
-      )!,
-      stop: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}stop'],
-      )!,
+      epgChannelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}epg_channel_id'])!,
+      sourceId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}source_id'])!,
+      title: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      description: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}description']),
+      subtitle: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}subtitle']),
+      episodeNum: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}episode_num']),
+      category: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}category']),
+      catchupId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}catchup_id']),
+      start: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}start'])!,
+      stop: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}stop'])!,
     );
   }
 
@@ -2391,6 +2403,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
   final String? subtitle;
   final String? episodeNum;
   final String? category;
+  final String? catchupId;
   final DateTime start;
   final DateTime stop;
   const EpgProgramme({
@@ -2402,6 +2415,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
     this.subtitle,
     this.episodeNum,
     this.category,
+    this.catchupId,
     required this.start,
     required this.stop,
   });
@@ -2424,6 +2438,9 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
     if (!nullToAbsent || category != null) {
       map['category'] = Variable<String>(category);
     }
+    if (!nullToAbsent || catchupId != null) {
+      map['catchup_id'] = Variable<String>(catchupId);
+    }
     map['start'] = Variable<DateTime>(start);
     map['stop'] = Variable<DateTime>(stop);
     return map;
@@ -2439,6 +2456,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
       subtitle: subtitle == null && nullToAbsent ? const Value.absent() : Value(subtitle),
       episodeNum: episodeNum == null && nullToAbsent ? const Value.absent() : Value(episodeNum),
       category: category == null && nullToAbsent ? const Value.absent() : Value(category),
+      catchupId: catchupId == null && nullToAbsent ? const Value.absent() : Value(catchupId),
       start: Value(start),
       stop: Value(stop),
     );
@@ -2455,6 +2473,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
       subtitle: serializer.fromJson<String?>(json['subtitle']),
       episodeNum: serializer.fromJson<String?>(json['episodeNum']),
       category: serializer.fromJson<String?>(json['category']),
+      catchupId: serializer.fromJson<String?>(json['catchupId']),
       start: serializer.fromJson<DateTime>(json['start']),
       stop: serializer.fromJson<DateTime>(json['stop']),
     );
@@ -2471,6 +2490,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
       'subtitle': serializer.toJson<String?>(subtitle),
       'episodeNum': serializer.toJson<String?>(episodeNum),
       'category': serializer.toJson<String?>(category),
+      'catchupId': serializer.toJson<String?>(catchupId),
       'start': serializer.toJson<DateTime>(start),
       'stop': serializer.toJson<DateTime>(stop),
     };
@@ -2485,6 +2505,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
     Value<String?> subtitle = const Value.absent(),
     Value<String?> episodeNum = const Value.absent(),
     Value<String?> category = const Value.absent(),
+    Value<String?> catchupId = const Value.absent(),
     DateTime? start,
     DateTime? stop,
   }) => EpgProgramme(
@@ -2496,6 +2517,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
     subtitle: subtitle.present ? subtitle.value : this.subtitle,
     episodeNum: episodeNum.present ? episodeNum.value : this.episodeNum,
     category: category.present ? category.value : this.category,
+    catchupId: catchupId.present ? catchupId.value : this.catchupId,
     start: start ?? this.start,
     stop: stop ?? this.stop,
   );
@@ -2509,6 +2531,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
       subtitle: data.subtitle.present ? data.subtitle.value : this.subtitle,
       episodeNum: data.episodeNum.present ? data.episodeNum.value : this.episodeNum,
       category: data.category.present ? data.category.value : this.category,
+      catchupId: data.catchupId.present ? data.catchupId.value : this.catchupId,
       start: data.start.present ? data.start.value : this.start,
       stop: data.stop.present ? data.stop.value : this.stop,
     );
@@ -2525,6 +2548,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
           ..write('subtitle: $subtitle, ')
           ..write('episodeNum: $episodeNum, ')
           ..write('category: $category, ')
+          ..write('catchupId: $catchupId, ')
           ..write('start: $start, ')
           ..write('stop: $stop')
           ..write(')'))
@@ -2541,6 +2565,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
     subtitle,
     episodeNum,
     category,
+    catchupId,
     start,
     stop,
   );
@@ -2556,6 +2581,7 @@ class EpgProgramme extends DataClass implements Insertable<EpgProgramme> {
           other.subtitle == this.subtitle &&
           other.episodeNum == this.episodeNum &&
           other.category == this.category &&
+          other.catchupId == this.catchupId &&
           other.start == this.start &&
           other.stop == this.stop);
 }
@@ -2569,6 +2595,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
   final Value<String?> subtitle;
   final Value<String?> episodeNum;
   final Value<String?> category;
+  final Value<String?> catchupId;
   final Value<DateTime> start;
   final Value<DateTime> stop;
   const EpgProgrammesCompanion({
@@ -2580,6 +2607,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
     this.subtitle = const Value.absent(),
     this.episodeNum = const Value.absent(),
     this.category = const Value.absent(),
+    this.catchupId = const Value.absent(),
     this.start = const Value.absent(),
     this.stop = const Value.absent(),
   });
@@ -2592,6 +2620,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
     this.subtitle = const Value.absent(),
     this.episodeNum = const Value.absent(),
     this.category = const Value.absent(),
+    this.catchupId = const Value.absent(),
     required DateTime start,
     required DateTime stop,
   }) : epgChannelId = Value(epgChannelId),
@@ -2608,6 +2637,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
     Expression<String>? subtitle,
     Expression<String>? episodeNum,
     Expression<String>? category,
+    Expression<String>? catchupId,
     Expression<DateTime>? start,
     Expression<DateTime>? stop,
   }) {
@@ -2620,6 +2650,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
       if (subtitle != null) 'subtitle': subtitle,
       if (episodeNum != null) 'episode_num': episodeNum,
       if (category != null) 'category': category,
+      if (catchupId != null) 'catchup_id': catchupId,
       if (start != null) 'start': start,
       if (stop != null) 'stop': stop,
     });
@@ -2634,6 +2665,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
     Value<String?>? subtitle,
     Value<String?>? episodeNum,
     Value<String?>? category,
+    Value<String?>? catchupId,
     Value<DateTime>? start,
     Value<DateTime>? stop,
   }) {
@@ -2646,6 +2678,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
       subtitle: subtitle ?? this.subtitle,
       episodeNum: episodeNum ?? this.episodeNum,
       category: category ?? this.category,
+      catchupId: catchupId ?? this.catchupId,
       start: start ?? this.start,
       stop: stop ?? this.stop,
     );
@@ -2678,6 +2711,9 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
     if (category.present) {
       map['category'] = Variable<String>(category.value);
     }
+    if (catchupId.present) {
+      map['catchup_id'] = Variable<String>(catchupId.value);
+    }
     if (start.present) {
       map['start'] = Variable<DateTime>(start.value);
     }
@@ -2698,6 +2734,7 @@ class EpgProgrammesCompanion extends UpdateCompanion<EpgProgramme> {
           ..write('subtitle: $subtitle, ')
           ..write('episodeNum: $episodeNum, ')
           ..write('category: $category, ')
+          ..write('catchupId: $catchupId, ')
           ..write('start: $start, ')
           ..write('stop: $stop')
           ..write(')'))
@@ -2718,6 +2755,7 @@ class $EpgMappingsTable extends EpgMappings with TableInfo<$EpgMappingsTable, Ep
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES channels (id)'),
   );
   static const VerificationMeta _providerIdMeta = const VerificationMeta('providerId');
   @override
@@ -2745,6 +2783,7 @@ class $EpgMappingsTable extends EpgMappings with TableInfo<$EpgMappingsTable, Ep
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES epg_sources (id)'),
   );
   static const VerificationMeta _confidenceMeta = const VerificationMeta('confidence');
   @override
@@ -2804,49 +2843,31 @@ class $EpgMappingsTable extends EpgMappings with TableInfo<$EpgMappingsTable, Ep
   String get actualTableName => $name;
   static const String $name = 'epg_mappings';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<EpgMapping> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<EpgMapping> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('channel_id')) {
-      context.handle(
-        _channelIdMeta,
-        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
-      );
+      context.handle(_channelIdMeta, channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta));
     } else if (isInserting) {
       context.missing(_channelIdMeta);
     }
     if (data.containsKey('provider_id')) {
-      context.handle(
-        _providerIdMeta,
-        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
-      );
+      context.handle(_providerIdMeta, providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta));
     } else if (isInserting) {
       context.missing(_providerIdMeta);
     }
     if (data.containsKey('epg_channel_id')) {
-      context.handle(
-        _epgChannelIdMeta,
-        epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta),
-      );
+      context.handle(_epgChannelIdMeta, epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta));
     } else if (isInserting) {
       context.missing(_epgChannelIdMeta);
     }
     if (data.containsKey('epg_source_id')) {
-      context.handle(
-        _epgSourceIdMeta,
-        epgSourceId.isAcceptableOrUnknown(data['epg_source_id']!, _epgSourceIdMeta),
-      );
+      context.handle(_epgSourceIdMeta, epgSourceId.isAcceptableOrUnknown(data['epg_source_id']!, _epgSourceIdMeta));
     } else if (isInserting) {
       context.missing(_epgSourceIdMeta);
     }
     if (data.containsKey('confidence')) {
-      context.handle(
-        _confidenceMeta,
-        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
-      );
+      context.handle(_confidenceMeta, confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta));
     }
     if (data.containsKey('source')) {
       context.handle(_sourceMeta, source.isAcceptableOrUnknown(data['source']!, _sourceMeta));
@@ -2855,10 +2876,7 @@ class $EpgMappingsTable extends EpgMappings with TableInfo<$EpgMappingsTable, Ep
       context.handle(_lockedMeta, locked.isAcceptableOrUnknown(data['locked']!, _lockedMeta));
     }
     if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
+      context.handle(_updatedAtMeta, updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
     }
     return context;
   }
@@ -2869,38 +2887,14 @@ class $EpgMappingsTable extends EpgMappings with TableInfo<$EpgMappingsTable, Ep
   EpgMapping map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return EpgMapping(
-      channelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}channel_id'],
-      )!,
-      providerId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}provider_id'],
-      )!,
-      epgChannelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}epg_channel_id'],
-      )!,
-      epgSourceId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}epg_source_id'],
-      )!,
-      confidence: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}confidence'],
-      )!,
-      source: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}source'],
-      )!,
-      locked: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}locked'],
-      )!,
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
+      channelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}channel_id'])!,
+      providerId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}provider_id'])!,
+      epgChannelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}epg_channel_id'])!,
+      epgSourceId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}epg_source_id'])!,
+      confidence: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}confidence'])!,
+      source: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}source'])!,
+      locked: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}locked'])!,
+      updatedAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
   }
 
@@ -3032,16 +3026,8 @@ class EpgMapping extends DataClass implements Insertable<EpgMapping> {
   }
 
   @override
-  int get hashCode => Object.hash(
-    channelId,
-    providerId,
-    epgChannelId,
-    epgSourceId,
-    confidence,
-    source,
-    locked,
-    updatedAt,
-  );
+  int get hashCode =>
+      Object.hash(channelId, providerId, epgChannelId, epgSourceId, confidence, source, locked, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3241,10 +3227,7 @@ class $ChannelGroupsTable extends ChannelGroups with TableInfo<$ChannelGroupsTab
   String get actualTableName => $name;
   static const String $name = 'channel_groups';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<ChannelGroup> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<ChannelGroup> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -3258,10 +3241,7 @@ class $ChannelGroupsTable extends ChannelGroups with TableInfo<$ChannelGroupsTab
       context.missing(_nameMeta);
     }
     if (data.containsKey('sort_order')) {
-      context.handle(
-        _sortOrderMeta,
-        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
-      );
+      context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
     if (data.containsKey('hidden')) {
       context.handle(_hiddenMeta, hidden.isAcceptableOrUnknown(data['hidden']!, _hiddenMeta));
@@ -3277,14 +3257,8 @@ class $ChannelGroupsTable extends ChannelGroups with TableInfo<$ChannelGroupsTab
     return ChannelGroup(
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
-      sortOrder: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}sort_order'],
-      )!,
-      hidden: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}hidden'],
-      )!,
+      sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      hidden: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}hidden'])!,
     );
   }
 
@@ -3299,12 +3273,7 @@ class ChannelGroup extends DataClass implements Insertable<ChannelGroup> {
   final String name;
   final int sortOrder;
   final bool hidden;
-  const ChannelGroup({
-    required this.id,
-    required this.name,
-    required this.sortOrder,
-    required this.hidden,
-  });
+  const ChannelGroup({required this.id, required this.name, required this.sortOrder, required this.hidden});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3316,12 +3285,7 @@ class ChannelGroup extends DataClass implements Insertable<ChannelGroup> {
   }
 
   ChannelGroupsCompanion toCompanion(bool nullToAbsent) {
-    return ChannelGroupsCompanion(
-      id: Value(id),
-      name: Value(name),
-      sortOrder: Value(sortOrder),
-      hidden: Value(hidden),
-    );
+    return ChannelGroupsCompanion(id: Value(id), name: Value(name), sortOrder: Value(sortOrder), hidden: Value(hidden));
   }
 
   factory ChannelGroup.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
@@ -3530,10 +3494,7 @@ class $FavoriteListsTable extends FavoriteLists with TableInfo<$FavoriteListsTab
   String get actualTableName => $name;
   static const String $name = 'favorite_lists';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<FavoriteList> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<FavoriteList> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -3550,16 +3511,10 @@ class $FavoriteListsTable extends FavoriteLists with TableInfo<$FavoriteListsTab
       context.handle(_iconMeta, icon.isAcceptableOrUnknown(data['icon']!, _iconMeta));
     }
     if (data.containsKey('sort_order')) {
-      context.handle(
-        _sortOrderMeta,
-        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
-      );
+      context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
     if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
     return context;
   }
@@ -3573,14 +3528,8 @@ class $FavoriteListsTable extends FavoriteLists with TableInfo<$FavoriteListsTab
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       icon: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}icon'])!,
-      sortOrder: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}sort_order'],
-      )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
   }
 
@@ -3646,13 +3595,7 @@ class FavoriteList extends DataClass implements Insertable<FavoriteList> {
     };
   }
 
-  FavoriteList copyWith({
-    String? id,
-    String? name,
-    String? icon,
-    int? sortOrder,
-    DateTime? createdAt,
-  }) => FavoriteList(
+  FavoriteList copyWith({String? id, String? name, String? icon, int? sortOrder, DateTime? createdAt}) => FavoriteList(
     id: id ?? this.id,
     name: name ?? this.name,
     icon: icon ?? this.icon,
@@ -3806,6 +3749,7 @@ class $FavoriteListChannelsTable extends FavoriteListChannels
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES favorite_lists (id)'),
   );
   static const VerificationMeta _channelIdMeta = const VerificationMeta('channelId');
   @override
@@ -3815,6 +3759,7 @@ class $FavoriteListChannelsTable extends FavoriteListChannels
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES channels (id)'),
   );
   static const VerificationMeta _sortOrderMeta = const VerificationMeta('sortOrder');
   @override
@@ -3844,10 +3789,7 @@ class $FavoriteListChannelsTable extends FavoriteListChannels
   String get actualTableName => $name;
   static const String $name = 'favorite_list_channels';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<FavoriteListChannel> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<FavoriteListChannel> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('list_id')) {
@@ -3856,18 +3798,12 @@ class $FavoriteListChannelsTable extends FavoriteListChannels
       context.missing(_listIdMeta);
     }
     if (data.containsKey('channel_id')) {
-      context.handle(
-        _channelIdMeta,
-        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
-      );
+      context.handle(_channelIdMeta, channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta));
     } else if (isInserting) {
       context.missing(_channelIdMeta);
     }
     if (data.containsKey('sort_order')) {
-      context.handle(
-        _sortOrderMeta,
-        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
-      );
+      context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
     if (data.containsKey('added_at')) {
       context.handle(_addedAtMeta, addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta));
@@ -3881,22 +3817,10 @@ class $FavoriteListChannelsTable extends FavoriteListChannels
   FavoriteListChannel map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return FavoriteListChannel(
-      listId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}list_id'],
-      )!,
-      channelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}channel_id'],
-      )!,
-      sortOrder: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}sort_order'],
-      )!,
-      addedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}added_at'],
-      )!,
+      listId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}list_id'])!,
+      channelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}channel_id'])!,
+      sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      addedAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}added_at'])!,
     );
   }
 
@@ -3956,17 +3880,13 @@ class FavoriteListChannel extends DataClass implements Insertable<FavoriteListCh
     };
   }
 
-  FavoriteListChannel copyWith({
-    String? listId,
-    String? channelId,
-    int? sortOrder,
-    DateTime? addedAt,
-  }) => FavoriteListChannel(
-    listId: listId ?? this.listId,
-    channelId: channelId ?? this.channelId,
-    sortOrder: sortOrder ?? this.sortOrder,
-    addedAt: addedAt ?? this.addedAt,
-  );
+  FavoriteListChannel copyWith({String? listId, String? channelId, int? sortOrder, DateTime? addedAt}) =>
+      FavoriteListChannel(
+        listId: listId ?? this.listId,
+        channelId: channelId ?? this.channelId,
+        sortOrder: sortOrder ?? this.sortOrder,
+        addedAt: addedAt ?? this.addedAt,
+      );
   FavoriteListChannel copyWithCompanion(FavoriteListChannelsCompanion data) {
     return FavoriteListChannel(
       listId: data.listId.present ? data.listId.value : this.listId,
@@ -4194,10 +4114,7 @@ class $EpgRemindersTable extends EpgReminders with TableInfo<$EpgRemindersTable,
   String get actualTableName => $name;
   static const String $name = 'epg_reminders';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<EpgReminder> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<EpgReminder> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -4206,18 +4123,12 @@ class $EpgRemindersTable extends EpgReminders with TableInfo<$EpgRemindersTable,
       context.missing(_idMeta);
     }
     if (data.containsKey('epg_channel_id')) {
-      context.handle(
-        _epgChannelIdMeta,
-        epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta),
-      );
+      context.handle(_epgChannelIdMeta, epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta));
     } else if (isInserting) {
       context.missing(_epgChannelIdMeta);
     }
     if (data.containsKey('channel_id')) {
-      context.handle(
-        _channelIdMeta,
-        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
-      );
+      context.handle(_channelIdMeta, channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta));
     }
     if (data.containsKey('programme_title')) {
       context.handle(
@@ -4253,10 +4164,7 @@ class $EpgRemindersTable extends EpgReminders with TableInfo<$EpgRemindersTable,
       context.handle(_firedMeta, fired.isAcceptableOrUnknown(data['fired']!, _firedMeta));
     }
     if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
     return context;
   }
@@ -4268,14 +4176,8 @@ class $EpgRemindersTable extends EpgReminders with TableInfo<$EpgRemindersTable,
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return EpgReminder(
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      epgChannelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}epg_channel_id'],
-      )!,
-      channelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}channel_id'],
-      ),
+      epgChannelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}epg_channel_id'])!,
+      channelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}channel_id']),
       programmeTitle: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}programme_title'],
@@ -4288,15 +4190,9 @@ class $EpgRemindersTable extends EpgReminders with TableInfo<$EpgRemindersTable,
         DriftSqlType.dateTime,
         data['${effectivePrefix}programme_stop'],
       )!,
-      minutesBefore: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}minutes_before'],
-      )!,
+      minutesBefore: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}minutes_before'])!,
       fired: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}fired'])!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
   }
 
@@ -4718,10 +4614,7 @@ class $ScheduledRecordingsTable extends ScheduledRecordings
   String get actualTableName => $name;
   static const String $name = 'scheduled_recordings';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<ScheduledRecording> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<ScheduledRecording> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -4730,18 +4623,12 @@ class $ScheduledRecordingsTable extends ScheduledRecordings
       context.missing(_idMeta);
     }
     if (data.containsKey('epg_channel_id')) {
-      context.handle(
-        _epgChannelIdMeta,
-        epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta),
-      );
+      context.handle(_epgChannelIdMeta, epgChannelId.isAcceptableOrUnknown(data['epg_channel_id']!, _epgChannelIdMeta));
     } else if (isInserting) {
       context.missing(_epgChannelIdMeta);
     }
     if (data.containsKey('channel_id')) {
-      context.handle(
-        _channelIdMeta,
-        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
-      );
+      context.handle(_channelIdMeta, channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta));
     }
     if (data.containsKey('programme_title')) {
       context.handle(
@@ -4771,16 +4658,10 @@ class $ScheduledRecordingsTable extends ScheduledRecordings
       context.handle(_statusMeta, status.isAcceptableOrUnknown(data['status']!, _statusMeta));
     }
     if (data.containsKey('output_path')) {
-      context.handle(
-        _outputPathMeta,
-        outputPath.isAcceptableOrUnknown(data['output_path']!, _outputPathMeta),
-      );
+      context.handle(_outputPathMeta, outputPath.isAcceptableOrUnknown(data['output_path']!, _outputPathMeta));
     }
     if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
     return context;
   }
@@ -4792,14 +4673,8 @@ class $ScheduledRecordingsTable extends ScheduledRecordings
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return ScheduledRecording(
       id: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      epgChannelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}epg_channel_id'],
-      )!,
-      channelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}channel_id'],
-      ),
+      epgChannelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}epg_channel_id'])!,
+      channelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}channel_id']),
       programmeTitle: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}programme_title'],
@@ -4812,18 +4687,9 @@ class $ScheduledRecordingsTable extends ScheduledRecordings
         DriftSqlType.dateTime,
         data['${effectivePrefix}programme_stop'],
       )!,
-      status: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}status'],
-      )!,
-      outputPath: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}output_path'],
-      ),
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      status: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      outputPath: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}output_path']),
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
   }
 
@@ -5140,8 +5006,7 @@ class ScheduledRecordingsCompanion extends UpdateCompanion<ScheduledRecording> {
   }
 }
 
-class $FailoverGroupsTable extends FailoverGroups
-    with TableInfo<$FailoverGroupsTable, FailoverGroup> {
+class $FailoverGroupsTable extends FailoverGroups with TableInfo<$FailoverGroupsTable, FailoverGroup> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -5184,10 +5049,7 @@ class $FailoverGroupsTable extends FailoverGroups
   String get actualTableName => $name;
   static const String $name = 'failover_groups';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<FailoverGroup> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<FailoverGroup> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -5199,10 +5061,7 @@ class $FailoverGroupsTable extends FailoverGroups
       context.missing(_nameMeta);
     }
     if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
     return context;
   }
@@ -5215,10 +5074,7 @@ class $FailoverGroupsTable extends FailoverGroups
     return FailoverGroup(
       id: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
   }
 
@@ -5264,11 +5120,8 @@ class FailoverGroup extends DataClass implements Insertable<FailoverGroup> {
     };
   }
 
-  FailoverGroup copyWith({int? id, String? name, DateTime? createdAt}) => FailoverGroup(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    createdAt: createdAt ?? this.createdAt,
-  );
+  FailoverGroup copyWith({int? id, String? name, DateTime? createdAt}) =>
+      FailoverGroup(id: id ?? this.id, name: name ?? this.name, createdAt: createdAt ?? this.createdAt);
   FailoverGroup copyWithCompanion(FailoverGroupsCompanion data) {
     return FailoverGroup(
       id: data.id.present ? data.id.value : this.id,
@@ -5292,10 +5145,7 @@ class FailoverGroup extends DataClass implements Insertable<FailoverGroup> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is FailoverGroup &&
-          other.id == this.id &&
-          other.name == this.name &&
-          other.createdAt == this.createdAt);
+      (other is FailoverGroup && other.id == this.id && other.name == this.name && other.createdAt == this.createdAt);
 }
 
 class FailoverGroupsCompanion extends UpdateCompanion<FailoverGroup> {
@@ -5324,16 +5174,8 @@ class FailoverGroupsCompanion extends UpdateCompanion<FailoverGroup> {
     });
   }
 
-  FailoverGroupsCompanion copyWith({
-    Value<int>? id,
-    Value<String>? name,
-    Value<DateTime>? createdAt,
-  }) {
-    return FailoverGroupsCompanion(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      createdAt: createdAt ?? this.createdAt,
-    );
+  FailoverGroupsCompanion copyWith({Value<int>? id, Value<String>? name, Value<DateTime>? createdAt}) {
+    return FailoverGroupsCompanion(id: id ?? this.id, name: name ?? this.name, createdAt: createdAt ?? this.createdAt);
   }
 
   @override
@@ -5376,6 +5218,7 @@ class $FailoverGroupChannelsTable extends FailoverGroupChannels
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES failover_groups (id)'),
   );
   static const VerificationMeta _channelIdMeta = const VerificationMeta('channelId');
   @override
@@ -5385,6 +5228,7 @@ class $FailoverGroupChannelsTable extends FailoverGroupChannels
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES channels (id)'),
   );
   static const VerificationMeta _priorityMeta = const VerificationMeta('priority');
   @override
@@ -5404,10 +5248,7 @@ class $FailoverGroupChannelsTable extends FailoverGroupChannels
   String get actualTableName => $name;
   static const String $name = 'failover_group_channels';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<FailoverGroupChannel> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<FailoverGroupChannel> instance, {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('group_id')) {
@@ -5416,18 +5257,12 @@ class $FailoverGroupChannelsTable extends FailoverGroupChannels
       context.missing(_groupIdMeta);
     }
     if (data.containsKey('channel_id')) {
-      context.handle(
-        _channelIdMeta,
-        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
-      );
+      context.handle(_channelIdMeta, channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta));
     } else if (isInserting) {
       context.missing(_channelIdMeta);
     }
     if (data.containsKey('priority')) {
-      context.handle(
-        _priorityMeta,
-        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
-      );
+      context.handle(_priorityMeta, priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta));
     }
     return context;
   }
@@ -5438,18 +5273,9 @@ class $FailoverGroupChannelsTable extends FailoverGroupChannels
   FailoverGroupChannel map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return FailoverGroupChannel(
-      groupId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}group_id'],
-      )!,
-      channelId: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}channel_id'],
-      )!,
-      priority: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}priority'],
-      )!,
+      groupId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}group_id'])!,
+      channelId: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}channel_id'])!,
+      priority: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}priority'])!,
     );
   }
 
@@ -5463,11 +5289,7 @@ class FailoverGroupChannel extends DataClass implements Insertable<FailoverGroup
   final int groupId;
   final String channelId;
   final int priority;
-  const FailoverGroupChannel({
-    required this.groupId,
-    required this.channelId,
-    required this.priority,
-  });
+  const FailoverGroupChannel({required this.groupId, required this.channelId, required this.priority});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -5503,12 +5325,11 @@ class FailoverGroupChannel extends DataClass implements Insertable<FailoverGroup
     };
   }
 
-  FailoverGroupChannel copyWith({int? groupId, String? channelId, int? priority}) =>
-      FailoverGroupChannel(
-        groupId: groupId ?? this.groupId,
-        channelId: channelId ?? this.channelId,
-        priority: priority ?? this.priority,
-      );
+  FailoverGroupChannel copyWith({int? groupId, String? channelId, int? priority}) => FailoverGroupChannel(
+    groupId: groupId ?? this.groupId,
+    channelId: channelId ?? this.channelId,
+    priority: priority ?? this.priority,
+  );
   FailoverGroupChannel copyWithCompanion(FailoverGroupChannelsCompanion data) {
     return FailoverGroupChannel(
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
@@ -5631,8 +5452,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FailoverGroupsTable failoverGroups = $FailoverGroupsTable(this);
   late final $FailoverGroupChannelsTable failoverGroupChannels = $FailoverGroupChannelsTable(this);
   @override
-  Iterable<TableInfo<Table, Object?>> get allTables =>
-      allSchemaEntities.whereType<TableInfo<Table, Object?>>();
+  Iterable<TableInfo<Table, Object?>> get allTables => allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     providers,
@@ -5680,6 +5500,23 @@ typedef $$ProvidersTableUpdateCompanionBuilder = ProvidersCompanion Function({
   Value<int> rowid,
 });
 
+final class $$ProvidersTableReferences extends BaseReferences<_$AppDatabase, $ProvidersTable, Provider> {
+  $$ProvidersTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ChannelsTable, List<Channel>> _channelsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.channels, aliasName: 'providers__id__channels__provider_id');
+
+  $$ChannelsTableProcessedTableManager get channelsRefs {
+    final manager = $$ChannelsTableTableManager(
+      $_db,
+      $_db.channels,
+    ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_channelsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
 class $$ProvidersTableFilterComposer extends Composer<_$AppDatabase, $ProvidersTable> {
   $$ProvidersTableFilterComposer({
     required super.$db,
@@ -5688,17 +5525,13 @@ class $$ProvidersTableFilterComposer extends Composer<_$AppDatabase, $ProvidersT
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get type =>
-      $composableBuilder(column: $table.type, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get type => $composableBuilder(column: $table.type, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get url =>
-      $composableBuilder(column: $table.url, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get url => $composableBuilder(column: $table.url, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get username =>
       $composableBuilder(column: $table.username, builder: (column) => ColumnFilters(column));
@@ -5720,6 +5553,24 @@ class $$ProvidersTableFilterComposer extends Composer<_$AppDatabase, $ProvidersT
 
   ColumnFilters<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> channelsRefs(Expression<bool> Function($$ChannelsTableFilterComposer f) f) {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.providerId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProvidersTableOrderingComposer extends Composer<_$AppDatabase, $ProvidersTable> {
@@ -5730,8 +5581,7 @@ class $$ProvidersTableOrderingComposer extends Composer<_$AppDatabase, $Provider
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
@@ -5772,38 +5622,47 @@ class $$ProvidersTableAnnotationComposer extends Composer<_$AppDatabase, $Provid
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<String> get type =>
-      $composableBuilder(column: $table.type, builder: (column) => column);
+  GeneratedColumn<String> get type => $composableBuilder(column: $table.type, builder: (column) => column);
 
-  GeneratedColumn<String> get url =>
-      $composableBuilder(column: $table.url, builder: (column) => column);
+  GeneratedColumn<String> get url => $composableBuilder(column: $table.url, builder: (column) => column);
 
-  GeneratedColumn<String> get username =>
-      $composableBuilder(column: $table.username, builder: (column) => column);
+  GeneratedColumn<String> get username => $composableBuilder(column: $table.username, builder: (column) => column);
 
-  GeneratedColumn<String> get password =>
-      $composableBuilder(column: $table.password, builder: (column) => column);
+  GeneratedColumn<String> get password => $composableBuilder(column: $table.password, builder: (column) => column);
 
-  GeneratedColumn<int> get sortOrder =>
-      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+  GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
-  GeneratedColumn<bool> get enabled =>
-      $composableBuilder(column: $table.enabled, builder: (column) => column);
+  GeneratedColumn<bool> get enabled => $composableBuilder(column: $table.enabled, builder: (column) => column);
 
   GeneratedColumn<DateTime> get lastRefresh =>
       $composableBuilder(column: $table.lastRefresh, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   GeneratedColumn<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => column);
+
+  Expression<T> channelsRefs<T extends Object>(Expression<T> Function($$ChannelsTableAnnotationComposer a) f) {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.providerId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProvidersTableTableManager
@@ -5817,9 +5676,9 @@ class $$ProvidersTableTableManager
           $$ProvidersTableAnnotationComposer,
           $$ProvidersTableCreateCompanionBuilder,
           $$ProvidersTableUpdateCompanionBuilder,
-          (Provider, BaseReferences<_$AppDatabase, $ProvidersTable, Provider>),
+          (Provider, $$ProvidersTableReferences),
           Provider,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool channelsRefs})
         > {
   $$ProvidersTableTableManager(_$AppDatabase db, $ProvidersTable table)
     : super(
@@ -5828,8 +5687,7 @@ class $$ProvidersTableTableManager
           table: table,
           createFilteringComposer: () => $$ProvidersTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$ProvidersTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ProvidersTableAnnotationComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$ProvidersTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -5886,9 +5744,29 @@ class $$ProvidersTableTableManager
                 isAutoUpdate: isAutoUpdate,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable<$ProvidersTable, Provider>(table), $$ProvidersTableReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: ({channelsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (channelsRefs) db.channels],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (channelsRefs)
+                    await $_getPrefetchedData<Provider, $ProvidersTable, Channel>(
+                      currentTable: table,
+                      referencedTable: $$ProvidersTableReferences._channelsRefsTable(db),
+                      managerFromTypedResult: (p0) => $$ProvidersTableReferences(db, table, p0).channelsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.providerId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -5903,9 +5781,9 @@ typedef $$ProvidersTableProcessedTableManager =
       $$ProvidersTableAnnotationComposer,
       $$ProvidersTableCreateCompanionBuilder,
       $$ProvidersTableUpdateCompanionBuilder,
-      (Provider, BaseReferences<_$AppDatabase, $ProvidersTable, Provider>),
+      (Provider, $$ProvidersTableReferences),
       Provider,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool channelsRefs})
     >;
 typedef $$ChannelsTableCreateCompanionBuilder = ChannelsCompanion Function({
   required String id,
@@ -5918,6 +5796,11 @@ typedef $$ChannelsTableCreateCompanionBuilder = ChannelsCompanion Function({
   Value<int?> channelNumber,
   required String streamUrl,
   Value<String> streamType,
+  Value<String?> catchupMode,
+  Value<String?> catchupSource,
+  Value<double?> catchupDays,
+  Value<double?> catchupCorrectionHours,
+  Value<String?> httpHeadersJson,
   Value<bool> favorite,
   Value<bool> hidden,
   Value<int> sortOrder,
@@ -5935,12 +5818,80 @@ typedef $$ChannelsTableUpdateCompanionBuilder = ChannelsCompanion Function({
   Value<int?> channelNumber,
   Value<String> streamUrl,
   Value<String> streamType,
+  Value<String?> catchupMode,
+  Value<String?> catchupSource,
+  Value<double?> catchupDays,
+  Value<double?> catchupCorrectionHours,
+  Value<String?> httpHeadersJson,
   Value<bool> favorite,
   Value<bool> hidden,
   Value<int> sortOrder,
   Value<bool> isAutoUpdate,
   Value<int> rowid,
 });
+
+final class $$ChannelsTableReferences extends BaseReferences<_$AppDatabase, $ChannelsTable, Channel> {
+  $$ChannelsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProvidersTable _providerIdTable(_$AppDatabase db) =>
+      db.providers.createAlias('channels__provider_id__providers__id');
+
+  $$ProvidersTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<String>('provider_id')!;
+
+    final manager = $$ProvidersTableTableManager($_db, $_db.providers).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$EpgMappingsTable, List<EpgMapping>> _epgMappingsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.epgMappings, aliasName: 'channels__id__epg_mappings__channel_id');
+
+  $$EpgMappingsTableProcessedTableManager get epgMappingsRefs {
+    final manager = $$EpgMappingsTableTableManager(
+      $_db,
+      $_db.epgMappings,
+    ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_epgMappingsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$FavoriteListChannelsTable, List<FavoriteListChannel>> _favoriteListChannelsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.favoriteListChannels,
+    aliasName: 'channels__id__favorite_list_channels__channel_id',
+  );
+
+  $$FavoriteListChannelsTableProcessedTableManager get favoriteListChannelsRefs {
+    final manager = $$FavoriteListChannelsTableTableManager(
+      $_db,
+      $_db.favoriteListChannels,
+    ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_favoriteListChannelsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$FailoverGroupChannelsTable, List<FailoverGroupChannel>> _failoverGroupChannelsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.failoverGroupChannels,
+    aliasName: 'channels__id__failover_group_channels__channel_id',
+  );
+
+  $$FailoverGroupChannelsTableProcessedTableManager get failoverGroupChannelsRefs {
+    final manager = $$FailoverGroupChannelsTableTableManager(
+      $_db,
+      $_db.failoverGroupChannels,
+    ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_failoverGroupChannelsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+}
 
 class $$ChannelsTableFilterComposer extends Composer<_$AppDatabase, $ChannelsTable> {
   $$ChannelsTableFilterComposer({
@@ -5950,14 +5901,9 @@ class $$ChannelsTableFilterComposer extends Composer<_$AppDatabase, $ChannelsTab
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get providerId =>
-      $composableBuilder(column: $table.providerId, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get tvgId =>
       $composableBuilder(column: $table.tvgId, builder: (column) => ColumnFilters(column));
@@ -5980,6 +5926,21 @@ class $$ChannelsTableFilterComposer extends Composer<_$AppDatabase, $ChannelsTab
   ColumnFilters<String> get streamType =>
       $composableBuilder(column: $table.streamType, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get catchupMode =>
+      $composableBuilder(column: $table.catchupMode, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get catchupSource =>
+      $composableBuilder(column: $table.catchupSource, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get catchupDays =>
+      $composableBuilder(column: $table.catchupDays, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get catchupCorrectionHours =>
+      $composableBuilder(column: $table.catchupCorrectionHours, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get httpHeadersJson =>
+      $composableBuilder(column: $table.httpHeadersJson, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<bool> get favorite =>
       $composableBuilder(column: $table.favorite, builder: (column) => ColumnFilters(column));
 
@@ -5991,6 +5952,80 @@ class $$ChannelsTableFilterComposer extends Composer<_$AppDatabase, $ChannelsTab
 
   ColumnFilters<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => ColumnFilters(column));
+
+  $$ProvidersTableFilterComposer get providerId {
+    final $$ProvidersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ProvidersTableFilterComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> epgMappingsRefs(Expression<bool> Function($$EpgMappingsTableFilterComposer f) f) {
+    final $$EpgMappingsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgMappings,
+      getReferencedColumn: (t) => t.channelId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgMappingsTableFilterComposer(
+            $db: $db,
+            $table: $db.epgMappings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> favoriteListChannelsRefs(Expression<bool> Function($$FavoriteListChannelsTableFilterComposer f) f) {
+    final $$FavoriteListChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.favoriteListChannels,
+      getReferencedColumn: (t) => t.channelId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.favoriteListChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> failoverGroupChannelsRefs(
+    Expression<bool> Function($$FailoverGroupChannelsTableFilterComposer f) f,
+  ) {
+    final $$FailoverGroupChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.failoverGroupChannels,
+      getReferencedColumn: (t) => t.channelId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.failoverGroupChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChannelsTableOrderingComposer extends Composer<_$AppDatabase, $ChannelsTable> {
@@ -6001,11 +6036,7 @@ class $$ChannelsTableOrderingComposer extends Composer<_$AppDatabase, $ChannelsT
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get providerId =>
-      $composableBuilder(column: $table.providerId, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
@@ -6022,16 +6053,29 @@ class $$ChannelsTableOrderingComposer extends Composer<_$AppDatabase, $ChannelsT
   ColumnOrderings<String> get groupTitle =>
       $composableBuilder(column: $table.groupTitle, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<int> get channelNumber => $composableBuilder(
-    column: $table.channelNumber,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<int> get channelNumber =>
+      $composableBuilder(column: $table.channelNumber, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get streamUrl =>
       $composableBuilder(column: $table.streamUrl, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get streamType =>
       $composableBuilder(column: $table.streamType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get catchupMode =>
+      $composableBuilder(column: $table.catchupMode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get catchupSource =>
+      $composableBuilder(column: $table.catchupSource, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get catchupDays =>
+      $composableBuilder(column: $table.catchupDays, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get catchupCorrectionHours =>
+      $composableBuilder(column: $table.catchupCorrectionHours, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get httpHeadersJson =>
+      $composableBuilder(column: $table.httpHeadersJson, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get favorite =>
       $composableBuilder(column: $table.favorite, builder: (column) => ColumnOrderings(column));
@@ -6044,6 +6088,24 @@ class $$ChannelsTableOrderingComposer extends Composer<_$AppDatabase, $ChannelsT
 
   ColumnOrderings<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => ColumnOrderings(column));
+
+  $$ProvidersTableOrderingComposer get providerId {
+    final $$ProvidersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ProvidersTableOrderingComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$ChannelsTableAnnotationComposer extends Composer<_$AppDatabase, $ChannelsTable> {
@@ -6054,47 +6116,124 @@ class $$ChannelsTableAnnotationComposer extends Composer<_$AppDatabase, $Channel
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get providerId =>
-      $composableBuilder(column: $table.providerId, builder: (column) => column);
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get tvgId => $composableBuilder(column: $table.tvgId, builder: (column) => column);
 
-  GeneratedColumn<String> get tvgId =>
-      $composableBuilder(column: $table.tvgId, builder: (column) => column);
+  GeneratedColumn<String> get tvgName => $composableBuilder(column: $table.tvgName, builder: (column) => column);
 
-  GeneratedColumn<String> get tvgName =>
-      $composableBuilder(column: $table.tvgName, builder: (column) => column);
+  GeneratedColumn<String> get tvgLogo => $composableBuilder(column: $table.tvgLogo, builder: (column) => column);
 
-  GeneratedColumn<String> get tvgLogo =>
-      $composableBuilder(column: $table.tvgLogo, builder: (column) => column);
-
-  GeneratedColumn<String> get groupTitle =>
-      $composableBuilder(column: $table.groupTitle, builder: (column) => column);
+  GeneratedColumn<String> get groupTitle => $composableBuilder(column: $table.groupTitle, builder: (column) => column);
 
   GeneratedColumn<int> get channelNumber =>
       $composableBuilder(column: $table.channelNumber, builder: (column) => column);
 
-  GeneratedColumn<String> get streamUrl =>
-      $composableBuilder(column: $table.streamUrl, builder: (column) => column);
+  GeneratedColumn<String> get streamUrl => $composableBuilder(column: $table.streamUrl, builder: (column) => column);
 
-  GeneratedColumn<String> get streamType =>
-      $composableBuilder(column: $table.streamType, builder: (column) => column);
+  GeneratedColumn<String> get streamType => $composableBuilder(column: $table.streamType, builder: (column) => column);
 
-  GeneratedColumn<bool> get favorite =>
-      $composableBuilder(column: $table.favorite, builder: (column) => column);
+  GeneratedColumn<String> get catchupMode =>
+      $composableBuilder(column: $table.catchupMode, builder: (column) => column);
 
-  GeneratedColumn<bool> get hidden =>
-      $composableBuilder(column: $table.hidden, builder: (column) => column);
+  GeneratedColumn<String> get catchupSource =>
+      $composableBuilder(column: $table.catchupSource, builder: (column) => column);
 
-  GeneratedColumn<int> get sortOrder =>
-      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+  GeneratedColumn<double> get catchupDays =>
+      $composableBuilder(column: $table.catchupDays, builder: (column) => column);
+
+  GeneratedColumn<double> get catchupCorrectionHours =>
+      $composableBuilder(column: $table.catchupCorrectionHours, builder: (column) => column);
+
+  GeneratedColumn<String> get httpHeadersJson =>
+      $composableBuilder(column: $table.httpHeadersJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get favorite => $composableBuilder(column: $table.favorite, builder: (column) => column);
+
+  GeneratedColumn<bool> get hidden => $composableBuilder(column: $table.hidden, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
   GeneratedColumn<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => column);
+
+  $$ProvidersTableAnnotationComposer get providerId {
+    final $$ProvidersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ProvidersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> epgMappingsRefs<T extends Object>(Expression<T> Function($$EpgMappingsTableAnnotationComposer a) f) {
+    final $$EpgMappingsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgMappings,
+      getReferencedColumn: (t) => t.channelId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgMappingsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgMappings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> favoriteListChannelsRefs<T extends Object>(
+    Expression<T> Function($$FavoriteListChannelsTableAnnotationComposer a) f,
+  ) {
+    final $$FavoriteListChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.favoriteListChannels,
+      getReferencedColumn: (t) => t.channelId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.favoriteListChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> failoverGroupChannelsRefs<T extends Object>(
+    Expression<T> Function($$FailoverGroupChannelsTableAnnotationComposer a) f,
+  ) {
+    final $$FailoverGroupChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.failoverGroupChannels,
+      getReferencedColumn: (t) => t.channelId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.failoverGroupChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChannelsTableTableManager
@@ -6108,9 +6247,14 @@ class $$ChannelsTableTableManager
           $$ChannelsTableAnnotationComposer,
           $$ChannelsTableCreateCompanionBuilder,
           $$ChannelsTableUpdateCompanionBuilder,
-          (Channel, BaseReferences<_$AppDatabase, $ChannelsTable, Channel>),
+          (Channel, $$ChannelsTableReferences),
           Channel,
-          PrefetchHooks Function()
+          PrefetchHooks Function({
+            bool providerId,
+            bool epgMappingsRefs,
+            bool favoriteListChannelsRefs,
+            bool failoverGroupChannelsRefs,
+          })
         > {
   $$ChannelsTableTableManager(_$AppDatabase db, $ChannelsTable table)
     : super(
@@ -6119,8 +6263,7 @@ class $$ChannelsTableTableManager
           table: table,
           createFilteringComposer: () => $$ChannelsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$ChannelsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ChannelsTableAnnotationComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$ChannelsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -6133,6 +6276,11 @@ class $$ChannelsTableTableManager
                 Value<int?> channelNumber = const Value.absent(),
                 Value<String> streamUrl = const Value.absent(),
                 Value<String> streamType = const Value.absent(),
+                Value<String?> catchupMode = const Value.absent(),
+                Value<String?> catchupSource = const Value.absent(),
+                Value<double?> catchupDays = const Value.absent(),
+                Value<double?> catchupCorrectionHours = const Value.absent(),
+                Value<String?> httpHeadersJson = const Value.absent(),
                 Value<bool> favorite = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
@@ -6149,6 +6297,11 @@ class $$ChannelsTableTableManager
                 channelNumber: channelNumber,
                 streamUrl: streamUrl,
                 streamType: streamType,
+                catchupMode: catchupMode,
+                catchupSource: catchupSource,
+                catchupDays: catchupDays,
+                catchupCorrectionHours: catchupCorrectionHours,
+                httpHeadersJson: httpHeadersJson,
                 favorite: favorite,
                 hidden: hidden,
                 sortOrder: sortOrder,
@@ -6167,6 +6320,11 @@ class $$ChannelsTableTableManager
                 Value<int?> channelNumber = const Value.absent(),
                 required String streamUrl,
                 Value<String> streamType = const Value.absent(),
+                Value<String?> catchupMode = const Value.absent(),
+                Value<String?> catchupSource = const Value.absent(),
+                Value<double?> catchupDays = const Value.absent(),
+                Value<double?> catchupCorrectionHours = const Value.absent(),
+                Value<String?> httpHeadersJson = const Value.absent(),
                 Value<bool> favorite = const Value.absent(),
                 Value<bool> hidden = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
@@ -6183,15 +6341,96 @@ class $$ChannelsTableTableManager
                 channelNumber: channelNumber,
                 streamUrl: streamUrl,
                 streamType: streamType,
+                catchupMode: catchupMode,
+                catchupSource: catchupSource,
+                catchupDays: catchupDays,
+                catchupCorrectionHours: catchupCorrectionHours,
+                httpHeadersJson: httpHeadersJson,
                 favorite: favorite,
                 hidden: hidden,
                 sortOrder: sortOrder,
                 isAutoUpdate: isAutoUpdate,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable<$ChannelsTable, Channel>(table), $$ChannelsTableReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                providerId = false,
+                epgMappingsRefs = false,
+                favoriteListChannelsRefs = false,
+                failoverGroupChannelsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (epgMappingsRefs) db.epgMappings,
+                    if (favoriteListChannelsRefs) db.favoriteListChannels,
+                    if (failoverGroupChannelsRefs) db.failoverGroupChannels,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (providerId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.providerId,
+                            referencedTable: $$ChannelsTableReferences._providerIdTable(db),
+                            referencedColumn: $$ChannelsTableReferences._providerIdTable(db).id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (epgMappingsRefs)
+                        await $_getPrefetchedData<Channel, $ChannelsTable, EpgMapping>(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences._epgMappingsRefsTable(db),
+                          managerFromTypedResult: (p0) => $$ChannelsTableReferences(db, table, p0).epgMappingsRefs,
+                          referencedItemsForCurrentItem: (item, referencedItems) =>
+                              referencedItems.where((e) => e.channelId == item.id),
+                          typedResults: items,
+                        ),
+                      if (favoriteListChannelsRefs)
+                        await $_getPrefetchedData<Channel, $ChannelsTable, FavoriteListChannel>(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences._favoriteListChannelsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(db, table, p0).favoriteListChannelsRefs,
+                          referencedItemsForCurrentItem: (item, referencedItems) =>
+                              referencedItems.where((e) => e.channelId == item.id),
+                          typedResults: items,
+                        ),
+                      if (failoverGroupChannelsRefs)
+                        await $_getPrefetchedData<Channel, $ChannelsTable, FailoverGroupChannel>(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences._failoverGroupChannelsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(db, table, p0).failoverGroupChannelsRefs,
+                          referencedItemsForCurrentItem: (item, referencedItems) =>
+                              referencedItems.where((e) => e.channelId == item.id),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
         ),
       );
 }
@@ -6206,9 +6445,14 @@ typedef $$ChannelsTableProcessedTableManager =
       $$ChannelsTableAnnotationComposer,
       $$ChannelsTableCreateCompanionBuilder,
       $$ChannelsTableUpdateCompanionBuilder,
-      (Channel, BaseReferences<_$AppDatabase, $ChannelsTable, Channel>),
+      (Channel, $$ChannelsTableReferences),
       Channel,
-      PrefetchHooks Function()
+      PrefetchHooks Function({
+        bool providerId,
+        bool epgMappingsRefs,
+        bool favoriteListChannelsRefs,
+        bool failoverGroupChannelsRefs,
+      })
     >;
 typedef $$EpgSourcesTableCreateCompanionBuilder = EpgSourcesCompanion Function({
   required String id,
@@ -6233,6 +6477,49 @@ typedef $$EpgSourcesTableUpdateCompanionBuilder = EpgSourcesCompanion Function({
   Value<int> rowid,
 });
 
+final class $$EpgSourcesTableReferences extends BaseReferences<_$AppDatabase, $EpgSourcesTable, EpgSource> {
+  $$EpgSourcesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$EpgChannelsTable, List<EpgChannel>> _epgChannelsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.epgChannels, aliasName: 'epg_sources__id__epg_channels__source_id');
+
+  $$EpgChannelsTableProcessedTableManager get epgChannelsRefs {
+    final manager = $$EpgChannelsTableTableManager(
+      $_db,
+      $_db.epgChannels,
+    ).filter((f) => f.sourceId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_epgChannelsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$EpgProgrammesTable, List<EpgProgramme>> _epgProgrammesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.epgProgrammes, aliasName: 'epg_sources__id__epg_programmes__source_id');
+
+  $$EpgProgrammesTableProcessedTableManager get epgProgrammesRefs {
+    final manager = $$EpgProgrammesTableTableManager(
+      $_db,
+      $_db.epgProgrammes,
+    ).filter((f) => f.sourceId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_epgProgrammesRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$EpgMappingsTable, List<EpgMapping>> _epgMappingsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.epgMappings, aliasName: 'epg_sources__id__epg_mappings__epg_source_id');
+
+  $$EpgMappingsTableProcessedTableManager get epgMappingsRefs {
+    final manager = $$EpgMappingsTableTableManager(
+      $_db,
+      $_db.epgMappings,
+    ).filter((f) => f.epgSourceId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_epgMappingsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
 class $$EpgSourcesTableFilterComposer extends Composer<_$AppDatabase, $EpgSourcesTable> {
   $$EpgSourcesTableFilterComposer({
     required super.$db,
@@ -6241,22 +6528,17 @@ class $$EpgSourcesTableFilterComposer extends Composer<_$AppDatabase, $EpgSource
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get url =>
-      $composableBuilder(column: $table.url, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get url => $composableBuilder(column: $table.url, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<int> get refreshIntervalHours => $composableBuilder(
-    column: $table.refreshIntervalHours,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnFilters<int> get refreshIntervalHours =>
+      $composableBuilder(column: $table.refreshIntervalHours, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get lastRefresh =>
       $composableBuilder(column: $table.lastRefresh, builder: (column) => ColumnFilters(column));
@@ -6266,6 +6548,60 @@ class $$EpgSourcesTableFilterComposer extends Composer<_$AppDatabase, $EpgSource
 
   ColumnFilters<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> epgChannelsRefs(Expression<bool> Function($$EpgChannelsTableFilterComposer f) f) {
+    final $$EpgChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgChannels,
+      getReferencedColumn: (t) => t.sourceId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.epgChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> epgProgrammesRefs(Expression<bool> Function($$EpgProgrammesTableFilterComposer f) f) {
+    final $$EpgProgrammesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgProgrammes,
+      getReferencedColumn: (t) => t.sourceId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgProgrammesTableFilterComposer(
+            $db: $db,
+            $table: $db.epgProgrammes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> epgMappingsRefs(Expression<bool> Function($$EpgMappingsTableFilterComposer f) f) {
+    final $$EpgMappingsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgMappings,
+      getReferencedColumn: (t) => t.epgSourceId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgMappingsTableFilterComposer(
+            $db: $db,
+            $table: $db.epgMappings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$EpgSourcesTableOrderingComposer extends Composer<_$AppDatabase, $EpgSourcesTable> {
@@ -6276,8 +6612,7 @@ class $$EpgSourcesTableOrderingComposer extends Composer<_$AppDatabase, $EpgSour
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
@@ -6288,10 +6623,8 @@ class $$EpgSourcesTableOrderingComposer extends Composer<_$AppDatabase, $EpgSour
   ColumnOrderings<bool> get enabled =>
       $composableBuilder(column: $table.enabled, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<int> get refreshIntervalHours => $composableBuilder(
-    column: $table.refreshIntervalHours,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<int> get refreshIntervalHours =>
+      $composableBuilder(column: $table.refreshIntervalHours, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get lastRefresh =>
       $composableBuilder(column: $table.lastRefresh, builder: (column) => ColumnOrderings(column));
@@ -6311,17 +6644,13 @@ class $$EpgSourcesTableAnnotationComposer extends Composer<_$AppDatabase, $EpgSo
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<String> get url =>
-      $composableBuilder(column: $table.url, builder: (column) => column);
+  GeneratedColumn<String> get url => $composableBuilder(column: $table.url, builder: (column) => column);
 
-  GeneratedColumn<bool> get enabled =>
-      $composableBuilder(column: $table.enabled, builder: (column) => column);
+  GeneratedColumn<bool> get enabled => $composableBuilder(column: $table.enabled, builder: (column) => column);
 
   GeneratedColumn<int> get refreshIntervalHours =>
       $composableBuilder(column: $table.refreshIntervalHours, builder: (column) => column);
@@ -6329,11 +6658,66 @@ class $$EpgSourcesTableAnnotationComposer extends Composer<_$AppDatabase, $EpgSo
   GeneratedColumn<DateTime> get lastRefresh =>
       $composableBuilder(column: $table.lastRefresh, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   GeneratedColumn<bool> get isAutoUpdate =>
       $composableBuilder(column: $table.isAutoUpdate, builder: (column) => column);
+
+  Expression<T> epgChannelsRefs<T extends Object>(Expression<T> Function($$EpgChannelsTableAnnotationComposer a) f) {
+    final $$EpgChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgChannels,
+      getReferencedColumn: (t) => t.sourceId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> epgProgrammesRefs<T extends Object>(
+    Expression<T> Function($$EpgProgrammesTableAnnotationComposer a) f,
+  ) {
+    final $$EpgProgrammesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgProgrammes,
+      getReferencedColumn: (t) => t.sourceId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgProgrammesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgProgrammes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> epgMappingsRefs<T extends Object>(Expression<T> Function($$EpgMappingsTableAnnotationComposer a) f) {
+    final $$EpgMappingsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgMappings,
+      getReferencedColumn: (t) => t.epgSourceId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgMappingsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgMappings,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$EpgSourcesTableTableManager
@@ -6347,9 +6731,9 @@ class $$EpgSourcesTableTableManager
           $$EpgSourcesTableAnnotationComposer,
           $$EpgSourcesTableCreateCompanionBuilder,
           $$EpgSourcesTableUpdateCompanionBuilder,
-          (EpgSource, BaseReferences<_$AppDatabase, $EpgSourcesTable, EpgSource>),
+          (EpgSource, $$EpgSourcesTableReferences),
           EpgSource,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool epgChannelsRefs, bool epgProgrammesRefs, bool epgMappingsRefs})
         > {
   $$EpgSourcesTableTableManager(_$AppDatabase db, $EpgSourcesTable table)
     : super(
@@ -6358,8 +6742,7 @@ class $$EpgSourcesTableTableManager
           table: table,
           createFilteringComposer: () => $$EpgSourcesTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$EpgSourcesTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$EpgSourcesTableAnnotationComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$EpgSourcesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -6404,9 +6787,51 @@ class $$EpgSourcesTableTableManager
                 isAutoUpdate: isAutoUpdate,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable<$EpgSourcesTable, EpgSource>(table), $$EpgSourcesTableReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: ({epgChannelsRefs = false, epgProgrammesRefs = false, epgMappingsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (epgChannelsRefs) db.epgChannels,
+                if (epgProgrammesRefs) db.epgProgrammes,
+                if (epgMappingsRefs) db.epgMappings,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (epgChannelsRefs)
+                    await $_getPrefetchedData<EpgSource, $EpgSourcesTable, EpgChannel>(
+                      currentTable: table,
+                      referencedTable: $$EpgSourcesTableReferences._epgChannelsRefsTable(db),
+                      managerFromTypedResult: (p0) => $$EpgSourcesTableReferences(db, table, p0).epgChannelsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.sourceId == item.id),
+                      typedResults: items,
+                    ),
+                  if (epgProgrammesRefs)
+                    await $_getPrefetchedData<EpgSource, $EpgSourcesTable, EpgProgramme>(
+                      currentTable: table,
+                      referencedTable: $$EpgSourcesTableReferences._epgProgrammesRefsTable(db),
+                      managerFromTypedResult: (p0) => $$EpgSourcesTableReferences(db, table, p0).epgProgrammesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.sourceId == item.id),
+                      typedResults: items,
+                    ),
+                  if (epgMappingsRefs)
+                    await $_getPrefetchedData<EpgSource, $EpgSourcesTable, EpgMapping>(
+                      currentTable: table,
+                      referencedTable: $$EpgSourcesTableReferences._epgMappingsRefsTable(db),
+                      managerFromTypedResult: (p0) => $$EpgSourcesTableReferences(db, table, p0).epgMappingsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.epgSourceId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -6421,9 +6846,9 @@ typedef $$EpgSourcesTableProcessedTableManager =
       $$EpgSourcesTableAnnotationComposer,
       $$EpgSourcesTableCreateCompanionBuilder,
       $$EpgSourcesTableUpdateCompanionBuilder,
-      (EpgSource, BaseReferences<_$AppDatabase, $EpgSourcesTable, EpgSource>),
+      (EpgSource, $$EpgSourcesTableReferences),
       EpgSource,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool epgChannelsRefs, bool epgProgrammesRefs, bool epgMappingsRefs})
     >;
 typedef $$EpgChannelsTableCreateCompanionBuilder = EpgChannelsCompanion Function({
   required String id,
@@ -6442,6 +6867,22 @@ typedef $$EpgChannelsTableUpdateCompanionBuilder = EpgChannelsCompanion Function
   Value<int> rowid,
 });
 
+final class $$EpgChannelsTableReferences extends BaseReferences<_$AppDatabase, $EpgChannelsTable, EpgChannel> {
+  $$EpgChannelsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $EpgSourcesTable _sourceIdTable(_$AppDatabase db) =>
+      db.epgSources.createAlias('epg_channels__source_id__epg_sources__id');
+
+  $$EpgSourcesTableProcessedTableManager get sourceId {
+    final $_column = $_itemColumn<String>('source_id')!;
+
+    final manager = $$EpgSourcesTableTableManager($_db, $_db.epgSources).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
 class $$EpgChannelsTableFilterComposer extends Composer<_$AppDatabase, $EpgChannelsTable> {
   $$EpgChannelsTableFilterComposer({
     required super.$db,
@@ -6450,11 +6891,7 @@ class $$EpgChannelsTableFilterComposer extends Composer<_$AppDatabase, $EpgChann
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get sourceId =>
-      $composableBuilder(column: $table.sourceId, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get channelId =>
       $composableBuilder(column: $table.channelId, builder: (column) => ColumnFilters(column));
@@ -6464,6 +6901,24 @@ class $$EpgChannelsTableFilterComposer extends Composer<_$AppDatabase, $EpgChann
 
   ColumnFilters<String> get iconUrl =>
       $composableBuilder(column: $table.iconUrl, builder: (column) => ColumnFilters(column));
+
+  $$EpgSourcesTableFilterComposer get sourceId {
+    final $$EpgSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgChannelsTableOrderingComposer extends Composer<_$AppDatabase, $EpgChannelsTable> {
@@ -6474,11 +6929,7 @@ class $$EpgChannelsTableOrderingComposer extends Composer<_$AppDatabase, $EpgCha
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get sourceId =>
-      $composableBuilder(column: $table.sourceId, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get channelId =>
       $composableBuilder(column: $table.channelId, builder: (column) => ColumnOrderings(column));
@@ -6488,6 +6939,24 @@ class $$EpgChannelsTableOrderingComposer extends Composer<_$AppDatabase, $EpgCha
 
   ColumnOrderings<String> get iconUrl =>
       $composableBuilder(column: $table.iconUrl, builder: (column) => ColumnOrderings(column));
+
+  $$EpgSourcesTableOrderingComposer get sourceId {
+    final $$EpgSourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgChannelsTableAnnotationComposer extends Composer<_$AppDatabase, $EpgChannelsTable> {
@@ -6498,20 +6967,32 @@ class $$EpgChannelsTableAnnotationComposer extends Composer<_$AppDatabase, $EpgC
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get sourceId =>
-      $composableBuilder(column: $table.sourceId, builder: (column) => column);
-
-  GeneratedColumn<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => column);
+  GeneratedColumn<String> get channelId => $composableBuilder(column: $table.channelId, builder: (column) => column);
 
   GeneratedColumn<String> get displayName =>
       $composableBuilder(column: $table.displayName, builder: (column) => column);
 
-  GeneratedColumn<String> get iconUrl =>
-      $composableBuilder(column: $table.iconUrl, builder: (column) => column);
+  GeneratedColumn<String> get iconUrl => $composableBuilder(column: $table.iconUrl, builder: (column) => column);
+
+  $$EpgSourcesTableAnnotationComposer get sourceId {
+    final $$EpgSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgChannelsTableTableManager
@@ -6525,9 +7006,9 @@ class $$EpgChannelsTableTableManager
           $$EpgChannelsTableAnnotationComposer,
           $$EpgChannelsTableCreateCompanionBuilder,
           $$EpgChannelsTableUpdateCompanionBuilder,
-          (EpgChannel, BaseReferences<_$AppDatabase, $EpgChannelsTable, EpgChannel>),
+          (EpgChannel, $$EpgChannelsTableReferences),
           EpgChannel,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool sourceId})
         > {
   $$EpgChannelsTableTableManager(_$AppDatabase db, $EpgChannelsTable table)
     : super(
@@ -6536,8 +7017,7 @@ class $$EpgChannelsTableTableManager
           table: table,
           createFilteringComposer: () => $$EpgChannelsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$EpgChannelsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$EpgChannelsTableAnnotationComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$EpgChannelsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -6570,9 +7050,47 @@ class $$EpgChannelsTableTableManager
                 iconUrl: iconUrl,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (e.readTable<$EpgChannelsTable, EpgChannel>(table), $$EpgChannelsTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sourceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sourceId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.sourceId,
+                        referencedTable: $$EpgChannelsTableReferences._sourceIdTable(db),
+                        referencedColumn: $$EpgChannelsTableReferences._sourceIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ),
       );
 }
@@ -6587,9 +7105,9 @@ typedef $$EpgChannelsTableProcessedTableManager =
       $$EpgChannelsTableAnnotationComposer,
       $$EpgChannelsTableCreateCompanionBuilder,
       $$EpgChannelsTableUpdateCompanionBuilder,
-      (EpgChannel, BaseReferences<_$AppDatabase, $EpgChannelsTable, EpgChannel>),
+      (EpgChannel, $$EpgChannelsTableReferences),
       EpgChannel,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool sourceId})
     >;
 typedef $$EpgProgrammesTableCreateCompanionBuilder = EpgProgrammesCompanion Function({
   Value<int> id,
@@ -6600,6 +7118,7 @@ typedef $$EpgProgrammesTableCreateCompanionBuilder = EpgProgrammesCompanion Func
   Value<String?> subtitle,
   Value<String?> episodeNum,
   Value<String?> category,
+  Value<String?> catchupId,
   required DateTime start,
   required DateTime stop,
 });
@@ -6612,9 +7131,26 @@ typedef $$EpgProgrammesTableUpdateCompanionBuilder = EpgProgrammesCompanion Func
   Value<String?> subtitle,
   Value<String?> episodeNum,
   Value<String?> category,
+  Value<String?> catchupId,
   Value<DateTime> start,
   Value<DateTime> stop,
 });
+
+final class $$EpgProgrammesTableReferences extends BaseReferences<_$AppDatabase, $EpgProgrammesTable, EpgProgramme> {
+  $$EpgProgrammesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $EpgSourcesTable _sourceIdTable(_$AppDatabase db) =>
+      db.epgSources.createAlias('epg_programmes__source_id__epg_sources__id');
+
+  $$EpgSourcesTableProcessedTableManager get sourceId {
+    final $_column = $_itemColumn<String>('source_id')!;
+
+    final manager = $$EpgSourcesTableTableManager($_db, $_db.epgSources).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
 
 class $$EpgProgrammesTableFilterComposer extends Composer<_$AppDatabase, $EpgProgrammesTable> {
   $$EpgProgrammesTableFilterComposer({
@@ -6624,14 +7160,10 @@ class $$EpgProgrammesTableFilterComposer extends Composer<_$AppDatabase, $EpgPro
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get sourceId =>
-      $composableBuilder(column: $table.sourceId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => ColumnFilters(column));
@@ -6648,11 +7180,32 @@ class $$EpgProgrammesTableFilterComposer extends Composer<_$AppDatabase, $EpgPro
   ColumnFilters<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<String> get catchupId =>
+      $composableBuilder(column: $table.catchupId, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<DateTime> get start =>
       $composableBuilder(column: $table.start, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get stop =>
       $composableBuilder(column: $table.stop, builder: (column) => ColumnFilters(column));
+
+  $$EpgSourcesTableFilterComposer get sourceId {
+    final $$EpgSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgProgrammesTableOrderingComposer extends Composer<_$AppDatabase, $EpgProgrammesTable> {
@@ -6663,14 +7216,10 @@ class $$EpgProgrammesTableOrderingComposer extends Composer<_$AppDatabase, $EpgP
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get sourceId =>
-      $composableBuilder(column: $table.sourceId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => ColumnOrderings(column));
@@ -6687,11 +7236,32 @@ class $$EpgProgrammesTableOrderingComposer extends Composer<_$AppDatabase, $EpgP
   ColumnOrderings<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get catchupId =>
+      $composableBuilder(column: $table.catchupId, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get start =>
       $composableBuilder(column: $table.start, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get stop =>
       $composableBuilder(column: $table.stop, builder: (column) => ColumnOrderings(column));
+
+  $$EpgSourcesTableOrderingComposer get sourceId {
+    final $$EpgSourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgProgrammesTableAnnotationComposer extends Composer<_$AppDatabase, $EpgProgrammesTable> {
@@ -6707,29 +7277,40 @@ class $$EpgProgrammesTableAnnotationComposer extends Composer<_$AppDatabase, $Ep
   GeneratedColumn<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => column);
 
-  GeneratedColumn<String> get sourceId =>
-      $composableBuilder(column: $table.sourceId, builder: (column) => column);
-
-  GeneratedColumn<String> get title =>
-      $composableBuilder(column: $table.title, builder: (column) => column);
+  GeneratedColumn<String> get title => $composableBuilder(column: $table.title, builder: (column) => column);
 
   GeneratedColumn<String> get description =>
       $composableBuilder(column: $table.description, builder: (column) => column);
 
-  GeneratedColumn<String> get subtitle =>
-      $composableBuilder(column: $table.subtitle, builder: (column) => column);
+  GeneratedColumn<String> get subtitle => $composableBuilder(column: $table.subtitle, builder: (column) => column);
 
-  GeneratedColumn<String> get episodeNum =>
-      $composableBuilder(column: $table.episodeNum, builder: (column) => column);
+  GeneratedColumn<String> get episodeNum => $composableBuilder(column: $table.episodeNum, builder: (column) => column);
 
-  GeneratedColumn<String> get category =>
-      $composableBuilder(column: $table.category, builder: (column) => column);
+  GeneratedColumn<String> get category => $composableBuilder(column: $table.category, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get start =>
-      $composableBuilder(column: $table.start, builder: (column) => column);
+  GeneratedColumn<String> get catchupId => $composableBuilder(column: $table.catchupId, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get stop =>
-      $composableBuilder(column: $table.stop, builder: (column) => column);
+  GeneratedColumn<DateTime> get start => $composableBuilder(column: $table.start, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get stop => $composableBuilder(column: $table.stop, builder: (column) => column);
+
+  $$EpgSourcesTableAnnotationComposer get sourceId {
+    final $$EpgSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgProgrammesTableTableManager
@@ -6743,9 +7324,9 @@ class $$EpgProgrammesTableTableManager
           $$EpgProgrammesTableAnnotationComposer,
           $$EpgProgrammesTableCreateCompanionBuilder,
           $$EpgProgrammesTableUpdateCompanionBuilder,
-          (EpgProgramme, BaseReferences<_$AppDatabase, $EpgProgrammesTable, EpgProgramme>),
+          (EpgProgramme, $$EpgProgrammesTableReferences),
           EpgProgramme,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool sourceId})
         > {
   $$EpgProgrammesTableTableManager(_$AppDatabase db, $EpgProgrammesTable table)
     : super(
@@ -6753,10 +7334,8 @@ class $$EpgProgrammesTableTableManager
           db: db,
           table: table,
           createFilteringComposer: () => $$EpgProgrammesTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$EpgProgrammesTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$EpgProgrammesTableAnnotationComposer($db: db, $table: table),
+          createOrderingComposer: () => $$EpgProgrammesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$EpgProgrammesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
@@ -6767,6 +7346,7 @@ class $$EpgProgrammesTableTableManager
                 Value<String?> subtitle = const Value.absent(),
                 Value<String?> episodeNum = const Value.absent(),
                 Value<String?> category = const Value.absent(),
+                Value<String?> catchupId = const Value.absent(),
                 Value<DateTime> start = const Value.absent(),
                 Value<DateTime> stop = const Value.absent(),
               }) => EpgProgrammesCompanion(
@@ -6778,6 +7358,7 @@ class $$EpgProgrammesTableTableManager
                 subtitle: subtitle,
                 episodeNum: episodeNum,
                 category: category,
+                catchupId: catchupId,
                 start: start,
                 stop: stop,
               ),
@@ -6791,6 +7372,7 @@ class $$EpgProgrammesTableTableManager
                 Value<String?> subtitle = const Value.absent(),
                 Value<String?> episodeNum = const Value.absent(),
                 Value<String?> category = const Value.absent(),
+                Value<String?> catchupId = const Value.absent(),
                 required DateTime start,
                 required DateTime stop,
               }) => EpgProgrammesCompanion.insert(
@@ -6802,12 +7384,54 @@ class $$EpgProgrammesTableTableManager
                 subtitle: subtitle,
                 episodeNum: episodeNum,
                 category: category,
+                catchupId: catchupId,
                 start: start,
                 stop: stop,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$EpgProgrammesTable, EpgProgramme>(table),
+                  $$EpgProgrammesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sourceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sourceId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.sourceId,
+                        referencedTable: $$EpgProgrammesTableReferences._sourceIdTable(db),
+                        referencedColumn: $$EpgProgrammesTableReferences._sourceIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ),
       );
 }
@@ -6822,9 +7446,9 @@ typedef $$EpgProgrammesTableProcessedTableManager =
       $$EpgProgrammesTableAnnotationComposer,
       $$EpgProgrammesTableCreateCompanionBuilder,
       $$EpgProgrammesTableUpdateCompanionBuilder,
-      (EpgProgramme, BaseReferences<_$AppDatabase, $EpgProgrammesTable, EpgProgramme>),
+      (EpgProgramme, $$EpgProgrammesTableReferences),
       EpgProgramme,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool sourceId})
     >;
 typedef $$EpgMappingsTableCreateCompanionBuilder = EpgMappingsCompanion Function({
   required String channelId,
@@ -6849,6 +7473,34 @@ typedef $$EpgMappingsTableUpdateCompanionBuilder = EpgMappingsCompanion Function
   Value<int> rowid,
 });
 
+final class $$EpgMappingsTableReferences extends BaseReferences<_$AppDatabase, $EpgMappingsTable, EpgMapping> {
+  $$EpgMappingsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ChannelsTable _channelIdTable(_$AppDatabase db) =>
+      db.channels.createAlias('epg_mappings__channel_id__channels__id');
+
+  $$ChannelsTableProcessedTableManager get channelId {
+    final $_column = $_itemColumn<String>('channel_id')!;
+
+    final manager = $$ChannelsTableTableManager($_db, $_db.channels).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $EpgSourcesTable _epgSourceIdTable(_$AppDatabase db) =>
+      db.epgSources.createAlias('epg_mappings__epg_source_id__epg_sources__id');
+
+  $$EpgSourcesTableProcessedTableManager get epgSourceId {
+    final $_column = $_itemColumn<String>('epg_source_id')!;
+
+    final manager = $$EpgSourcesTableTableManager($_db, $_db.epgSources).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_epgSourceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
 class $$EpgMappingsTableFilterComposer extends Composer<_$AppDatabase, $EpgMappingsTable> {
   $$EpgMappingsTableFilterComposer({
     required super.$db,
@@ -6857,17 +7509,11 @@ class $$EpgMappingsTableFilterComposer extends Composer<_$AppDatabase, $EpgMappi
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => ColumnFilters(column));
-
   ColumnFilters<String> get providerId =>
       $composableBuilder(column: $table.providerId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get epgSourceId =>
-      $composableBuilder(column: $table.epgSourceId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get confidence =>
       $composableBuilder(column: $table.confidence, builder: (column) => ColumnFilters(column));
@@ -6880,6 +7526,42 @@ class $$EpgMappingsTableFilterComposer extends Composer<_$AppDatabase, $EpgMappi
 
   ColumnFilters<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$ChannelsTableFilterComposer get channelId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$EpgSourcesTableFilterComposer get epgSourceId {
+    final $$EpgSourcesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.epgSourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableFilterComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgMappingsTableOrderingComposer extends Composer<_$AppDatabase, $EpgMappingsTable> {
@@ -6890,17 +7572,11 @@ class $$EpgMappingsTableOrderingComposer extends Composer<_$AppDatabase, $EpgMap
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<String> get providerId =>
       $composableBuilder(column: $table.providerId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get epgSourceId =>
-      $composableBuilder(column: $table.epgSourceId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get confidence =>
       $composableBuilder(column: $table.confidence, builder: (column) => ColumnOrderings(column));
@@ -6913,6 +7589,42 @@ class $$EpgMappingsTableOrderingComposer extends Composer<_$AppDatabase, $EpgMap
 
   ColumnOrderings<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$ChannelsTableOrderingComposer get channelId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$EpgSourcesTableOrderingComposer get epgSourceId {
+    final $$EpgSourcesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.epgSourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableOrderingComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgMappingsTableAnnotationComposer extends Composer<_$AppDatabase, $EpgMappingsTable> {
@@ -6923,29 +7635,54 @@ class $$EpgMappingsTableAnnotationComposer extends Composer<_$AppDatabase, $EpgM
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => column);
-
-  GeneratedColumn<String> get providerId =>
-      $composableBuilder(column: $table.providerId, builder: (column) => column);
+  GeneratedColumn<String> get providerId => $composableBuilder(column: $table.providerId, builder: (column) => column);
 
   GeneratedColumn<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => column);
 
-  GeneratedColumn<String> get epgSourceId =>
-      $composableBuilder(column: $table.epgSourceId, builder: (column) => column);
+  GeneratedColumn<double> get confidence => $composableBuilder(column: $table.confidence, builder: (column) => column);
 
-  GeneratedColumn<double> get confidence =>
-      $composableBuilder(column: $table.confidence, builder: (column) => column);
+  GeneratedColumn<String> get source => $composableBuilder(column: $table.source, builder: (column) => column);
 
-  GeneratedColumn<String> get source =>
-      $composableBuilder(column: $table.source, builder: (column) => column);
+  GeneratedColumn<bool> get locked => $composableBuilder(column: $table.locked, builder: (column) => column);
 
-  GeneratedColumn<bool> get locked =>
-      $composableBuilder(column: $table.locked, builder: (column) => column);
+  GeneratedColumn<DateTime> get updatedAt => $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+  $$ChannelsTableAnnotationComposer get channelId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$EpgSourcesTableAnnotationComposer get epgSourceId {
+    final $$EpgSourcesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.epgSourceId,
+      referencedTable: $db.epgSources,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$EpgSourcesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgSources,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EpgMappingsTableTableManager
@@ -6959,9 +7696,9 @@ class $$EpgMappingsTableTableManager
           $$EpgMappingsTableAnnotationComposer,
           $$EpgMappingsTableCreateCompanionBuilder,
           $$EpgMappingsTableUpdateCompanionBuilder,
-          (EpgMapping, BaseReferences<_$AppDatabase, $EpgMappingsTable, EpgMapping>),
+          (EpgMapping, $$EpgMappingsTableReferences),
           EpgMapping,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool channelId, bool epgSourceId})
         > {
   $$EpgMappingsTableTableManager(_$AppDatabase db, $EpgMappingsTable table)
     : super(
@@ -6970,8 +7707,7 @@ class $$EpgMappingsTableTableManager
           table: table,
           createFilteringComposer: () => $$EpgMappingsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$EpgMappingsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$EpgMappingsTableAnnotationComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$EpgMappingsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> channelId = const Value.absent(),
@@ -7016,9 +7752,55 @@ class $$EpgMappingsTableTableManager
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (e.readTable<$EpgMappingsTable, EpgMapping>(table), $$EpgMappingsTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({channelId = false, epgSourceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (channelId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.channelId,
+                        referencedTable: $$EpgMappingsTableReferences._channelIdTable(db),
+                        referencedColumn: $$EpgMappingsTableReferences._channelIdTable(db).id,
+                      ) as T;
+                    }
+                    if (epgSourceId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.epgSourceId,
+                        referencedTable: $$EpgMappingsTableReferences._epgSourceIdTable(db),
+                        referencedColumn: $$EpgMappingsTableReferences._epgSourceIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ),
       );
 }
@@ -7033,9 +7815,9 @@ typedef $$EpgMappingsTableProcessedTableManager =
       $$EpgMappingsTableAnnotationComposer,
       $$EpgMappingsTableCreateCompanionBuilder,
       $$EpgMappingsTableUpdateCompanionBuilder,
-      (EpgMapping, BaseReferences<_$AppDatabase, $EpgMappingsTable, EpgMapping>),
+      (EpgMapping, $$EpgMappingsTableReferences),
       EpgMapping,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool channelId, bool epgSourceId})
     >;
 typedef $$ChannelGroupsTableCreateCompanionBuilder = ChannelGroupsCompanion Function({
   required String id,
@@ -7060,11 +7842,9 @@ class $$ChannelGroupsTableFilterComposer extends Composer<_$AppDatabase, $Channe
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnFilters(column));
@@ -7081,8 +7861,7 @@ class $$ChannelGroupsTableOrderingComposer extends Composer<_$AppDatabase, $Chan
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
@@ -7102,17 +7881,13 @@ class $$ChannelGroupsTableAnnotationComposer extends Composer<_$AppDatabase, $Ch
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<int> get sortOrder =>
-      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+  GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
-  GeneratedColumn<bool> get hidden =>
-      $composableBuilder(column: $table.hidden, builder: (column) => column);
+  GeneratedColumn<bool> get hidden => $composableBuilder(column: $table.hidden, builder: (column) => column);
 }
 
 class $$ChannelGroupsTableTableManager
@@ -7136,40 +7911,30 @@ class $$ChannelGroupsTableTableManager
           db: db,
           table: table,
           createFilteringComposer: () => $$ChannelGroupsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$ChannelGroupsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ChannelGroupsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> id = const Value.absent(),
-                Value<String> name = const Value.absent(),
-                Value<int> sortOrder = const Value.absent(),
-                Value<bool> hidden = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => ChannelGroupsCompanion(
-                id: id,
-                name: name,
-                sortOrder: sortOrder,
-                hidden: hidden,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String id,
-                required String name,
-                Value<int> sortOrder = const Value.absent(),
-                Value<bool> hidden = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => ChannelGroupsCompanion.insert(
-                id: id,
-                name: name,
-                sortOrder: sortOrder,
-                hidden: hidden,
-                rowid: rowid,
-              ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+          createOrderingComposer: () => $$ChannelGroupsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$ChannelGroupsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            Value<bool> hidden = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) => ChannelGroupsCompanion(id: id, name: name, sortOrder: sortOrder, hidden: hidden, rowid: rowid),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            Value<int> sortOrder = const Value.absent(),
+            Value<bool> hidden = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) => ChannelGroupsCompanion.insert(id: id, name: name, sortOrder: sortOrder, hidden: hidden, rowid: rowid),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ChannelGroupsTable, ChannelGroup>(table),
+                  BaseReferences<_$AppDatabase, $ChannelGroupsTable, ChannelGroup>(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -7206,6 +7971,27 @@ typedef $$FavoriteListsTableUpdateCompanionBuilder = FavoriteListsCompanion Func
   Value<int> rowid,
 });
 
+final class $$FavoriteListsTableReferences extends BaseReferences<_$AppDatabase, $FavoriteListsTable, FavoriteList> {
+  $$FavoriteListsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$FavoriteListChannelsTable, List<FavoriteListChannel>> _favoriteListChannelsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.favoriteListChannels,
+    aliasName: 'favorite_lists__id__favorite_list_channels__list_id',
+  );
+
+  $$FavoriteListChannelsTableProcessedTableManager get favoriteListChannelsRefs {
+    final manager = $$FavoriteListChannelsTableTableManager(
+      $_db,
+      $_db.favoriteListChannels,
+    ).filter((f) => f.listId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_favoriteListChannelsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
 class $$FavoriteListsTableFilterComposer extends Composer<_$AppDatabase, $FavoriteListsTable> {
   $$FavoriteListsTableFilterComposer({
     required super.$db,
@@ -7214,20 +8000,35 @@ class $$FavoriteListsTableFilterComposer extends Composer<_$AppDatabase, $Favori
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get icon =>
-      $composableBuilder(column: $table.icon, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get icon => $composableBuilder(column: $table.icon, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> favoriteListChannelsRefs(Expression<bool> Function($$FavoriteListChannelsTableFilterComposer f) f) {
+    final $$FavoriteListChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.favoriteListChannels,
+      getReferencedColumn: (t) => t.listId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.favoriteListChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FavoriteListsTableOrderingComposer extends Composer<_$AppDatabase, $FavoriteListsTable> {
@@ -7238,8 +8039,7 @@ class $$FavoriteListsTableOrderingComposer extends Composer<_$AppDatabase, $Favo
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
@@ -7262,20 +8062,35 @@ class $$FavoriteListsTableAnnotationComposer extends Composer<_$AppDatabase, $Fa
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<String> get icon =>
-      $composableBuilder(column: $table.icon, builder: (column) => column);
+  GeneratedColumn<String> get icon => $composableBuilder(column: $table.icon, builder: (column) => column);
 
-  GeneratedColumn<int> get sortOrder =>
-      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+  GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  Expression<T> favoriteListChannelsRefs<T extends Object>(
+    Expression<T> Function($$FavoriteListChannelsTableAnnotationComposer a) f,
+  ) {
+    final $$FavoriteListChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.favoriteListChannels,
+      getReferencedColumn: (t) => t.listId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.favoriteListChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FavoriteListsTableTableManager
@@ -7289,9 +8104,9 @@ class $$FavoriteListsTableTableManager
           $$FavoriteListsTableAnnotationComposer,
           $$FavoriteListsTableCreateCompanionBuilder,
           $$FavoriteListsTableUpdateCompanionBuilder,
-          (FavoriteList, BaseReferences<_$AppDatabase, $FavoriteListsTable, FavoriteList>),
+          (FavoriteList, $$FavoriteListsTableReferences),
           FavoriteList,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool favoriteListChannelsRefs})
         > {
   $$FavoriteListsTableTableManager(_$AppDatabase db, $FavoriteListsTable table)
     : super(
@@ -7299,10 +8114,8 @@ class $$FavoriteListsTableTableManager
           db: db,
           table: table,
           createFilteringComposer: () => $$FavoriteListsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FavoriteListsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FavoriteListsTableAnnotationComposer($db: db, $table: table),
+          createOrderingComposer: () => $$FavoriteListsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$FavoriteListsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7335,9 +8148,35 @@ class $$FavoriteListsTableTableManager
                 createdAt: createdAt,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FavoriteListsTable, FavoriteList>(table),
+                  $$FavoriteListsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({favoriteListChannelsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (favoriteListChannelsRefs) db.favoriteListChannels],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (favoriteListChannelsRefs)
+                    await $_getPrefetchedData<FavoriteList, $FavoriteListsTable, FavoriteListChannel>(
+                      currentTable: table,
+                      referencedTable: $$FavoriteListsTableReferences._favoriteListChannelsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$FavoriteListsTableReferences(db, table, p0).favoriteListChannelsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.listId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -7352,9 +8191,9 @@ typedef $$FavoriteListsTableProcessedTableManager =
       $$FavoriteListsTableAnnotationComposer,
       $$FavoriteListsTableCreateCompanionBuilder,
       $$FavoriteListsTableUpdateCompanionBuilder,
-      (FavoriteList, BaseReferences<_$AppDatabase, $FavoriteListsTable, FavoriteList>),
+      (FavoriteList, $$FavoriteListsTableReferences),
       FavoriteList,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool favoriteListChannelsRefs})
     >;
 typedef $$FavoriteListChannelsTableCreateCompanionBuilder = FavoriteListChannelsCompanion Function({
   required String listId,
@@ -7371,8 +8210,36 @@ typedef $$FavoriteListChannelsTableUpdateCompanionBuilder = FavoriteListChannels
   Value<int> rowid,
 });
 
-class $$FavoriteListChannelsTableFilterComposer
-    extends Composer<_$AppDatabase, $FavoriteListChannelsTable> {
+final class $$FavoriteListChannelsTableReferences
+    extends BaseReferences<_$AppDatabase, $FavoriteListChannelsTable, FavoriteListChannel> {
+  $$FavoriteListChannelsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $FavoriteListsTable _listIdTable(_$AppDatabase db) =>
+      db.favoriteLists.createAlias('favorite_list_channels__list_id__favorite_lists__id');
+
+  $$FavoriteListsTableProcessedTableManager get listId {
+    final $_column = $_itemColumn<String>('list_id')!;
+
+    final manager = $$FavoriteListsTableTableManager($_db, $_db.favoriteLists).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_listIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $ChannelsTable _channelIdTable(_$AppDatabase db) =>
+      db.channels.createAlias('favorite_list_channels__channel_id__channels__id');
+
+  $$ChannelsTableProcessedTableManager get channelId {
+    final $_column = $_itemColumn<String>('channel_id')!;
+
+    final manager = $$ChannelsTableTableManager($_db, $_db.channels).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$FavoriteListChannelsTableFilterComposer extends Composer<_$AppDatabase, $FavoriteListChannelsTable> {
   $$FavoriteListChannelsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -7380,21 +8247,50 @@ class $$FavoriteListChannelsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get listId =>
-      $composableBuilder(column: $table.listId, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => ColumnFilters(column));
-
   ColumnFilters<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => ColumnFilters(column));
+
+  $$FavoriteListsTableFilterComposer get listId {
+    final $$FavoriteListsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.listId,
+      referencedTable: $db.favoriteLists,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListsTableFilterComposer(
+            $db: $db,
+            $table: $db.favoriteLists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableFilterComposer get channelId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$FavoriteListChannelsTableOrderingComposer
-    extends Composer<_$AppDatabase, $FavoriteListChannelsTable> {
+class $$FavoriteListChannelsTableOrderingComposer extends Composer<_$AppDatabase, $FavoriteListChannelsTable> {
   $$FavoriteListChannelsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -7402,21 +8298,50 @@ class $$FavoriteListChannelsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get listId =>
-      $composableBuilder(column: $table.listId, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => ColumnOrderings(column));
+
+  $$FavoriteListsTableOrderingComposer get listId {
+    final $$FavoriteListsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.listId,
+      referencedTable: $db.favoriteLists,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListsTableOrderingComposer(
+            $db: $db,
+            $table: $db.favoriteLists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableOrderingComposer get channelId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$FavoriteListChannelsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FavoriteListChannelsTable> {
+class $$FavoriteListChannelsTableAnnotationComposer extends Composer<_$AppDatabase, $FavoriteListChannelsTable> {
   $$FavoriteListChannelsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -7424,17 +8349,45 @@ class $$FavoriteListChannelsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get listId =>
-      $composableBuilder(column: $table.listId, builder: (column) => column);
+  GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
-  GeneratedColumn<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => column);
+  GeneratedColumn<DateTime> get addedAt => $composableBuilder(column: $table.addedAt, builder: (column) => column);
 
-  GeneratedColumn<int> get sortOrder =>
-      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+  $$FavoriteListsTableAnnotationComposer get listId {
+    final $$FavoriteListsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.listId,
+      referencedTable: $db.favoriteLists,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FavoriteListsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.favoriteLists,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
-  GeneratedColumn<DateTime> get addedAt =>
-      $composableBuilder(column: $table.addedAt, builder: (column) => column);
+  $$ChannelsTableAnnotationComposer get channelId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$FavoriteListChannelsTableTableManager
@@ -7448,24 +8401,18 @@ class $$FavoriteListChannelsTableTableManager
           $$FavoriteListChannelsTableAnnotationComposer,
           $$FavoriteListChannelsTableCreateCompanionBuilder,
           $$FavoriteListChannelsTableUpdateCompanionBuilder,
-          (
-            FavoriteListChannel,
-            BaseReferences<_$AppDatabase, $FavoriteListChannelsTable, FavoriteListChannel>,
-          ),
+          (FavoriteListChannel, $$FavoriteListChannelsTableReferences),
           FavoriteListChannel,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool listId, bool channelId})
         > {
   $$FavoriteListChannelsTableTableManager(_$AppDatabase db, $FavoriteListChannelsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer: () =>
-              $$FavoriteListChannelsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FavoriteListChannelsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FavoriteListChannelsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () => $$FavoriteListChannelsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$FavoriteListChannelsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$FavoriteListChannelsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> listId = const Value.absent(),
@@ -7494,9 +8441,58 @@ class $$FavoriteListChannelsTableTableManager
                 addedAt: addedAt,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FavoriteListChannelsTable, FavoriteListChannel>(table),
+                  $$FavoriteListChannelsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({listId = false, channelId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (listId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.listId,
+                        referencedTable: $$FavoriteListChannelsTableReferences._listIdTable(db),
+                        referencedColumn: $$FavoriteListChannelsTableReferences._listIdTable(db).id,
+                      ) as T;
+                    }
+                    if (channelId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.channelId,
+                        referencedTable: $$FavoriteListChannelsTableReferences._channelIdTable(db),
+                        referencedColumn: $$FavoriteListChannelsTableReferences._channelIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ),
       );
 }
@@ -7511,12 +8507,9 @@ typedef $$FavoriteListChannelsTableProcessedTableManager =
       $$FavoriteListChannelsTableAnnotationComposer,
       $$FavoriteListChannelsTableCreateCompanionBuilder,
       $$FavoriteListChannelsTableUpdateCompanionBuilder,
-      (
-        FavoriteListChannel,
-        BaseReferences<_$AppDatabase, $FavoriteListChannelsTable, FavoriteListChannel>,
-      ),
+      (FavoriteListChannel, $$FavoriteListChannelsTableReferences),
       FavoriteListChannel,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool listId, bool channelId})
     >;
 typedef $$EpgRemindersTableCreateCompanionBuilder = EpgRemindersCompanion Function({
   required String id,
@@ -7551,8 +8544,7 @@ class $$EpgRemindersTableFilterComposer extends Composer<_$AppDatabase, $EpgRemi
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnFilters(column));
@@ -7572,8 +8564,7 @@ class $$EpgRemindersTableFilterComposer extends Composer<_$AppDatabase, $EpgRemi
   ColumnFilters<int> get minutesBefore =>
       $composableBuilder(column: $table.minutesBefore, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<bool> get fired =>
-      $composableBuilder(column: $table.fired, builder: (column) => ColumnFilters(column));
+  ColumnFilters<bool> get fired => $composableBuilder(column: $table.fired, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -7587,8 +8578,7 @@ class $$EpgRemindersTableOrderingComposer extends Composer<_$AppDatabase, $EpgRe
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnOrderings(column));
@@ -7596,25 +8586,17 @@ class $$EpgRemindersTableOrderingComposer extends Composer<_$AppDatabase, $EpgRe
   ColumnOrderings<String> get channelId =>
       $composableBuilder(column: $table.channelId, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get programmeTitle => $composableBuilder(
-    column: $table.programmeTitle,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<String> get programmeTitle =>
+      $composableBuilder(column: $table.programmeTitle, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<DateTime> get programmeStart => $composableBuilder(
-    column: $table.programmeStart,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<DateTime> get programmeStart =>
+      $composableBuilder(column: $table.programmeStart, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<DateTime> get programmeStop => $composableBuilder(
-    column: $table.programmeStop,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<DateTime> get programmeStop =>
+      $composableBuilder(column: $table.programmeStop, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<int> get minutesBefore => $composableBuilder(
-    column: $table.minutesBefore,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<int> get minutesBefore =>
+      $composableBuilder(column: $table.minutesBefore, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get fired =>
       $composableBuilder(column: $table.fired, builder: (column) => ColumnOrderings(column));
@@ -7631,14 +8613,12 @@ class $$EpgRemindersTableAnnotationComposer extends Composer<_$AppDatabase, $Epg
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => column);
 
-  GeneratedColumn<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => column);
+  GeneratedColumn<String> get channelId => $composableBuilder(column: $table.channelId, builder: (column) => column);
 
   GeneratedColumn<String> get programmeTitle =>
       $composableBuilder(column: $table.programmeTitle, builder: (column) => column);
@@ -7652,11 +8632,9 @@ class $$EpgRemindersTableAnnotationComposer extends Composer<_$AppDatabase, $Epg
   GeneratedColumn<int> get minutesBefore =>
       $composableBuilder(column: $table.minutesBefore, builder: (column) => column);
 
-  GeneratedColumn<bool> get fired =>
-      $composableBuilder(column: $table.fired, builder: (column) => column);
+  GeneratedColumn<bool> get fired => $composableBuilder(column: $table.fired, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
 
 class $$EpgRemindersTableTableManager
@@ -7681,8 +8659,7 @@ class $$EpgRemindersTableTableManager
           table: table,
           createFilteringComposer: () => $$EpgRemindersTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$EpgRemindersTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$EpgRemindersTableAnnotationComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$EpgRemindersTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7731,8 +8708,14 @@ class $$EpgRemindersTableTableManager
                 createdAt: createdAt,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$EpgRemindersTable, EpgReminder>(table),
+                  BaseReferences<_$AppDatabase, $EpgRemindersTable, EpgReminder>(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -7777,8 +8760,7 @@ typedef $$ScheduledRecordingsTableUpdateCompanionBuilder = ScheduledRecordingsCo
   Value<int> rowid,
 });
 
-class $$ScheduledRecordingsTableFilterComposer
-    extends Composer<_$AppDatabase, $ScheduledRecordingsTable> {
+class $$ScheduledRecordingsTableFilterComposer extends Composer<_$AppDatabase, $ScheduledRecordingsTable> {
   $$ScheduledRecordingsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -7786,8 +8768,7 @@ class $$ScheduledRecordingsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnFilters(column));
@@ -7814,8 +8795,7 @@ class $$ScheduledRecordingsTableFilterComposer
       $composableBuilder(column: $table.createdAt, builder: (column) => ColumnFilters(column));
 }
 
-class $$ScheduledRecordingsTableOrderingComposer
-    extends Composer<_$AppDatabase, $ScheduledRecordingsTable> {
+class $$ScheduledRecordingsTableOrderingComposer extends Composer<_$AppDatabase, $ScheduledRecordingsTable> {
   $$ScheduledRecordingsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -7823,8 +8803,7 @@ class $$ScheduledRecordingsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => ColumnOrderings(column));
@@ -7832,20 +8811,14 @@ class $$ScheduledRecordingsTableOrderingComposer
   ColumnOrderings<String> get channelId =>
       $composableBuilder(column: $table.channelId, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get programmeTitle => $composableBuilder(
-    column: $table.programmeTitle,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<String> get programmeTitle =>
+      $composableBuilder(column: $table.programmeTitle, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<DateTime> get programmeStart => $composableBuilder(
-    column: $table.programmeStart,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<DateTime> get programmeStart =>
+      $composableBuilder(column: $table.programmeStart, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<DateTime> get programmeStop => $composableBuilder(
-    column: $table.programmeStop,
-    builder: (column) => ColumnOrderings(column),
-  );
+  ColumnOrderings<DateTime> get programmeStop =>
+      $composableBuilder(column: $table.programmeStop, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => ColumnOrderings(column));
@@ -7857,8 +8830,7 @@ class $$ScheduledRecordingsTableOrderingComposer
       $composableBuilder(column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 }
 
-class $$ScheduledRecordingsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ScheduledRecordingsTable> {
+class $$ScheduledRecordingsTableAnnotationComposer extends Composer<_$AppDatabase, $ScheduledRecordingsTable> {
   $$ScheduledRecordingsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -7866,14 +8838,12 @@ class $$ScheduledRecordingsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
+  GeneratedColumn<String> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
   GeneratedColumn<String> get epgChannelId =>
       $composableBuilder(column: $table.epgChannelId, builder: (column) => column);
 
-  GeneratedColumn<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => column);
+  GeneratedColumn<String> get channelId => $composableBuilder(column: $table.channelId, builder: (column) => column);
 
   GeneratedColumn<String> get programmeTitle =>
       $composableBuilder(column: $table.programmeTitle, builder: (column) => column);
@@ -7884,14 +8854,11 @@ class $$ScheduledRecordingsTableAnnotationComposer
   GeneratedColumn<DateTime> get programmeStop =>
       $composableBuilder(column: $table.programmeStop, builder: (column) => column);
 
-  GeneratedColumn<String> get status =>
-      $composableBuilder(column: $table.status, builder: (column) => column);
+  GeneratedColumn<String> get status => $composableBuilder(column: $table.status, builder: (column) => column);
 
-  GeneratedColumn<String> get outputPath =>
-      $composableBuilder(column: $table.outputPath, builder: (column) => column);
+  GeneratedColumn<String> get outputPath => $composableBuilder(column: $table.outputPath, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
 
 class $$ScheduledRecordingsTableTableManager
@@ -7905,10 +8872,7 @@ class $$ScheduledRecordingsTableTableManager
           $$ScheduledRecordingsTableAnnotationComposer,
           $$ScheduledRecordingsTableCreateCompanionBuilder,
           $$ScheduledRecordingsTableUpdateCompanionBuilder,
-          (
-            ScheduledRecording,
-            BaseReferences<_$AppDatabase, $ScheduledRecordingsTable, ScheduledRecording>,
-          ),
+          (ScheduledRecording, BaseReferences<_$AppDatabase, $ScheduledRecordingsTable, ScheduledRecording>),
           ScheduledRecording,
           PrefetchHooks Function()
         > {
@@ -7917,12 +8881,9 @@ class $$ScheduledRecordingsTableTableManager
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer: () =>
-              $$ScheduledRecordingsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$ScheduledRecordingsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ScheduledRecordingsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () => $$ScheduledRecordingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$ScheduledRecordingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$ScheduledRecordingsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
@@ -7971,8 +8932,14 @@ class $$ScheduledRecordingsTableTableManager
                 createdAt: createdAt,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ScheduledRecordingsTable, ScheduledRecording>(table),
+                  BaseReferences<_$AppDatabase, $ScheduledRecordingsTable, ScheduledRecording>(db, table, e),
+                ),
+              )
+              .toList(),
           prefetchHooksCallback: null,
         ),
       );
@@ -7988,10 +8955,7 @@ typedef $$ScheduledRecordingsTableProcessedTableManager =
       $$ScheduledRecordingsTableAnnotationComposer,
       $$ScheduledRecordingsTableCreateCompanionBuilder,
       $$ScheduledRecordingsTableUpdateCompanionBuilder,
-      (
-        ScheduledRecording,
-        BaseReferences<_$AppDatabase, $ScheduledRecordingsTable, ScheduledRecording>,
-      ),
+      (ScheduledRecording, BaseReferences<_$AppDatabase, $ScheduledRecordingsTable, ScheduledRecording>),
       ScheduledRecording,
       PrefetchHooks Function()
     >;
@@ -8006,6 +8970,27 @@ typedef $$FailoverGroupsTableUpdateCompanionBuilder = FailoverGroupsCompanion Fu
   Value<DateTime> createdAt,
 });
 
+final class $$FailoverGroupsTableReferences extends BaseReferences<_$AppDatabase, $FailoverGroupsTable, FailoverGroup> {
+  $$FailoverGroupsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$FailoverGroupChannelsTable, List<FailoverGroupChannel>> _failoverGroupChannelsRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.failoverGroupChannels,
+    aliasName: 'failover_groups__id__failover_group_channels__group_id',
+  );
+
+  $$FailoverGroupChannelsTableProcessedTableManager get failoverGroupChannelsRefs {
+    final manager = $$FailoverGroupChannelsTableTableManager(
+      $_db,
+      $_db.failoverGroupChannels,
+    ).filter((f) => f.groupId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_failoverGroupChannelsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
 class $$FailoverGroupsTableFilterComposer extends Composer<_$AppDatabase, $FailoverGroupsTable> {
   $$FailoverGroupsTableFilterComposer({
     required super.$db,
@@ -8014,14 +8999,32 @@ class $$FailoverGroupsTableFilterComposer extends Composer<_$AppDatabase, $Failo
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+  ColumnFilters<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> failoverGroupChannelsRefs(
+    Expression<bool> Function($$FailoverGroupChannelsTableFilterComposer f) f,
+  ) {
+    final $$FailoverGroupChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.failoverGroupChannels,
+      getReferencedColumn: (t) => t.groupId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.failoverGroupChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FailoverGroupsTableOrderingComposer extends Composer<_$AppDatabase, $FailoverGroupsTable> {
@@ -8032,8 +9035,7 @@ class $$FailoverGroupsTableOrderingComposer extends Composer<_$AppDatabase, $Fai
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
@@ -8042,8 +9044,7 @@ class $$FailoverGroupsTableOrderingComposer extends Composer<_$AppDatabase, $Fai
       $composableBuilder(column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 }
 
-class $$FailoverGroupsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FailoverGroupsTable> {
+class $$FailoverGroupsTableAnnotationComposer extends Composer<_$AppDatabase, $FailoverGroupsTable> {
   $$FailoverGroupsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -8053,11 +9054,29 @@ class $$FailoverGroupsTableAnnotationComposer
   });
   GeneratedColumn<int> get id => $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
-      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  Expression<T> failoverGroupChannelsRefs<T extends Object>(
+    Expression<T> Function($$FailoverGroupChannelsTableAnnotationComposer a) f,
+  ) {
+    final $$FailoverGroupChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.failoverGroupChannels,
+      getReferencedColumn: (t) => t.groupId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.failoverGroupChannels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FailoverGroupsTableTableManager
@@ -8071,21 +9090,18 @@ class $$FailoverGroupsTableTableManager
           $$FailoverGroupsTableAnnotationComposer,
           $$FailoverGroupsTableCreateCompanionBuilder,
           $$FailoverGroupsTableUpdateCompanionBuilder,
-          (FailoverGroup, BaseReferences<_$AppDatabase, $FailoverGroupsTable, FailoverGroup>),
+          (FailoverGroup, $$FailoverGroupsTableReferences),
           FailoverGroup,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool failoverGroupChannelsRefs})
         > {
   $$FailoverGroupsTableTableManager(_$AppDatabase db, $FailoverGroupsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer: () =>
-              $$FailoverGroupsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FailoverGroupsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FailoverGroupsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () => $$FailoverGroupsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$FailoverGroupsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$FailoverGroupsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<String> name = const Value.absent(),
@@ -8096,9 +9112,35 @@ class $$FailoverGroupsTableTableManager
             required String name,
             Value<DateTime> createdAt = const Value.absent(),
           }) => FailoverGroupsCompanion.insert(id: id, name: name, createdAt: createdAt),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FailoverGroupsTable, FailoverGroup>(table),
+                  $$FailoverGroupsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({failoverGroupChannelsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (failoverGroupChannelsRefs) db.failoverGroupChannels],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (failoverGroupChannelsRefs)
+                    await $_getPrefetchedData<FailoverGroup, $FailoverGroupsTable, FailoverGroupChannel>(
+                      currentTable: table,
+                      referencedTable: $$FailoverGroupsTableReferences._failoverGroupChannelsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$FailoverGroupsTableReferences(db, table, p0).failoverGroupChannelsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.groupId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -8113,27 +9155,56 @@ typedef $$FailoverGroupsTableProcessedTableManager =
       $$FailoverGroupsTableAnnotationComposer,
       $$FailoverGroupsTableCreateCompanionBuilder,
       $$FailoverGroupsTableUpdateCompanionBuilder,
-      (FailoverGroup, BaseReferences<_$AppDatabase, $FailoverGroupsTable, FailoverGroup>),
+      (FailoverGroup, $$FailoverGroupsTableReferences),
       FailoverGroup,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool failoverGroupChannelsRefs})
     >;
-typedef $$FailoverGroupChannelsTableCreateCompanionBuilder =
-    FailoverGroupChannelsCompanion Function({
-      required int groupId,
-      required String channelId,
-      Value<int> priority,
-      Value<int> rowid,
-    });
-typedef $$FailoverGroupChannelsTableUpdateCompanionBuilder =
-    FailoverGroupChannelsCompanion Function({
-      Value<int> groupId,
-      Value<String> channelId,
-      Value<int> priority,
-      Value<int> rowid,
-    });
+typedef $$FailoverGroupChannelsTableCreateCompanionBuilder = FailoverGroupChannelsCompanion Function({
+  required int groupId,
+  required String channelId,
+  Value<int> priority,
+  Value<int> rowid,
+});
+typedef $$FailoverGroupChannelsTableUpdateCompanionBuilder = FailoverGroupChannelsCompanion Function({
+  Value<int> groupId,
+  Value<String> channelId,
+  Value<int> priority,
+  Value<int> rowid,
+});
 
-class $$FailoverGroupChannelsTableFilterComposer
-    extends Composer<_$AppDatabase, $FailoverGroupChannelsTable> {
+final class $$FailoverGroupChannelsTableReferences
+    extends BaseReferences<_$AppDatabase, $FailoverGroupChannelsTable, FailoverGroupChannel> {
+  $$FailoverGroupChannelsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $FailoverGroupsTable _groupIdTable(_$AppDatabase db) =>
+      db.failoverGroups.createAlias('failover_group_channels__group_id__failover_groups__id');
+
+  $$FailoverGroupsTableProcessedTableManager get groupId {
+    final $_column = $_itemColumn<int>('group_id')!;
+
+    final manager = $$FailoverGroupsTableTableManager(
+      $_db,
+      $_db.failoverGroups,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_groupIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $ChannelsTable _channelIdTable(_$AppDatabase db) =>
+      db.channels.createAlias('failover_group_channels__channel_id__channels__id');
+
+  $$ChannelsTableProcessedTableManager get channelId {
+    final $_column = $_itemColumn<String>('channel_id')!;
+
+    final manager = $$ChannelsTableTableManager($_db, $_db.channels).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$FailoverGroupChannelsTableFilterComposer extends Composer<_$AppDatabase, $FailoverGroupChannelsTable> {
   $$FailoverGroupChannelsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -8141,18 +9212,47 @@ class $$FailoverGroupChannelsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get groupId =>
-      $composableBuilder(column: $table.groupId, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => ColumnFilters(column));
-
   ColumnFilters<int> get priority =>
       $composableBuilder(column: $table.priority, builder: (column) => ColumnFilters(column));
+
+  $$FailoverGroupsTableFilterComposer get groupId {
+    final $$FailoverGroupsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.failoverGroups,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupsTableFilterComposer(
+            $db: $db,
+            $table: $db.failoverGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableFilterComposer get channelId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$FailoverGroupChannelsTableOrderingComposer
-    extends Composer<_$AppDatabase, $FailoverGroupChannelsTable> {
+class $$FailoverGroupChannelsTableOrderingComposer extends Composer<_$AppDatabase, $FailoverGroupChannelsTable> {
   $$FailoverGroupChannelsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -8160,18 +9260,47 @@ class $$FailoverGroupChannelsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get groupId =>
-      $composableBuilder(column: $table.groupId, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<int> get priority =>
       $composableBuilder(column: $table.priority, builder: (column) => ColumnOrderings(column));
+
+  $$FailoverGroupsTableOrderingComposer get groupId {
+    final $$FailoverGroupsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.failoverGroups,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupsTableOrderingComposer(
+            $db: $db,
+            $table: $db.failoverGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableOrderingComposer get channelId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
-class $$FailoverGroupChannelsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $FailoverGroupChannelsTable> {
+class $$FailoverGroupChannelsTableAnnotationComposer extends Composer<_$AppDatabase, $FailoverGroupChannelsTable> {
   $$FailoverGroupChannelsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -8179,14 +9308,43 @@ class $$FailoverGroupChannelsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get groupId =>
-      $composableBuilder(column: $table.groupId, builder: (column) => column);
+  GeneratedColumn<int> get priority => $composableBuilder(column: $table.priority, builder: (column) => column);
 
-  GeneratedColumn<String> get channelId =>
-      $composableBuilder(column: $table.channelId, builder: (column) => column);
+  $$FailoverGroupsTableAnnotationComposer get groupId {
+    final $$FailoverGroupsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.groupId,
+      referencedTable: $db.failoverGroups,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$FailoverGroupsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.failoverGroups,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 
-  GeneratedColumn<int> get priority =>
-      $composableBuilder(column: $table.priority, builder: (column) => column);
+  $$ChannelsTableAnnotationComposer get channelId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) =>
+          $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$FailoverGroupChannelsTableTableManager
@@ -8200,24 +9358,18 @@ class $$FailoverGroupChannelsTableTableManager
           $$FailoverGroupChannelsTableAnnotationComposer,
           $$FailoverGroupChannelsTableCreateCompanionBuilder,
           $$FailoverGroupChannelsTableUpdateCompanionBuilder,
-          (
-            FailoverGroupChannel,
-            BaseReferences<_$AppDatabase, $FailoverGroupChannelsTable, FailoverGroupChannel>,
-          ),
+          (FailoverGroupChannel, $$FailoverGroupChannelsTableReferences),
           FailoverGroupChannel,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool groupId, bool channelId})
         > {
   $$FailoverGroupChannelsTableTableManager(_$AppDatabase db, $FailoverGroupChannelsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
-          createFilteringComposer: () =>
-              $$FailoverGroupChannelsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$FailoverGroupChannelsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$FailoverGroupChannelsTableAnnotationComposer($db: db, $table: table),
+          createFilteringComposer: () => $$FailoverGroupChannelsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$FailoverGroupChannelsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$FailoverGroupChannelsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> groupId = const Value.absent(),
@@ -8242,9 +9394,58 @@ class $$FailoverGroupChannelsTableTableManager
                 priority: priority,
                 rowid: rowid,
               ),
-          withReferenceMapper: (p0) =>
-              p0.map((e) => (e.readTable(table), BaseReferences(db, table, e))).toList(),
-          prefetchHooksCallback: null,
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FailoverGroupChannelsTable, FailoverGroupChannel>(table),
+                  $$FailoverGroupChannelsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({groupId = false, channelId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (groupId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.groupId,
+                        referencedTable: $$FailoverGroupChannelsTableReferences._groupIdTable(db),
+                        referencedColumn: $$FailoverGroupChannelsTableReferences._groupIdTable(db).id,
+                      ) as T;
+                    }
+                    if (channelId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.channelId,
+                        referencedTable: $$FailoverGroupChannelsTableReferences._channelIdTable(db),
+                        referencedColumn: $$FailoverGroupChannelsTableReferences._channelIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ),
       );
 }
@@ -8259,12 +9460,9 @@ typedef $$FailoverGroupChannelsTableProcessedTableManager =
       $$FailoverGroupChannelsTableAnnotationComposer,
       $$FailoverGroupChannelsTableCreateCompanionBuilder,
       $$FailoverGroupChannelsTableUpdateCompanionBuilder,
-      (
-        FailoverGroupChannel,
-        BaseReferences<_$AppDatabase, $FailoverGroupChannelsTable, FailoverGroupChannel>,
-      ),
+      (FailoverGroupChannel, $$FailoverGroupChannelsTableReferences),
       FailoverGroupChannel,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool groupId, bool channelId})
     >;
 
 class $AppDatabaseManager {
@@ -8272,26 +9470,18 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$ProvidersTableTableManager get providers => $$ProvidersTableTableManager(_db, _db.providers);
   $$ChannelsTableTableManager get channels => $$ChannelsTableTableManager(_db, _db.channels);
-  $$EpgSourcesTableTableManager get epgSources =>
-      $$EpgSourcesTableTableManager(_db, _db.epgSources);
-  $$EpgChannelsTableTableManager get epgChannels =>
-      $$EpgChannelsTableTableManager(_db, _db.epgChannels);
-  $$EpgProgrammesTableTableManager get epgProgrammes =>
-      $$EpgProgrammesTableTableManager(_db, _db.epgProgrammes);
-  $$EpgMappingsTableTableManager get epgMappings =>
-      $$EpgMappingsTableTableManager(_db, _db.epgMappings);
-  $$ChannelGroupsTableTableManager get channelGroups =>
-      $$ChannelGroupsTableTableManager(_db, _db.channelGroups);
-  $$FavoriteListsTableTableManager get favoriteLists =>
-      $$FavoriteListsTableTableManager(_db, _db.favoriteLists);
+  $$EpgSourcesTableTableManager get epgSources => $$EpgSourcesTableTableManager(_db, _db.epgSources);
+  $$EpgChannelsTableTableManager get epgChannels => $$EpgChannelsTableTableManager(_db, _db.epgChannels);
+  $$EpgProgrammesTableTableManager get epgProgrammes => $$EpgProgrammesTableTableManager(_db, _db.epgProgrammes);
+  $$EpgMappingsTableTableManager get epgMappings => $$EpgMappingsTableTableManager(_db, _db.epgMappings);
+  $$ChannelGroupsTableTableManager get channelGroups => $$ChannelGroupsTableTableManager(_db, _db.channelGroups);
+  $$FavoriteListsTableTableManager get favoriteLists => $$FavoriteListsTableTableManager(_db, _db.favoriteLists);
   $$FavoriteListChannelsTableTableManager get favoriteListChannels =>
       $$FavoriteListChannelsTableTableManager(_db, _db.favoriteListChannels);
-  $$EpgRemindersTableTableManager get epgReminders =>
-      $$EpgRemindersTableTableManager(_db, _db.epgReminders);
+  $$EpgRemindersTableTableManager get epgReminders => $$EpgRemindersTableTableManager(_db, _db.epgReminders);
   $$ScheduledRecordingsTableTableManager get scheduledRecordings =>
       $$ScheduledRecordingsTableTableManager(_db, _db.scheduledRecordings);
-  $$FailoverGroupsTableTableManager get failoverGroups =>
-      $$FailoverGroupsTableTableManager(_db, _db.failoverGroups);
+  $$FailoverGroupsTableTableManager get failoverGroups => $$FailoverGroupsTableTableManager(_db, _db.failoverGroups);
   $$FailoverGroupChannelsTableTableManager get failoverGroupChannels =>
       $$FailoverGroupChannelsTableTableManager(_db, _db.failoverGroupChannels);
 }

@@ -109,6 +109,5 @@ class BetterPlayerSubtitle {
   }
 
   @override
-  String toString() =>
-      'BetterPlayerSubtitle{index: $index, start: $start, end: $end, texts: $texts}';
+  String toString() => 'BetterPlayerSubtitle{index: $index, start: $start, end: $end, texts: $texts}';
 }

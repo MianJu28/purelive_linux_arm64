@@ -8,23 +8,23 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(i18n('refresh_settings'))),
+      appBar: AppBar(title: Text(i18n("refresh_settings"))),
       body: ListView(
         physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          context.buildGroupTitle(i18n('auto_refresh_settings')),
+          context.buildGroupTitle(i18n("auto_refresh_settings")),
           context.buildModernCard([
             context.buildSwitchTile(
               icon: Remix.refresh_line,
-              title: i18n('auto_refresh_follow'),
-              subtitle: i18n('auto_refresh_follow_subtitle'),
+              title: i18n("auto_refresh_follow"),
+              subtitle: i18n("auto_refresh_follow_subtitle"),
               value: controller.autoRefreshFavorite,
             ),
             context.buildSwitchTile(
               icon: Remix.refresh_line,
-              title: i18n('refresh_follow_on_resume'),
-              subtitle: i18n('refresh_follow_on_resume_subtitle'),
+              title: i18n("refresh_follow_on_resume"),
+              subtitle: i18n("refresh_follow_on_resume_subtitle"),
               value: controller.refreshFavoriteOnResume,
             ),
             Obx(() {
@@ -33,7 +33,7 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
               }
               return context.buildTile(
                 icon: Remix.time_line,
-                title: i18n('auto_refresh_interval'),
+                title: i18n("auto_refresh_interval"),
                 subtitle: _getIntervalText(controller.autoRefreshInterval.value),
                 onTap: () => showRefreshIntervalDialog(context),
               );
@@ -41,7 +41,7 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
             Obx(
               () => context.buildTile(
                 icon: Remix.server_line,
-                title: i18n('max_concurrent_refresh'),
+                title: i18n("max_concurrent_refresh"),
                 subtitle:
                     '${controller.maxConcurrentRefresh.value} ${i18n('concurrent_tasks')} · ${i18n('max_concurrent_refresh_subtitle')}',
                 isLong: true,
@@ -105,8 +105,7 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
       context: context,
       builder: (dialogContext) {
         return _RefreshRadioDialog(
-          title: i18n('auto_refresh_interval'),
-          maxHeightFactor: 0.45,
+          title: i18n("auto_refresh_interval"),
           value: controller.autoRefreshInterval.value,
           items: intervals,
         );
@@ -121,18 +120,15 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
   Future<void> showMaxConcurrentDialog(BuildContext context) async {
     final Map<int, String> values = {
       for (int i = 1; i <= 20; i++)
-        i: i == RefreshConfigController.defaultMaxConcurrentRefresh
-            ? '$i · ${i18n('recommended')}'
-            : i.toString(),
+        i: i == RefreshConfigController.defaultMaxConcurrentRefresh ? '$i · ${i18n('recommended')}' : i.toString(),
     };
 
     final int? value = await showDialog<int>(
       context: context,
       builder: (dialogContext) {
         return _RefreshRadioDialog(
-          title: i18n('max_concurrent_refresh'),
+          title: i18n("max_concurrent_refresh"),
           hint: i18n('max_concurrent_refresh_hint'),
-          maxHeightFactor: 0.5,
           value: controller.maxConcurrentRefresh.value,
           items: values,
         );
@@ -161,7 +157,6 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
       builder: (dialogContext) {
         return _RefreshRadioDialog(
           title: i18n('thumbnail_refresh_interval'),
-          maxHeightFactor: 0.45,
           value: controller.thumbnailRefreshInterval.value,
           items: intervals,
         );
@@ -177,72 +172,43 @@ class RefreshSettingsPage extends GetView<RefreshConfigController> {
 class _RefreshRadioDialog extends StatelessWidget {
   final String title;
   final String? hint;
-  final double maxHeightFactor;
   final int value;
   final Map<int, String> items;
 
-  const _RefreshRadioDialog({
-    required this.title,
-    required this.maxHeightFactor,
-    required this.value,
-    required this.items,
-    this.hint,
-  });
+  const _RefreshRadioDialog({required this.title, required this.value, required this.items, this.hint});
 
   @override
   Widget build(BuildContext context) {
-    final double screenWidth = MediaQuery.sizeOf(context).width;
-    final double screenHeight = MediaQuery.sizeOf(context).height;
-    final double dialogWidth = screenWidth > 600 ? 400 : screenWidth - 32;
-    final double maxHeight = screenHeight * maxHeightFactor;
-
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: screenWidth > 600 ? 280 : 0,
-          maxWidth: dialogWidth,
-          maxHeight: screenHeight * 0.8,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(top: 20, bottom: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    return AlertDialog(
+      scrollable: true,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      title: Text(title),
+      contentPadding: const EdgeInsets.only(top: 8, bottom: 8),
+      content: RadioGroup<int>(
+        groupValue: value,
+        onChanged: (selectedValue) {
+          if (selectedValue == null) {
+            return;
+          }
+          Navigator.of(context).pop(selectedValue);
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (hint != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: Text(hint!, style: Theme.of(context).textTheme.bodySmall),
               ),
-              if (hint != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                  child: Text(hint!, style: Theme.of(context).textTheme.bodySmall),
-                ),
-              SizedBox(
-                height: maxHeight,
-                child: RadioGroup<int>(
-                  groupValue: value,
-                  onChanged: (selectedValue) {
-                    if (selectedValue == null) {
-                      return;
-                    }
-                    Navigator.of(context).pop(selectedValue);
-                  },
-                  child: ListView(
-                    physics: const PureLiveScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    children: items.entries.map((entry) {
-                      return RadioListTile<int>(
-                        title: Text(entry.value),
-                        value: entry.key,
-                        activeColor: Theme.of(context).colorScheme.primary,
-                      );
-                    }).toList(),
-                  ),
-                ),
+            ...items.entries.map(
+              (entry) => RadioListTile<int>(
+                title: Text(entry.value),
+                value: entry.key,
+                activeColor: Theme.of(context).colorScheme.primary,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

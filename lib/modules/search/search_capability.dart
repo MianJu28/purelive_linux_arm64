@@ -1,61 +1,78 @@
 import 'package:pure_live/core/sites.dart';
 
-enum NativeSearchCoverage { liveOnly, liveAndOffline, localChannels, webOnly }
+enum NativeSearchCoverage { liveOnly, liveAndOffline, channelLookup, roomLookup, localChannels, webOnly, unavailable }
 
 class LiveSearchCapability {
-  const LiveSearchCapability({
-    required this.coverage,
-    required this.supportsPagination,
-    this.supportsWebSearch = true,
-  });
+  const LiveSearchCapability({required this.coverage, required this.supportsPagination, this.supportsWebSearch = true});
 
   final NativeSearchCoverage coverage;
   final bool supportsPagination;
   final bool supportsWebSearch;
 
-  bool get supportsNativeSearch => coverage != NativeSearchCoverage.webOnly;
-  bool get mayIncludeOffline => coverage == NativeSearchCoverage.liveAndOffline;
+  bool get supportsNativeSearch =>
+      coverage != NativeSearchCoverage.webOnly && coverage != NativeSearchCoverage.unavailable;
+  bool get mayIncludeOffline =>
+      coverage == NativeSearchCoverage.liveAndOffline ||
+      coverage == NativeSearchCoverage.channelLookup ||
+      coverage == NativeSearchCoverage.roomLookup;
 }
 
 class LiveSearchCapabilities {
   const LiveSearchCapabilities._();
 
   static const Map<String, LiveSearchCapability> _byPlatform = {
-    Sites.bilibiliSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveAndOffline,
-      supportsPagination: true,
-    ),
-    Sites.douyuSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveAndOffline,
-      supportsPagination: true,
-    ),
-    Sites.huyaSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveOnly,
-      supportsPagination: true,
-    ),
-    Sites.douyinSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveOnly,
-      supportsPagination: true,
-    ),
-    Sites.kuaishouSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.webOnly,
+    Sites.weiboSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.roomLookup,
       supportsPagination: false,
+      supportsWebSearch: false,
     ),
-    Sites.ccSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveAndOffline,
-      supportsPagination: true,
+    Sites.niconicoSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveOnly, supportsPagination: true),
+    Sites.xiaohongshuSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.roomLookup,
+      supportsPagination: false,
+      supportsWebSearch: false,
     ),
-    Sites.twitchSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveAndOffline,
-      supportsPagination: true,
+    Sites.ttingSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.channelLookup,
+      supportsPagination: false,
+      supportsWebSearch: false,
     ),
-    Sites.soopSite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveOnly,
-      supportsPagination: true,
+    Sites.bilibiliSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveAndOffline, supportsPagination: true),
+    Sites.douyuSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveAndOffline, supportsPagination: true),
+    Sites.huyaSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveOnly, supportsPagination: true),
+    Sites.douyinSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveOnly, supportsPagination: true),
+    Sites.kuaishouSite: LiveSearchCapability(coverage: NativeSearchCoverage.webOnly, supportsPagination: false),
+    Sites.ccSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveAndOffline, supportsPagination: true),
+    Sites.twitchSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveAndOffline, supportsPagination: true),
+    Sites.soopSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveOnly, supportsPagination: true),
+    Sites.yySite: LiveSearchCapability(coverage: NativeSearchCoverage.liveAndOffline, supportsPagination: true),
+    Sites.acfunSite: LiveSearchCapability(coverage: NativeSearchCoverage.liveAndOffline, supportsPagination: true),
+    Sites.picartoSite: LiveSearchCapability(coverage: NativeSearchCoverage.webOnly, supportsPagination: false),
+    Sites.twitcastingSite: LiveSearchCapability(coverage: NativeSearchCoverage.webOnly, supportsPagination: false),
+    Sites.missevanSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.unavailable,
+      supportsPagination: false,
+      supportsWebSearch: false,
     ),
-    Sites.yySite: LiveSearchCapability(
-      coverage: NativeSearchCoverage.liveAndOffline,
-      supportsPagination: true,
+    Sites.openrecSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.unavailable,
+      supportsPagination: false,
+      supportsWebSearch: false,
+    ),
+    Sites.huajiaoSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.unavailable,
+      supportsPagination: false,
+      supportsWebSearch: false,
+    ),
+    Sites.kilakilaSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.unavailable,
+      supportsPagination: false,
+      supportsWebSearch: false,
+    ),
+    Sites.inkeSite: LiveSearchCapability(
+      coverage: NativeSearchCoverage.unavailable,
+      supportsPagination: false,
+      supportsWebSearch: false,
     ),
     Sites.iptvSite: LiveSearchCapability(
       coverage: NativeSearchCoverage.localChannels,

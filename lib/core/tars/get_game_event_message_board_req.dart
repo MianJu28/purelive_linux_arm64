@@ -6,7 +6,7 @@ import 'package:pure_live/pkg/tars/codec/tars_output_stream.dart';
 
 class GetGameEventMessageBoardReq extends TarsStruct {
   int lPid = 0; //tag 0
-  String sOffset = ''; //tag 1
+  String sOffset = ""; //tag 1
   HuyaUserId tId = HuyaUserId(); //tag 2
   int iMessageBoardScope = 0; //tag 3
   int iPageSize = 10; //tag 4
@@ -40,12 +40,12 @@ class GetGameEventMessageBoardReq extends TarsStruct {
   }
 
   @override
-  void displayAsString(StringBuffer sb, int level) {
+  displayAsString(StringBuffer sb, int level) {
     TarsDisplayer tarsDisplayer = TarsDisplayer(sb, level: level);
-    tarsDisplayer.DisplayInt(lPid, 'lPid');
-    tarsDisplayer.DisplayString(sOffset, 'sOffset');
-    tarsDisplayer.DisplayTarsStruct(tId, 'tId');
-    tarsDisplayer.DisplayInt(iMessageBoardScope, 'iMessageBoardScope');
-    tarsDisplayer.DisplayInt(iPageSize, 'iPageSize');
+    tarsDisplayer.DisplayInt(lPid, "lPid");
+    tarsDisplayer.DisplayString(sOffset, "sOffset");
+    tarsDisplayer.DisplayTarsStruct(tId, "tId");
+    tarsDisplayer.DisplayInt(iMessageBoardScope, "iMessageBoardScope");
+    tarsDisplayer.DisplayInt(iPageSize, "iPageSize");
   }
 }

@@ -11,7 +11,8 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
 class AndroidPullToRefreshControllerCreationParams
     extends PlatformPullToRefreshControllerCreationParams {
   /// Creates a new [AndroidPullToRefreshControllerCreationParams] instance.
-  AndroidPullToRefreshControllerCreationParams({super.onRefresh, super.options, super.settings});
+  AndroidPullToRefreshControllerCreationParams(
+      {super.onRefresh, super.options, super.settings});
 
   /// Creates a [AndroidPullToRefreshControllerCreationParams] instance based on [PlatformPullToRefreshControllerCreationParams].
   factory AndroidPullToRefreshControllerCreationParams.fromPlatformPullToRefreshControllerCreationParams(
@@ -19,7 +20,9 @@ class AndroidPullToRefreshControllerCreationParams
       // ignore: avoid_unused_constructor_parameters
       PlatformPullToRefreshControllerCreationParams params) {
     return AndroidPullToRefreshControllerCreationParams(
-        onRefresh: params.onRefresh, options: params.options, settings: params.settings);
+        onRefresh: params.onRefresh,
+        options: params.options,
+        settings: params.settings);
   }
 }
 
@@ -27,7 +30,8 @@ class AndroidPullToRefreshControllerCreationParams
 class AndroidPullToRefreshController extends PlatformPullToRefreshController
     with ChannelController {
   /// Constructs a [AndroidPullToRefreshController].
-  AndroidPullToRefreshController(PlatformPullToRefreshControllerCreationParams params)
+  AndroidPullToRefreshController(
+      PlatformPullToRefreshControllerCreationParams params)
       : super.implementation(
           params is AndroidPullToRefreshControllerCreationParams
               ? params
@@ -38,7 +42,8 @@ class AndroidPullToRefreshController extends PlatformPullToRefreshController
   _debugLog(String method, dynamic args) {
     debugLog(
         className: this.runtimeType.toString(),
-        debugLoggingSettings: PlatformPullToRefreshController.debugLoggingSettings,
+        debugLoggingSettings:
+            PlatformPullToRefreshController.debugLoggingSettings,
         method: method,
         args: args);
   }
@@ -122,7 +127,9 @@ class AndroidPullToRefreshController extends PlatformPullToRefreshController
   @override
   Future<int> getDefaultSlingshotDistance() async {
     Map<String, dynamic> args = <String, dynamic>{};
-    return await channel?.invokeMethod<int>('getDefaultSlingshotDistance', args) ?? 0;
+    return await channel?.invokeMethod<int>(
+            'getDefaultSlingshotDistance', args) ??
+        0;
   }
 
   @Deprecated("Use setIndicatorSize instead")
@@ -148,7 +155,8 @@ class AndroidPullToRefreshController extends PlatformPullToRefreshController
 
 extension InternalPullToRefreshController on AndroidPullToRefreshController {
   void init(dynamic id) {
-    channel = MethodChannel('com.pichillilorenzo/flutter_inappwebview_pull_to_refresh_$id');
+    channel = MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_pull_to_refresh_$id');
     handler = _handleMethod;
     initMethodCallHandler();
   }

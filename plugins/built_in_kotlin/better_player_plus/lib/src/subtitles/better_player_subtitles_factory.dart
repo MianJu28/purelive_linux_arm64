@@ -7,9 +7,7 @@ import 'package:better_player_plus/src/subtitles/better_player_subtitle.dart';
 class BetterPlayerSubtitlesFactory {
   const BetterPlayerSubtitlesFactory._();
 
-  static Future<List<BetterPlayerSubtitle>> parseSubtitles(
-    BetterPlayerSubtitlesSource source,
-  ) async {
+  static Future<List<BetterPlayerSubtitle>> parseSubtitles(BetterPlayerSubtitlesSource source) async {
     switch (source.type) {
       case BetterPlayerSubtitlesSourceType.file:
         return _parseSubtitlesFromFile(source);
@@ -22,9 +20,7 @@ class BetterPlayerSubtitlesFactory {
     }
   }
 
-  static Future<List<BetterPlayerSubtitle>> _parseSubtitlesFromFile(
-    BetterPlayerSubtitlesSource source,
-  ) async {
+  static Future<List<BetterPlayerSubtitle>> _parseSubtitlesFromFile(BetterPlayerSubtitlesSource source) async {
     try {
       final List<BetterPlayerSubtitle> subtitles = [];
       for (final String? url in source.urls!) {
@@ -44,9 +40,7 @@ class BetterPlayerSubtitlesFactory {
     return [];
   }
 
-  static Future<List<BetterPlayerSubtitle>> _parseSubtitlesFromNetwork(
-    BetterPlayerSubtitlesSource source,
-  ) async {
+  static Future<List<BetterPlayerSubtitle>> _parseSubtitlesFromNetwork(BetterPlayerSubtitlesSource source) async {
     try {
       final client = HttpClient();
       final List<BetterPlayerSubtitle> subtitles = [];

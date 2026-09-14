@@ -21,10 +21,6 @@ class MessageProtocol {
       return null;
     }
 
-    return BarrageItem(
-      content: content,
-      type: type,
-      priority: (json['vip'] as bool? ?? false) ? 1 : 0,
-    );
+    return BarrageItem(content: content, type: type, priority: (json['vip'] as bool? ?? false) ? 1 : 0);
   }
 }

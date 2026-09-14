@@ -111,6 +111,14 @@ class LiveRecordTask {
   /// Stable stage id: room, stream, ffmpeg, merge, scheduler or status.
   String? lastErrorStage;
 
+  /// Current user recording, latched across native attempts and persistence.
+  /// Distinct from packet damage: complete saved segments may still be usable.
+  bool inputTailDiscarded;
+
+  /// An explicit native missing-segment report was observed before drain.
+  /// False means no observed signal, not a proof of complete media coverage.
+  bool inputCoverageIncomplete;
+
   bool wasStoppedByUser;
 
   LiveRecordTask({
@@ -125,9 +133,9 @@ class LiveRecordTask {
     this.recordingStartedAt,
 
     this.liveStatus = LiveStatus.unknown,
-    this.watching = '0',
+    this.watching = "0",
     this.audienceMetricType = AudienceMetricType.unknown,
-    this.followers = '0',
+    this.followers = "0",
     this.isRecord = false,
 
     this.currentUrl,
@@ -155,6 +163,8 @@ class LiveRecordTask {
     this.lastFailTime,
     this.lastError,
     this.lastErrorStage,
+    this.inputTailDiscarded = false,
+    this.inputCoverageIncomplete = false,
   }) : pendingAttempts = List<PendingRecordingAttempt>.of(pendingAttempts);
 
   /// =========================
@@ -162,29 +172,29 @@ class LiveRecordTask {
   /// =========================
 
   factory LiveRecordTask.fromRoom(LiveRoom room) {
-    final roomId = room.roomId ?? '';
+    final roomId = room.roomId ?? "";
 
-    final platform = room.platform ?? '';
+    final platform = room.platform ?? "";
 
     return LiveRecordTask(
-      taskId: '${platform}_$roomId',
+      taskId: "${platform}_$roomId",
 
       roomId: roomId,
 
       platform: platform,
 
-      title: room.title ?? '',
+      title: room.title ?? "",
 
-      nick: room.nick ?? '',
+      nick: room.nick ?? "",
 
-      avatar: room.avatar ?? '',
+      avatar: room.avatar ?? "",
 
-      cover: room.cover ?? '',
+      cover: room.cover ?? "",
 
-      watching: room.watching ?? '0',
+      watching: room.watching ?? "0",
       audienceMetricType: room.effectiveAudienceMetricType,
 
-      followers: room.followers ?? '0',
+      followers: room.followers ?? "0",
 
       liveStatus: room.liveStatus ?? LiveStatus.unknown,
 
@@ -231,6 +241,8 @@ class LiveRecordTask {
 
   void beginNewRecording({DateTime? now}) {
     final startedAt = now ?? DateTime.now();
+    inputTailDiscarded = false;
+    inputCoverageIncomplete = false;
     recordedSeconds = 0;
     fileSize = 0;
     recordingStartedAt = startedAt;
@@ -239,23 +251,33 @@ class LiveRecordTask {
     beginNewAttempt(now: startedAt);
   }
 
-  void queuePendingAttempt({required String directoryPath, required String filePrefix}) {
+  void queuePendingAttempt({
+    required String directoryPath,
+    required String filePrefix,
+    bool inputIntegrityError = false,
+  }) {
     final directory = directoryPath.trim();
     final prefix = filePrefix.trim();
     if (directory.isEmpty || prefix.isEmpty) return;
-    final duplicate = pendingAttempts.any(
+    final duplicate = pendingAttempts.indexWhere(
       (attempt) => attempt.directoryPath == directory && attempt.filePrefix == prefix,
     );
-    if (!duplicate) {
-      pendingAttempts.add(PendingRecordingAttempt(directoryPath: directory, filePrefix: prefix));
+    final attempt = PendingRecordingAttempt(
+      directoryPath: directory,
+      filePrefix: prefix,
+      inputIntegrityError: inputIntegrityError,
+    );
+    if (duplicate < 0) {
+      pendingAttempts.add(attempt);
+    } else if (inputIntegrityError && !pendingAttempts[duplicate].inputIntegrityError) {
+      // A later queue/restore pass may enrich the verdict, never erase damage.
+      pendingAttempts[duplicate] = attempt;
     }
   }
 
   void removePendingAttempt(PendingRecordingAttempt attempt) {
     pendingAttempts.removeWhere(
-      (candidate) =>
-          candidate.directoryPath == attempt.directoryPath &&
-          candidate.filePrefix == attempt.filePrefix,
+      (candidate) => candidate.directoryPath == attempt.directoryPath && candidate.filePrefix == attempt.filePrefix,
     );
   }
 
@@ -300,147 +322,151 @@ class LiveRecordTask {
   /// =========================
 
   Map<String, dynamic> toJson() => {
-    'schemaVersion': 7,
-    'taskId': taskId,
-    'roomId': roomId,
-    'platform': platform,
+    "schemaVersion": 9,
+    "taskId": taskId,
+    "roomId": roomId,
+    "platform": platform,
 
-    'title': title,
-    'nick': nick,
-    'avatar': avatar,
-    'cover': cover,
+    "title": title,
+    "nick": nick,
+    "avatar": avatar,
+    "cover": cover,
 
-    'watching': watching,
-    'audienceMetricType': audienceMetricType.index,
-    'audienceMetricTypeName': audienceMetricType.name,
-    'followers': followers,
+    "watching": watching,
+    "audienceMetricType": audienceMetricType.index,
+    "audienceMetricTypeName": audienceMetricType.name,
+    "followers": followers,
 
-    'isRecord': isRecord,
+    "isRecord": isRecord,
 
-    'liveStatus': liveStatus.index,
-    'liveStatusName': liveStatus.name,
+    "liveStatus": liveStatus.index,
+    "liveStatusName": liveStatus.name,
 
     // Signed CDN addresses expire quickly and can contain account/session
     // tokens. They are runtime-only and must not be written to local prefs.
-    'selectedLine': selectedLine,
-    'selectedQuality': selectedQuality,
-    'selectedQualityId': selectedQualityId,
-    'selectedLineIndex': selectedLineIndex,
-    'outputDir': outputDir,
-    'pendingAttempts': pendingAttempts.map((attempt) => attempt.toJson()).toList(growable: false),
+    "selectedLine": selectedLine,
+    "selectedQuality": selectedQuality,
+    "selectedQualityId": selectedQualityId,
+    "selectedLineIndex": selectedLineIndex,
+    "outputDir": outputDir,
+    "pendingAttempts": pendingAttempts.map((attempt) => attempt.toJson()).toList(growable: false),
 
     /// 实时信息
-    'recordedSeconds': recordedSeconds,
-    'fileSize': fileSize,
-    'recordSpeed': recordSpeed,
-    'bitrate': bitrate,
-    'fps': fps,
-    'lastFrame': lastFrame,
-    'lastUpdate': lastUpdate?.toIso8601String(),
+    "recordedSeconds": recordedSeconds,
+    "fileSize": fileSize,
+    "recordSpeed": recordSpeed,
+    "bitrate": bitrate,
+    "fps": fps,
+    "lastFrame": lastFrame,
+    "lastUpdate": lastUpdate?.toIso8601String(),
 
     /// 状态
-    'status': status.index,
-    'statusName': status.name,
-    'autoReconnect': autoReconnect,
-    'retryCount': retryCount,
+    "status": status.index,
+    "statusName": status.name,
+    "autoReconnect": autoReconnect,
+    "retryCount": retryCount,
 
-    'createTime': createTime.toIso8601String(),
-    'recordingStartedAt': recordingStartedAt?.toIso8601String(),
+    "createTime": createTime.toIso8601String(),
+    "recordingStartedAt": recordingStartedAt?.toIso8601String(),
 
-    'lastFailTime': lastFailTime?.toIso8601String(),
-    'lastError': lastError,
-    'lastErrorStage': lastErrorStage,
-    'wasStoppedByUser': wasStoppedByUser,
+    "lastFailTime": lastFailTime?.toIso8601String(),
+    "lastError": lastError,
+    "lastErrorStage": lastErrorStage,
+    "inputTailDiscarded": inputTailDiscarded,
+    "inputCoverageIncomplete": inputCoverageIncomplete,
+    "wasStoppedByUser": wasStoppedByUser,
   };
 
   factory LiveRecordTask.fromJson(Map<String, dynamic> json) {
-    final roomId = _string(json['roomId']);
-    final platform = _string(json['platform']).toLowerCase();
+    final roomId = _string(json["roomId"]);
+    final platform = _string(json["platform"]).toLowerCase();
     return LiveRecordTask(
-      taskId: _string(json['taskId'], fallback: '${platform}_$roomId'),
+      taskId: _string(json["taskId"], fallback: "${platform}_$roomId"),
 
       roomId: roomId,
 
       platform: platform,
 
-      title: _string(json['title']),
+      title: _string(json["title"]),
 
-      nick: _string(json['nick']),
+      nick: _string(json["nick"]),
 
-      avatar: _string(json['avatar']),
+      avatar: _string(json["avatar"]),
 
-      cover: _string(json['cover']),
+      cover: _string(json["cover"]),
 
-      watching: _string(json['watching'], fallback: '0'),
+      watching: _string(json["watching"], fallback: "0"),
 
       audienceMetricType: _enumValue(
         AudienceMetricType.values,
-        name: json['audienceMetricTypeName'],
-        index: json['audienceMetricType'],
+        name: json["audienceMetricTypeName"],
+        index: json["audienceMetricType"],
         fallback: _defaultAudienceMetricType(platform),
       ),
 
-      followers: _string(json['followers'], fallback: '0'),
+      followers: _string(json["followers"], fallback: "0"),
 
-      isRecord: _bool(json['isRecord']),
+      isRecord: _bool(json["isRecord"]),
 
       liveStatus: _enumValue(
         LiveStatus.values,
-        name: json['liveStatusName'],
-        index: json['liveStatus'],
+        name: json["liveStatusName"],
+        index: json["liveStatus"],
         fallback: LiveStatus.unknown,
       ),
 
       // Discard schema-v1/v2 persisted signed URLs during migration.
       currentUrl: null,
 
-      selectedLine: _nullableString(json['selectedLine']),
+      selectedLine: _nullableString(json["selectedLine"]),
 
-      selectedQuality: _nullableString(json['selectedQuality']),
+      selectedQuality: _nullableString(json["selectedQuality"]),
 
-      selectedQualityId: _nullableString(json['selectedQualityId']),
+      selectedQualityId: _nullableString(json["selectedQualityId"]),
 
-      selectedLineIndex: _nullableInt(json['selectedLineIndex']),
+      selectedLineIndex: _nullableInt(json["selectedLineIndex"]),
 
-      outputDir: _nullableString(json['outputDir']),
+      outputDir: _nullableString(json["outputDir"]),
 
-      pendingAttempts: _pendingAttempts(json['pendingAttempts']),
+      pendingAttempts: _pendingAttempts(json["pendingAttempts"]),
 
       /// 实时录制
-      recordedSeconds: _recordedSeconds(json['recordedSeconds']),
+      recordedSeconds: _recordedSeconds(json["recordedSeconds"]),
 
-      fileSize: _int(json['fileSize']),
+      fileSize: _int(json["fileSize"]),
 
-      recordSpeed: _double(json['recordSpeed']),
+      recordSpeed: _double(json["recordSpeed"]),
 
-      bitrate: _double(json['bitrate']),
+      bitrate: _double(json["bitrate"]),
 
-      fps: _double(json['fps']),
+      fps: _double(json["fps"]),
 
-      lastFrame: _int(json['lastFrame']),
+      lastFrame: _int(json["lastFrame"]),
 
-      lastUpdate: _date(json['lastUpdate']),
+      lastUpdate: _date(json["lastUpdate"]),
 
       /// 状态
       status: _enumValue(
         RecordStatus.values,
-        name: json['statusName'],
-        index: json['status'],
+        name: json["statusName"],
+        index: json["status"],
         fallback: RecordStatus.stopped,
       ),
 
-      autoReconnect: _bool(json['autoReconnect'], fallback: true),
+      autoReconnect: _bool(json["autoReconnect"], fallback: true),
 
-      retryCount: _int(json['retryCount']),
+      retryCount: _int(json["retryCount"]),
 
-      createTime: _date(json['createTime']) ?? DateTime.now(),
+      createTime: _date(json["createTime"]) ?? DateTime.now(),
 
-      recordingStartedAt: _date(json['recordingStartedAt']),
+      recordingStartedAt: _date(json["recordingStartedAt"]),
 
-      lastFailTime: _date(json['lastFailTime']),
-      lastError: _diagnostic(json['lastError']),
-      lastErrorStage: _stage(json['lastErrorStage']),
-      wasStoppedByUser: _bool(json['wasStoppedByUser']),
+      lastFailTime: _date(json["lastFailTime"]),
+      lastError: _diagnostic(json["lastError"]),
+      lastErrorStage: _stage(json["lastErrorStage"]),
+      inputTailDiscarded: _bool(json["inputTailDiscarded"]),
+      inputCoverageIncomplete: _bool(json["inputCoverageIncomplete"]),
+      wasStoppedByUser: _bool(json["wasStoppedByUser"]),
     );
   }
 
@@ -479,6 +505,7 @@ class LiveRecordTask {
           'ffmpeg',
           'merge',
           'scheduler',
+          'background',
           'status',
           'recorder',
         }.contains(normalized)
@@ -524,13 +551,19 @@ class LiveRecordTask {
   static List<PendingRecordingAttempt> _pendingAttempts(dynamic value) {
     if (value is! List) return const <PendingRecordingAttempt>[];
     final attempts = <PendingRecordingAttempt>[];
-    final seen = <String>{};
+    final seen = <String, int>{};
     for (final item in value) {
       if (item is! Map) continue;
       final attempt = PendingRecordingAttempt.fromJson(Map<String, dynamic>.from(item));
       if (attempt == null) continue;
       final key = '${attempt.directoryPath}\u0000${attempt.filePrefix}';
-      if (seen.add(key)) attempts.add(attempt);
+      final duplicate = seen[key];
+      if (duplicate == null) {
+        seen[key] = attempts.length;
+        attempts.add(attempt);
+      } else if (attempt.inputIntegrityError) {
+        attempts[duplicate] = attempt;
+      }
     }
     return attempts;
   }
@@ -551,20 +584,33 @@ class LiveRecordTask {
 }
 
 class PendingRecordingAttempt {
-  const PendingRecordingAttempt({required this.directoryPath, required this.filePrefix});
+  const PendingRecordingAttempt({
+    required this.directoryPath,
+    required this.filePrefix,
+    this.inputIntegrityError = false,
+  });
 
   final String directoryPath;
   final String filePrefix;
+  // Capture evidence, not a claim that an unflagged bitstream was decoded.
+  // Retain it across retries/restarts so a later clean remux exit cannot delete
+  // source that the recording session already reported as damaged.
+  final bool inputIntegrityError;
 
-  Map<String, String> toJson() => <String, String>{
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'directoryPath': directoryPath,
     'filePrefix': filePrefix,
+    'inputIntegrityError': inputIntegrityError,
   };
 
   static PendingRecordingAttempt? fromJson(Map<String, dynamic> json) {
     final directoryPath = json['directoryPath']?.toString().trim() ?? '';
     final filePrefix = json['filePrefix']?.toString().trim() ?? '';
     if (directoryPath.isEmpty || filePrefix.isEmpty) return null;
-    return PendingRecordingAttempt(directoryPath: directoryPath, filePrefix: filePrefix);
+    return PendingRecordingAttempt(
+      directoryPath: directoryPath,
+      filePrefix: filePrefix,
+      inputIntegrityError: LiveRecordTask._bool(json['inputIntegrityError']),
+    );
   }
 }

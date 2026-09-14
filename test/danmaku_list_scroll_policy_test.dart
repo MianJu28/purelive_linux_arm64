@@ -65,9 +65,7 @@ void main() {
     expect(isDanmakuUserScrollStart(notification), isFalse);
   });
 
-  testWidgets('desktop mouse wheel user direction pauses live following immediately', (
-    tester,
-  ) async {
+  testWidgets('desktop mouse wheel user direction pauses live following immediately', (tester) async {
     const targetKey = ValueKey('desktop-target');
     await tester.pumpWidget(const MaterialApp(home: SizedBox(key: targetKey)));
     final notification = UserScrollNotification(

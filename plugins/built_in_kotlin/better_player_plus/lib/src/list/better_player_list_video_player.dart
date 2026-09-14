@@ -55,9 +55,7 @@ class _BetterPlayerListVideoPlayerState extends State<BetterPlayerListVideoPlaye
     );
 
     if (widget.betterPlayerListVideoPlayerController != null) {
-      widget.betterPlayerListVideoPlayerController!.setBetterPlayerController(
-        _betterPlayerController,
-      );
+      widget.betterPlayerListVideoPlayerController!.setBetterPlayerController(_betterPlayerController);
     }
   }
 
@@ -72,13 +70,8 @@ class _BetterPlayerListVideoPlayerState extends State<BetterPlayerListVideoPlaye
   Widget build(BuildContext context) {
     super.build(context);
     return AspectRatio(
-      aspectRatio:
-          _betterPlayerController!.getAspectRatio() ??
-          BetterPlayerUtils.calculateAspectRatio(context),
-      child: BetterPlayer(
-        key: Key('${_getUniqueKey()}_player'),
-        controller: _betterPlayerController!,
-      ),
+      aspectRatio: _betterPlayerController!.getAspectRatio() ?? BetterPlayerUtils.calculateAspectRatio(context),
+      child: BetterPlayer(key: Key('${_getUniqueKey()}_player'), controller: _betterPlayerController!),
     );
   }
 

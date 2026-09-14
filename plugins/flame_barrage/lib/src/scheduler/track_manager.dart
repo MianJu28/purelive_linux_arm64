@@ -20,9 +20,7 @@ class TrackManager {
 
     if (calculatedTracks <= 0) calculatedTracks = 1;
 
-    if (_lastHeight == screenHeight &&
-        _lastMaxTracks == calculatedTracks &&
-        _tracks.length == calculatedTracks) {
+    if (_lastHeight == screenHeight && _lastMaxTracks == calculatedTracks && _tracks.length == calculatedTracks) {
       return;
     }
 

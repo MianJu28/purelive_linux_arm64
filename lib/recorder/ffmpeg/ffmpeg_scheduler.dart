@@ -6,13 +6,23 @@ import 'package:pure_live/common/index.dart';
 import 'package:pure_live/recorder/pages/record_settings/record_settings_controller.dart';
 
 class FFmpegScheduler {
-  FFmpegScheduler._internal();
+  FFmpegScheduler._internal() : _capacityOverride = null, minimumStartGap = const Duration(seconds: 5);
+
+  @visibleForTesting
+  FFmpegScheduler.forTesting({int capacity = 1, this.minimumStartGap = Duration.zero}) : _capacityOverride = capacity {
+    if (capacity < 1 || minimumStartGap.isNegative) throw ArgumentError('Invalid scheduler limits');
+  }
+
+  final int? _capacityOverride;
+  final Duration minimumStartGap;
 
   static final FFmpegScheduler instance = FFmpegScheduler._internal();
   DateTime _lastStartTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// 最大并发
   int get maxConcurrentTasks {
+    final capacity = _capacityOverride;
+    if (capacity != null) return capacity;
     if (Get.isRegistered<RecordSettingsController>()) {
       return Get.find<RecordSettingsController>().maxTaskCount.value;
     }
@@ -31,10 +41,7 @@ class FFmpegScheduler {
   Timer? _scheduleTimer;
 
   /// 添加任务
-  void enqueue({
-    required String taskId,
-    required Future<void> Function(TaskCancelToken token) taskRunner,
-  }) {
+  void enqueue({required String taskId, required Future<void> Function(TaskCancelToken token) taskRunner}) {
     /// 已运行
     if (_runningTasks.containsKey(taskId)) {
       log('Task already running: $taskId', name: 'FFmpegScheduler');
@@ -67,10 +74,7 @@ class FFmpegScheduler {
 
     if (runningTask != null) {
       if (runningTask.cancelToken.isCancelled) {
-        log(
-          'Task $taskId is already being cancelled; waiting for its lifecycle fence.',
-          name: 'FFmpegScheduler',
-        );
+        log('Task $taskId is already being cancelled; waiting for its lifecycle fence.', name: 'FFmpegScheduler');
         try {
           await runningTask.future.timeout(const Duration(seconds: 20));
         } catch (e) {
@@ -91,6 +95,12 @@ class FFmpegScheduler {
 
     _scheduleNext();
   }
+
+  /// Wait for the current running owner, not merely the bounded cancel request.
+  /// Call after cancel when output/state mutation requires the native writer
+  /// and its finalizer to have actually exited. A later task with the same ID
+  /// does not extend the captured completion fence.
+  Future<void> waitForTask(String taskId) => _runningTasks[taskId]?.future ?? Future<void>.value();
 
   /// 清空所有
   Future<void> clearAll() async {
@@ -121,9 +131,8 @@ class FFmpegScheduler {
         final now = DateTime.now();
         final diff = now.difference(_lastStartTime);
 
-        const minimumGap = Duration(seconds: 5);
-        if (diff < minimumGap) {
-          _scheduleTimer = Timer(minimumGap - diff, () {
+        if (diff < minimumStartGap) {
+          _scheduleTimer = Timer(minimumStartGap - diff, () {
             _scheduleTimer = null;
             _scheduleNext();
           });
@@ -144,22 +153,23 @@ class FFmpegScheduler {
   /// 执行任务
   void _runTask(_SchedulerTask task) {
     final cancelToken = TaskCancelToken();
-
-    final future = (() async {
-      try {
-        await task.taskRunner(cancelToken);
-      } catch (error, stackTrace) {
-        log('Uncaught scheduled task error: $error\n$stackTrace', name: 'FFmpegScheduler');
-      } finally {
-        _runningTasks.remove(task.taskId);
-        _scheduleNext();
-      }
-    })();
-
-    _runningTasks[task.taskId] = _RunningTask(
-      taskId: task.taskId,
-      future: future,
-      cancelToken: cancelToken,
+    final completion = Completer<void>();
+    final running = _RunningTask(taskId: task.taskId, future: completion.future, cancelToken: cancelToken);
+    // Establish ownership before invoking user code. A synchronous throw or
+    // reentrant cancel must observe the same running task as async completion.
+    _runningTasks[task.taskId] = running;
+    unawaited(
+      Future<void>(() async {
+        try {
+          if (!cancelToken.isCancelled) await task.taskRunner(cancelToken);
+        } catch (error, stackTrace) {
+          log('Uncaught scheduled task error: $error\n$stackTrace', name: 'FFmpegScheduler');
+        } finally {
+          if (identical(_runningTasks[task.taskId], running)) _runningTasks.remove(task.taskId);
+          if (!completion.isCompleted) completion.complete();
+          _scheduleNext();
+        }
+      }),
     );
   }
 

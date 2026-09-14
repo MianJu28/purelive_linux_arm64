@@ -1,15 +1,25 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:pure_live/common/index.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pure_live/plugins/file_utils.dart';
 import 'package:pure_live/recorder/consts/recorder_keys.dart';
-import 'package:pure_live/common/global/app_path_manager.dart';
 import 'package:pure_live/recorder/consts/recorder_config.dart';
 import 'package:pure_live/recorder/services/cache_service.dart';
 
+typedef RecordDirectoryPicker = Future<String?> Function();
+
 class RecordSettingsController extends GetxController {
+  RecordSettingsController({RecordDirectoryPicker? directoryPicker})
+    : _directoryPicker = directoryPicker ?? (() => FilePicker.getDirectoryPath());
+
+  final RecordDirectoryPicker _directoryPicker;
+  Future<void>? _storageInitialization;
+  Future<void>? _cacheLimitApplication;
+  int _cacheLimitRevision = 0;
+
   /// =====================================
   /// 基础配置
   /// =====================================
@@ -18,16 +28,14 @@ class RecordSettingsController extends GetxController {
   final maxCacheMB = RecorderConfig.maxCacheMB.obs;
   final cacheSizeMB = 0.0.obs;
   final managedRecordPath = ''.obs;
+  final selectingRecordDirectory = false.obs;
 
   /// =====================================
   /// 录制性能与画质
   /// =====================================
   final segmentTime = RecorderConfig.segmentTime.obs;
   final maxTaskCount = RecorderConfig.maxTaskCount.obs;
-  final preferBestStream = hiveBool(
-    RecorderKeys.preferBestStream,
-    RecorderConfig.defaultPreferBestStream,
-  );
+  final preferBestStream = hiveBool(RecorderKeys.preferBestStream, RecorderConfig.defaultPreferBestStream);
   final rwTimeout = RecorderConfig.rwTimeout.obs;
   final threadQueueSize = RecorderConfig.threadQueueSize.obs;
 
@@ -46,30 +54,32 @@ class RecordSettingsController extends GetxController {
   final enableBackoff = hiveBool(RecorderKeys.enableBackoff, RecorderConfig.defaultEnableBackoff);
   final maxCheckInterval = RecorderConfig.maxCheckInterval.obs;
 
-  final autoStartOnBoot = hiveBool(
-    RecorderKeys.autoStartOnBoot,
-    RecorderConfig.defaultAutoStartOnBoot,
-  );
-  final usePinyinForFolder = hiveBool(
-    RecorderKeys.folderNamingStrategy,
-    RecorderConfig.defaultUsePinyinForFolder,
-  );
+  final autoStartOnBoot = hiveBool(RecorderKeys.autoStartOnBoot, RecorderConfig.defaultAutoStartOnBoot);
+  final usePinyinForFolder = hiveBool(RecorderKeys.folderNamingStrategy, RecorderConfig.defaultUsePinyinForFolder);
 
   /// 缓存限制开关
-  final enableCacheLimit = hiveBool(
-    RecorderKeys.enableCacheLimit,
-    RecorderConfig.defaultEnableCacheLimit,
-  );
+  final enableCacheLimit = hiveBool(RecorderKeys.enableCacheLimit, RecorderConfig.defaultEnableCacheLimit);
 
   @override
   void onInit() {
     super.onInit();
-    unawaited(_initializeStorage());
+    unawaited(RecorderConfig.normalizeStoredValues());
+    final initialization = _initializeStorage();
+    _storageInitialization = initialization;
+    unawaited(initialization);
   }
 
   Future<void> _initializeStorage() async {
-    await initRecordPath();
-    await refreshStorageInfo();
+    try {
+      await initRecordPath();
+      await refreshStorageInfo();
+    } catch (error, stackTrace) {
+      developer.log('Recorder storage initialization failed', error: error, stackTrace: stackTrace);
+      if (!isClosed) {
+        managedRecordPath.value = '';
+        cacheSizeMB.value = 0;
+      }
+    }
   }
 
   /// =====================================
@@ -94,6 +104,31 @@ class RecordSettingsController extends GetxController {
   /// 保留这个方法是为了兼容现有 UI 调用。
   Future<void> updateEnableCacheLimit(bool v) async {
     enableCacheLimit.value = v;
+    await _applyCacheLimit();
+  }
+
+  Future<void> _applyCacheLimit() {
+    _cacheLimitRevision++;
+    final pending = _cacheLimitApplication;
+    if (pending != null) return pending;
+
+    late final Future<void> tracked;
+    tracked = _drainCacheLimitChanges().whenComplete(() {
+      if (identical(_cacheLimitApplication, tracked)) _cacheLimitApplication = null;
+    });
+    _cacheLimitApplication = tracked;
+    return tracked;
+  }
+
+  Future<void> _drainCacheLimitChanges() async {
+    var appliedRevision = -1;
+    while (!isClosed && appliedRevision != _cacheLimitRevision) {
+      appliedRevision = _cacheLimitRevision;
+      if (enableCacheLimit.value) {
+        await CacheService.to.enforceLimit(maxMB: maxCacheMB.value.toDouble());
+        if (!isClosed) await refreshCacheSize();
+      }
+    }
   }
 
   /// =====================================
@@ -108,16 +143,18 @@ class RecordSettingsController extends GetxController {
   /// 更新切片时长
   /// =====================================
   Future<void> updateSegmentTime(int v) async {
-    segmentTime.value = v;
-    await RecorderConfig.setSegmentTime(v);
+    final normalized = RecorderConfig.normalizeSegmentTime(v);
+    segmentTime.value = normalized;
+    await RecorderConfig.setSegmentTime(normalized);
   }
 
   /// =====================================
   /// 更新最大任务数
   /// =====================================
   Future<void> updateMaxTask(int v) async {
-    maxTaskCount.value = v;
-    await RecorderConfig.setMaxTaskCount(v);
+    final normalized = RecorderConfig.normalizeMaxTaskCount(v);
+    maxTaskCount.value = normalized;
+    await RecorderConfig.setMaxTaskCount(normalized);
   }
 
   /// =====================================
@@ -136,32 +173,36 @@ class RecordSettingsController extends GetxController {
   /// 更新最大重试次数
   /// =====================================
   Future<void> updateMaxRetryCount(int v) async {
-    maxRetryCount.value = v;
-    await RecorderConfig.setMaxRetryCount(v);
+    final normalized = RecorderConfig.normalizeMaxRetryCount(v);
+    maxRetryCount.value = normalized;
+    await RecorderConfig.setMaxRetryCount(normalized);
   }
 
   /// =====================================
   /// 更新重试等待时间
   /// =====================================
   Future<void> updateRetryDelay(int v) async {
-    retryDelay.value = v;
-    await RecorderConfig.setRetryDelay(v);
+    final normalized = RecorderConfig.normalizeRetryDelay(v);
+    retryDelay.value = normalized;
+    await RecorderConfig.setRetryDelay(normalized);
   }
 
   /// =====================================
   /// 更新开播检测间隔
   /// =====================================
   Future<void> updateLiveCheckInterval(int v) async {
-    liveCheckInterval.value = v;
-    await RecorderConfig.setLiveCheckInterval(v);
+    final normalized = RecorderConfig.normalizeLiveCheckInterval(v);
+    liveCheckInterval.value = normalized;
+    await RecorderConfig.setLiveCheckInterval(normalized);
   }
 
   /// =====================================
   /// 更新最大检测间隔
   /// =====================================
   Future<void> updateMaxCheckInterval(int v) async {
-    maxCheckInterval.value = v;
-    await RecorderConfig.setMaxCheckInterval(v);
+    final normalized = RecorderConfig.normalizeMaxCheckInterval(v);
+    maxCheckInterval.value = normalized;
+    await RecorderConfig.setMaxCheckInterval(normalized);
   }
 
   /// =====================================
@@ -192,19 +233,37 @@ class RecordSettingsController extends GetxController {
   /// 选择录制目录
   /// =====================================
   Future<void> pickRecordDir() async {
-    final result = await FilePicker.getDirectoryPath();
+    if (isClosed || selectingRecordDirectory.value) return;
+    selectingRecordDirectory.value = true;
+    try {
+      final selected = (await _directoryPicker())?.trim() ?? '';
+      if (selected.isEmpty || isClosed) return;
+      // Startup may still be persisting the default folder. Let that older
+      // operation settle so this explicit choice is always committed last.
+      await _storageInitialization;
+      if (isClosed) return;
 
-    if (result != null && result.isNotEmpty) {
-      recordSavePath.value = result;
-      await RecorderConfig.setRecordSavePath(result);
-      await refreshStorageInfo();
+      final directory = await CacheService.to.prepareRecordDir(selected);
+      if (isClosed) return;
+
+      // Persist only after the managed child has passed a real create/write/
+      // delete probe. A rejected picker result therefore retains the last
+      // working path in both memory and Hive.
+      await RecorderConfig.setRecordSavePath(selected);
+      if (isClosed) return;
+      recordSavePath.value = selected;
+      managedRecordPath.value = directory.path;
+      await refreshCacheSize();
+    } catch (error, stackTrace) {
+      developer.log('Recorder directory selection failed', error: error, stackTrace: stackTrace);
+      if (!isClosed) ToastUtil.show(i18n('path_or_permission_error'));
+    } finally {
+      if (!isClosed) selectingRecordDirectory.value = false;
     }
   }
 
   Future<void> openRecordDir() async {
-    final path = managedRecordPath.value.isNotEmpty
-        ? managedRecordPath.value
-        : await CacheService.to.getDisplayPath();
+    final path = managedRecordPath.value.isNotEmpty ? managedRecordPath.value : await CacheService.to.getDisplayPath();
 
     if (path.isEmpty) {
       return;
@@ -214,13 +273,16 @@ class RecordSettingsController extends GetxController {
   }
 
   Future<void> updateDefaultQuality(String v) async {
-    defaultQuality.value = v;
-    await RecorderConfig.setDefaultQuality(v);
+    final normalized = RecorderConfig.normalizeDefaultQuality(v);
+    defaultQuality.value = normalized;
+    await RecorderConfig.setDefaultQuality(normalized);
   }
 
   Future<void> updateMaxCache(int v) async {
-    maxCacheMB.value = v;
-    await RecorderConfig.setMaxCacheMB(v);
+    final normalized = RecorderConfig.normalizeMaxCacheMB(v);
+    maxCacheMB.value = normalized;
+    await RecorderConfig.setMaxCacheMB(normalized);
+    await _applyCacheLimit();
   }
 
   /// =====================================
@@ -239,16 +301,18 @@ class RecordSettingsController extends GetxController {
   /// 更新读写超时
   /// =====================================
   Future<void> updateRwTimeout(int v) async {
-    rwTimeout.value = v;
-    await RecorderConfig.setRwTimeout(v);
+    final normalized = RecorderConfig.normalizeRwTimeout(v);
+    rwTimeout.value = normalized;
+    await RecorderConfig.setRwTimeout(normalized);
   }
 
   /// =====================================
   /// 更新缓冲队列大小
   /// =====================================
   Future<void> updateThreadQueueSize(int v) async {
-    threadQueueSize.value = v;
-    await RecorderConfig.setThreadQueueSize(v);
+    final normalized = RecorderConfig.normalizeThreadQueueSize(v);
+    threadQueueSize.value = normalized;
+    await RecorderConfig.setThreadQueueSize(normalized);
   }
 
   /// =====================================
@@ -269,7 +333,7 @@ class RecordSettingsController extends GetxController {
 
   Future<void> initRecordPath() async {
     if (recordSavePath.value.isEmpty) {
-      final Directory recordDir = await AppPathManager().getDir(AppPathManager.dirRecords);
+      final Directory recordDir = await CacheService.to.getRecordDir();
 
       recordSavePath.value = recordDir.path;
 

@@ -1,5 +1,6 @@
-import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
+import 'package:pure_live/common/services/settings/favorite_room_controller.dart';
+import 'package:remixicon/remixicon.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 
 class KeywordBlockPage extends StatefulWidget {
@@ -69,6 +70,20 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             sliver: SliverList.list(
               children: [
+                context.buildGroupTitle(i18n('platform_danmaku_filter')),
+                Obx(
+                  () => context.buildModernCard([
+                    _switch(
+                      theme,
+                      title: i18n('douyu_suspected_automated_filter'),
+                      subtitle: i18n('douyu_suspected_automated_filter_desc'),
+                      value: dm.filterDouyuSuspectedAutomatedMessages.v,
+                      onChanged: (value) => dm.filterDouyuSuspectedAutomatedMessages.v = value,
+                      labelColor: labelColor,
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 20),
                 context.buildGroupTitle(i18n('danmaku_similarity_filter')),
                 Obx(
                   () => context.buildModernCard([
@@ -88,6 +103,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
                         max: 100,
                         stepSize: 1,
                         display: '${dm.danmakuSimilarityThreshold.v}%',
+                        semanticValueBuilder: (value) => '${value.round()}%',
                         onChanged: (value) => dm.danmakuSimilarityThreshold.v = value.round(),
                         labelColor: labelColor,
                         digitColor: digitColor,
@@ -103,6 +119,8 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
                           'danmaku_similarity_cache_seconds',
                           args: {'seconds': '${dm.danmakuSimilarityCacheDuration.v}'},
                         ),
+                        semanticValueBuilder: (value) =>
+                            i18n('danmaku_similarity_cache_seconds', args: {'seconds': '${value.round()}'}),
                         onChanged: (value) => dm.danmakuSimilarityCacheDuration.v = value.round(),
                         labelColor: labelColor,
                         digitColor: digitColor,
@@ -115,6 +133,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
                         max: 1000,
                         stepSize: 10,
                         display: '${dm.danmakuSimilarityMaxCacheSize.v}',
+                        semanticValueBuilder: (value) => '${value.round()}',
                         onChanged: (value) => dm.danmakuSimilarityMaxCacheSize.v = value.round(),
                         labelColor: labelColor,
                         digitColor: digitColor,
@@ -138,9 +157,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
   }
 
   Widget _buildBlockedSliver(ThemeData theme, {required bool users}) {
-    final values = List<String>.from(
-      users ? settingsService.fav.blockedDanmakuUsers : settingsService.fav.shieldList,
-    );
+    final values = List<String>.from(users ? settingsService.fav.blockedDanmakuUsers : settingsService.fav.shieldList);
     if (values.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
     final title = users
         ? i18n('blocked_danmaku_users', args: {'count': '${values.length}'})
@@ -156,9 +173,17 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
               theme,
               text: values[index],
               icon: users ? Icons.person_off_rounded : Icons.filter_alt_off_rounded,
-              onRemove: () => users
-                  ? settingsService.fav.removeBlockedDanmakuUser(index)
-                  : settingsService.fav.removeShieldList(index),
+              onRemove: () {
+                final favorites = settingsService.fav;
+                // Resolve the rendered value against current preferences, not a stale index.
+                final current = users ? favorites.blockedDanmakuUsers : favorites.shieldList;
+                final currentIndex = current.indexOf(values[index]);
+                if (users) {
+                  favorites.removeBlockedDanmakuUser(currentIndex);
+                } else {
+                  favorites.removeShieldList(currentIndex);
+                }
+              },
             ),
           ),
         ],
@@ -178,6 +203,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
       child: TextField(
         controller: textEditingController,
         focusNode: _focusNode,
+        maxLength: FavoriteRoomController.maxShieldKeywordLength,
         keyboardType: TextInputType.text,
         textInputAction: TextInputAction.done,
         onSubmitted: (_) => addKeyword(),
@@ -193,11 +219,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
           ),
-          suffixIcon: IconButton(
-            tooltip: i18n('add'),
-            onPressed: addKeyword,
-            icon: const Icon(Remix.add_circle_line),
-          ),
+          suffixIcon: IconButton(tooltip: i18n('add'), onPressed: addKeyword, icon: const Icon(Remix.add_circle_line)),
         ),
       ),
     );
@@ -212,10 +234,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       child: Text(
         title,
-        style: AppTextStyles.t15.copyWith(
-          fontWeight: FontWeight.w600,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -224,12 +243,8 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
   // Block item
   // ================================================================
 
-  Widget _buildItem(
-    ThemeData theme, {
-    required String text,
-    required IconData icon,
-    required VoidCallback onRemove,
-  }) {
+  Widget _buildItem(ThemeData theme, {required String text, required IconData icon, required VoidCallback onRemove}) {
+    final removeLabel = '${i18n('click_to_remove')}: $text';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       child: RepaintBoundary(
@@ -239,11 +254,18 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
           child: ListTile(
             dense: true,
             leading: Icon(icon, size: 19, color: theme.colorScheme.primary),
-            title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
-            trailing: IconButton(
-              tooltip: i18n('click_to_remove'),
-              icon: const Icon(Remix.close_line, size: 18),
-              onPressed: onRemove,
+            title: Text(text),
+            trailing: Semantics(
+              container: true,
+              button: true,
+              label: removeLabel,
+              child: ExcludeSemantics(
+                child: IconButton(
+                  tooltip: removeLabel,
+                  icon: const Icon(Remix.close_line, size: 18),
+                  onPressed: onRemove,
+                ),
+              ),
             ),
           ),
         ),
@@ -262,6 +284,7 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
     required double min,
     required double max,
     required String display,
+    required String Function(double value) semanticValueBuilder,
     required ValueChanged<double> onChanged,
     required Color labelColor,
     required Color digitColor,
@@ -272,27 +295,32 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: labelColor),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: labelColor),
                 ),
-                child: Text(
-                  display,
-                  style: AppTextStyles.t12.copyWith(fontWeight: FontWeight.bold, color: digitColor),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    display,
+                    style: AppTextStyles.t12.copyWith(fontWeight: FontWeight.bold, color: digitColor),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-
           const SizedBox(height: 4),
 
           Transform.translate(
@@ -306,6 +334,8 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
                 stepSize: stepSize,
                 activeColor: theme.colorScheme.primary,
                 inactiveColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+                semanticFormatterCallback: (dynamic semanticValue) =>
+                    '$title, ${semanticValueBuilder((semanticValue as num).toDouble())}',
                 onChanged: (dynamic value) {
                   onChanged(value as double);
                 },
@@ -324,24 +354,23 @@ class _KeywordBlockPageState extends State<KeywordBlockPage> {
   Widget _switch(
     ThemeData theme, {
     required String title,
+    String? subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
     required Color labelColor,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: labelColor),
-            ),
-          ),
-          Switch(value: value, activeThumbColor: theme.colorScheme.primary, onChanged: onChanged),
-        ],
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(
+        title,
+        style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600, color: labelColor),
       ),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle, style: AppTextStyles.t12.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      value: value,
+      activeThumbColor: theme.colorScheme.primary,
+      onChanged: onChanged,
     );
   }
 }

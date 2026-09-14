@@ -78,7 +78,8 @@ class StartOptions {
         ],
       'facing': cameraDirection.rawValue,
       'lensType': cameraLensType.rawValue,
-      if (formats.isNotEmpty) 'formats': formats.map((f) => f.rawValue).toList(),
+      if (formats.isNotEmpty)
+        'formats': formats.map((f) => f.rawValue).toList(),
       'returnImage': returnImage,
       'speed': detectionSpeed.rawValue,
       'timeout': detectionTimeoutMs,

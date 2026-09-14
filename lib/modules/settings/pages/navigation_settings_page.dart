@@ -1,6 +1,7 @@
 import 'package:remixicon/remixicon.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/common/consts/app_consts.dart';
+import 'package:pure_live/common/services/settings/app_settings_controller.dart';
 
 class NavigationSettingsPage extends StatelessWidget {
   const NavigationSettingsPage({super.key});
@@ -13,16 +14,16 @@ class NavigationSettingsPage extends StatelessWidget {
     final allMenus = [HomeMenu.favorites, HomeMenu.popular, HomeMenu.areas, HomeMenu.record];
 
     return Scaffold(
-      appBar: AppBar(title: Text(i18n('navigation_display_settings'))),
+      appBar: AppBar(title: Text(i18n("navigation_display_settings"))),
       body: ListView(
         physics: const PureLiveScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          context.buildGroupTitle(i18n('multiview_title')),
+          context.buildGroupTitle(i18n("multiview_title")),
           context.buildModernCard([
             context.buildSwitchTile(
-              title: i18n('multiview_title'),
-              subtitle: '',
+              title: i18n("multiview_title"),
+              subtitle: "",
               value: SettingsService.to.app.enableMultiView,
               icon: Remix.layout_grid_line,
             ),
@@ -30,10 +31,10 @@ class NavigationSettingsPage extends StatelessWidget {
           const SizedBox(height: 16),
           _buildTipBanner(theme),
           const SizedBox(height: 16),
-          context.buildGroupTitle(i18n('navigation_display_settings')),
+          context.buildGroupTitle(i18n("navigation_display_settings")),
           Obx(() {
             // 2. 关键：按 savedMenuIds 的顺序给 allMenus 排序
-            final savedOrder = SettingsService.to.app.savedMenuIds.v;
+            final savedOrder = AppSettingsController.normalizeMenuIds(SettingsService.to.app.savedMenuIds.v);
             // 给每个菜单一个排序权重：在 savedMenuIds 里的位置，不在里面的排到最后
             final sortedMenus = List<HomeMenu>.from(allMenus);
             sortedMenus.sort((a, b) {
@@ -61,11 +62,18 @@ class NavigationSettingsPage extends StatelessWidget {
                 buildDefaultDragHandles: false,
                 itemCount: sortedMenus.length,
                 onReorderItem: (oldIndex, newIndex) {
+                  if (oldIndex < 0 || oldIndex >= sortedMenus.length) return;
+                  final movedId = sortedMenus[oldIndex].id;
+                  final currentOrder = List<String>.from(savedOrder);
+                  final oldVisibleIndex = currentOrder.indexOf(movedId);
+                  // Hidden rows have no persisted order and therefore no drag
+                  // action. Older builds exposed their handle, then indexed
+                  // past the shorter visible-id list.
+                  if (oldVisibleIndex < 0) return;
                   if (newIndex > oldIndex) newIndex -= 1;
-                  // 拖拽时直接更新 savedMenuIds
-                  final currentOrder = List<String>.from(SettingsService.to.app.savedMenuIds.v);
-                  final movedId = currentOrder.removeAt(oldIndex);
-                  currentOrder.insert(newIndex, movedId);
+                  currentOrder.removeAt(oldVisibleIndex);
+                  final insertIndex = newIndex.clamp(0, currentOrder.length);
+                  currentOrder.insert(insertIndex, movedId);
                   SettingsService.to.app.savedMenuIds.v = currentOrder;
                 },
                 itemBuilder: (context, index) {
@@ -73,62 +81,86 @@ class NavigationSettingsPage extends StatelessWidget {
                   // 开关状态直接从 savedMenuIds 判断
                   final isVisible = SettingsService.to.app.savedMenuIds.v.contains(menu.id);
 
-                  String titleText = '';
+                  String titleText = "";
                   IconData menuIcon = Remix.question_line;
                   switch (menu) {
                     case HomeMenu.favorites:
-                      titleText = i18n('favorites_title');
+                      titleText = i18n("favorites_title");
                       menuIcon = Remix.heart_3_fill;
                       break;
                     case HomeMenu.popular:
-                      titleText = i18n('popular_title');
+                      titleText = i18n("popular_title");
                       menuIcon = CustomIcons.popular;
                       break;
                     case HomeMenu.areas:
-                      titleText = i18n('areas_title');
+                      titleText = i18n("areas_title");
                       menuIcon = Remix.apps_2_line;
                       break;
                     case HomeMenu.record:
-                      titleText = i18n('record_center');
+                      titleText = i18n("record_center");
                       menuIcon = Remix.download_2_fill;
                       break;
                   }
 
+                  Widget buildControls() => Row(
+                    key: ValueKey('navigation-menu-controls-${menu.id}'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Switch(
+                        key: ValueKey('navigation-menu-switch-${menu.id}'),
+                        value: isVisible,
+                        activeThumbColor: theme.colorScheme.primary,
+                        onChanged: (value) {
+                          final savedMenus = AppSettingsController.normalizeMenuIds(
+                            SettingsService.to.app.savedMenuIds.v,
+                          );
+                          if (!value && savedMenus.length <= 1) {
+                            ToastUtil.show(i18n("at_least_one_menu_required"));
+                            return;
+                          }
+                          SettingsService.to.app.toggleMenuVisibility(menu, value);
+                        },
+                      ),
+                      if (isVisible && savedOrder.length > 1) ...[
+                        const SizedBox(width: 8),
+                        ReorderableDragStartListener(
+                          key: ValueKey('navigation-menu-drag-${menu.id}'),
+                          index: index,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            child: Icon(RemixIcons.sort_asc, size: 20),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+
                   return Material(
                     key: ValueKey(menu.id),
                     color: Colors.transparent,
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                      title: Text(
-                        titleText,
-                        style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      leading: Icon(menuIcon, size: 22, color: theme.colorScheme.primary),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Switch(
-                            value: isVisible,
-                            activeThumbColor: theme.colorScheme.primary,
-                            onChanged: (value) {
-                              final savedMenus = SettingsService.to.app.savedMenuIds.v;
-                              if (!value && savedMenus.length <= 1) {
-                                ToastUtil.show(i18n('at_least_one_menu_required'));
-                                return;
-                              }
-                              SettingsService.to.app.toggleMenuVisibility(menu, value);
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          ReorderableDragStartListener(
-                            index: index,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              child: Icon(RemixIcons.sort_asc, size: 20),
-                            ),
-                          ),
-                        ],
-                      ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final title = Text(
+                          titleText,
+                          key: ValueKey('navigation-menu-title-${menu.id}'),
+                          style: AppTextStyles.t15.copyWith(fontWeight: FontWeight.w600),
+                        );
+                        final controls = buildControls();
+                        final stackControls =
+                            constraints.maxWidth < 360 || MediaQuery.textScalerOf(context).scale(1) > 1.5;
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          title: stackControls
+                              ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [title, const SizedBox(height: 6), controls],
+                                )
+                              : title,
+                          leading: Icon(menuIcon, size: 22, color: theme.colorScheme.primary),
+                          trailing: stackControls ? null : controls,
+                        );
+                      },
                     ),
                   );
                 },
@@ -151,11 +183,7 @@ class NavigationSettingsPage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Remix.information_line,
-            size: 18,
-            color: theme.colorScheme.primary.withValues(alpha: 0.8),
-          ),
+          Icon(Remix.information_line, size: 18, color: theme.colorScheme.primary.withValues(alpha: 0.8)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

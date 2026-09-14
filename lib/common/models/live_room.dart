@@ -1,4 +1,5 @@
 import 'package:pure_live/player/core/live_room_volume_manager.dart';
+import 'package:pure_live/core/common/http_header_policy.dart';
 
 enum LiveStatus { live, offline, replay, unknown, banned }
 
@@ -94,6 +95,43 @@ class LiveRoom {
       hasTotalViewers: false,
       onlineAvailability: AudienceOnlineAvailability.unsupported,
     ),
+    // Picarto viewers and total_views have separate concurrent/cumulative meanings.
+    'picarto': AudiencePlatformCapability(
+      hasPopularity: false,
+      hasTotalViewers: true,
+      onlineAvailability: AudienceOnlineAvailability.roomList,
+    ),
+    'twitcasting': AudiencePlatformCapability(
+      hasPopularity: false,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.roomList,
+    ),
+    'openrec': AudiencePlatformCapability(
+      hasPopularity: false,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.roomList,
+    ),
+    'ttinglive': AudiencePlatformCapability(
+      hasPopularity: false,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.roomList,
+    ),
+    'huajiao': AudiencePlatformCapability(
+      hasPopularity: true,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.unsupported,
+    ),
+    'missevan': AudiencePlatformCapability(
+      hasPopularity: true,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.unsupported,
+    ),
+    // AcFun onlineCount is independent of likes/followers; author search omits it.
+    'acfun': AudiencePlatformCapability(
+      hasPopularity: false,
+      hasTotalViewers: false,
+      onlineAvailability: AudienceOnlineAvailability.roomList,
+    ),
   };
 
   static const AudiencePlatformCapability _unknownAudienceCapability = AudiencePlatformCapability(
@@ -161,6 +199,11 @@ class LiveRoom {
   bool? isCatchUp; // 是否正在时移
   int? catchUpStart; // 时移开始时间戳
   int? catchUpEnd; // 时移结束时间戳
+  String? catchUpMode; // M3U provider catch-up mode
+  String? catchUpSource; // M3U provider URL template/query
+  double? catchUpDays; // Provider archive window
+  double? catchUpCorrectionHours; // Provider timestamp correction
+  Map<String, String> httpHeaders; // Per-channel IPTV media request fields
 
   /// Local epoch-millisecond timestamp used by the viewing-history UI.
   int? lastWatchedAt;
@@ -196,6 +239,11 @@ class LiveRoom {
     this.isCatchUp = false,
     this.catchUpStart,
     this.catchUpEnd,
+    this.catchUpMode,
+    this.catchUpSource,
+    this.catchUpDays,
+    this.catchUpCorrectionHours,
+    this.httpHeaders = const <String, String>{},
     this.lastWatchedAt,
     List<String>? tagIds,
   }) : liveStatus = liveStatus ?? _legacyStatusToLiveStatus(status: status, isRecord: isRecord),
@@ -233,6 +281,11 @@ class LiveRoom {
       isCatchUp = json['isCatchUp'] ?? false,
       catchUpStart = json['catchUpStart'],
       catchUpEnd = json['catchUpEnd'],
+      catchUpMode = json['catchUpMode']?.toString(),
+      catchUpSource = json['catchUpSource']?.toString(),
+      catchUpDays = _finiteDoubleFromJson(json['catchUpDays']),
+      catchUpCorrectionHours = _finiteDoubleFromJson(json['catchUpCorrectionHours']),
+      httpHeaders = HttpHeaderPolicy.normalize(json['httpHeaders'] is Map ? json['httpHeaders'] as Map : null),
       lastWatchedAt = json['lastWatchedAt'] is num ? (json['lastWatchedAt'] as num).toInt() : null {
     // Earlier builds stored Huya's userCount/URI 8006 popularity in the
     // concurrent-viewer field. Current captures confirm both are popularity.
@@ -277,6 +330,11 @@ class LiveRoom {
     bool? isCatchUp,
     int? catchUpStart,
     int? catchUpEnd,
+    String? catchUpMode,
+    String? catchUpSource,
+    double? catchUpDays,
+    double? catchUpCorrectionHours,
+    Map<String, String>? httpHeaders,
     int? lastWatchedAt,
     List<String>? tagIds,
   }) {
@@ -310,6 +368,11 @@ class LiveRoom {
       isCatchUp: isCatchUp ?? this.isCatchUp,
       catchUpStart: catchUpStart ?? this.catchUpStart,
       catchUpEnd: catchUpEnd ?? this.catchUpEnd,
+      catchUpMode: catchUpMode ?? this.catchUpMode,
+      catchUpSource: catchUpSource ?? this.catchUpSource,
+      catchUpDays: catchUpDays ?? this.catchUpDays,
+      catchUpCorrectionHours: catchUpCorrectionHours ?? this.catchUpCorrectionHours,
+      httpHeaders: httpHeaders ?? this.httpHeaders,
       lastWatchedAt: lastWatchedAt ?? this.lastWatchedAt,
       tagIds: tagIds ?? this.tagIds,
     );
@@ -318,6 +381,8 @@ class LiveRoom {
   String get normalizedPlatformId => platform?.trim().toLowerCase() ?? '';
 
   String get normalizedRoomId => roomId?.trim() ?? '';
+
+  bool get isCatchUpActive => isCatchUp == true || (catchUpUrl?.trim().isNotEmpty ?? false);
 
   /// Canonical room state used by presentation and playback decisions.
   ///
@@ -345,8 +410,7 @@ class LiveRoom {
 
   bool get isLiveNow => effectiveLiveStatus == LiveStatus.live;
 
-  bool get isPlayableNow =>
-      effectiveLiveStatus == LiveStatus.live || effectiveLiveStatus == LiveStatus.replay;
+  bool get isPlayableNow => effectiveLiveStatus == LiveStatus.live || effectiveLiveStatus == LiveStatus.replay;
 
   bool get isExplicitlyOfflineNow =>
       effectiveLiveStatus == LiveStatus.offline || effectiveLiveStatus == LiveStatus.banned;
@@ -360,8 +424,7 @@ class LiveRoom {
   bool hasSameIdentity(LiveRoom other) => identityKey == other.identityKey;
 
   bool hasIdentity({required String platform, required String roomId}) {
-    return normalizedPlatformId == platform.trim().toLowerCase() &&
-        normalizedRoomId == roomId.trim();
+    return normalizedPlatformId == platform.trim().toLowerCase() && normalizedRoomId == roomId.trim();
   }
 
   LiveRoom normalizedIdentityCopy() {
@@ -419,6 +482,11 @@ class LiveRoom {
       'isCatchUp': isCatchUp,
       'catchUpStart': catchUpStart,
       'catchUpEnd': catchUpEnd,
+      'catchUpMode': catchUpMode,
+      'catchUpSource': catchUpSource,
+      'catchUpDays': catchUpDays,
+      'catchUpCorrectionHours': catchUpCorrectionHours,
+      'httpHeaders': HttpHeaderPolicy.normalize(httpHeaders),
       'lastWatchedAt': lastWatchedAt,
     };
   }
@@ -451,7 +519,7 @@ class LiveRoom {
       return audienceMetricType!;
     }
     return switch (normalizedPlatformId) {
-      'bilibili' || 'douyu' || 'huya' || 'cc' || 'yy' => AudienceMetricType.popularity,
+      'bilibili' || 'douyu' || 'huya' || 'cc' || 'yy' || 'missevan' => AudienceMetricType.popularity,
       'kuaishou' || 'twitch' || 'soop' => AudienceMetricType.onlineViewers,
       'douyin' => AudienceMetricType.totalViewers,
       _ => AudienceMetricType.unknown,
@@ -468,9 +536,7 @@ class LiveRoom {
 
   String get effectivePopularity {
     if (_hasAudienceValue(popularity)) return popularity!.trim();
-    return effectiveAudienceMetricType == AudienceMetricType.popularity
-        ? (watching ?? '').trim()
-        : '';
+    return effectiveAudienceMetricType == AudienceMetricType.popularity ? (watching ?? '').trim() : '';
   }
 
   String get effectiveOnlineViewers {
@@ -478,17 +544,14 @@ class LiveRoom {
     // `watching` defaults to the legacy sentinel "0". Treat only a positive
     // legacy value as a populated concurrent count; an adapter that really
     // reports zero writes it to [onlineViewers] explicitly and remains valid.
-    return effectiveAudienceMetricType == AudienceMetricType.onlineViewers &&
-            _hasAudienceValue(watching)
+    return effectiveAudienceMetricType == AudienceMetricType.onlineViewers && _hasAudienceValue(watching)
         ? (watching ?? '').trim()
         : '';
   }
 
   String get effectiveTotalViewers {
     if (_hasAudienceValue(totalViewers)) return totalViewers!.trim();
-    return effectiveAudienceMetricType == AudienceMetricType.totalViewers
-        ? (watching ?? '').trim()
-        : '';
+    return effectiveAudienceMetricType == AudienceMetricType.totalViewers ? (watching ?? '').trim() : '';
   }
 
   AudiencePlatformCapability get audienceCapability => audienceCapabilityFor(platform);
@@ -510,9 +573,7 @@ class LiveRoom {
   }
 
   AudienceMetricType audienceType({required bool preferRealOnline, required bool platformEnabled}) {
-    if (preferRealOnline && platformEnabled && supportsRealOnlineCount) {
-      return AudienceMetricType.onlineViewers;
-    }
+    if (preferRealOnline && platformEnabled && supportsRealOnlineCount) return AudienceMetricType.onlineViewers;
     if (_hasAudienceValue(effectivePopularity)) return AudienceMetricType.popularity;
     if (_hasAudienceValue(effectiveTotalViewers)) return AudienceMetricType.totalViewers;
     if (hasRealOnlineCount) return AudienceMetricType.onlineViewers;
@@ -523,9 +584,7 @@ class LiveRoom {
     // In concurrent mode, native heat/cumulative values must not outrank an
     // actual viewer count merely because their numeric scale is much larger.
     if (preferRealOnline && (!platformEnabled || !supportsRealOnlineCount)) return -1;
-    return parseAudienceNumber(
-      audienceValue(preferRealOnline: preferRealOnline, platformEnabled: platformEnabled),
-    );
+    return parseAudienceNumber(audienceValue(preferRealOnline: preferRealOnline, platformEnabled: platformEnabled));
   }
 
   AudienceRankKey audienceRankKey({required bool preferRealOnline, required bool platformEnabled}) {
@@ -587,17 +646,10 @@ class LiveRoom {
     final useFallbackPopularity = !_hasAudienceValue(currentPopularity) || hasTransientBilibiliDrop;
 
     final mergedPopularity = useFallbackPopularity ? fallbackPopularity : currentPopularity;
-    final mergedOnlineViewers = _hasExplicitAudienceValue(onlineViewers)
-        ? onlineViewers
-        : fallback.onlineViewers;
-    final mergedTotalViewers = _hasAudienceValue(totalViewers)
-        ? totalViewers
-        : fallback.totalViewers;
-    final mergedMetricType = useFallbackPopularity
-        ? fallback.effectiveAudienceMetricType
-        : effectiveAudienceMetricType;
-    final mergedWatching =
-        mergedMetricType == AudienceMetricType.popularity && _hasAudienceValue(mergedPopularity)
+    final mergedOnlineViewers = _hasExplicitAudienceValue(onlineViewers) ? onlineViewers : fallback.onlineViewers;
+    final mergedTotalViewers = _hasAudienceValue(totalViewers) ? totalViewers : fallback.totalViewers;
+    final mergedMetricType = useFallbackPopularity ? fallback.effectiveAudienceMetricType : effectiveAudienceMetricType;
+    final mergedWatching = mergedMetricType == AudienceMetricType.popularity && _hasAudienceValue(mergedPopularity)
         ? mergedPopularity
         : watching;
 
@@ -635,6 +687,11 @@ class LiveRoom {
     final text = value?.trim() ?? '';
     return text.isNotEmpty && text != 'null' && RegExp(r'[0-9]').hasMatch(text);
   }
+
+  static double? _finiteDoubleFromJson(dynamic value) {
+    final parsed = value is num ? value.toDouble() : double.tryParse(value?.toString().trim() ?? '');
+    return parsed != null && parsed.isFinite ? parsed : null;
+  }
 }
 
 extension LiveRoomExtension on LiveRoom {
@@ -660,8 +717,7 @@ extension LiveRoomExtension on LiveRoom {
 
       watching: _preferValue(incoming.watching, watching),
       audienceMetricType:
-          incoming.audienceMetricType != null &&
-              incoming.audienceMetricType != AudienceMetricType.unknown
+          incoming.audienceMetricType != null && incoming.audienceMetricType != AudienceMetricType.unknown
           ? incoming.audienceMetricType
           : audienceMetricType,
       popularity: _preferValue(incoming.popularity, popularity),
@@ -683,15 +739,17 @@ extension LiveRoomExtension on LiveRoom {
 
       epgId: _preferValue(incoming.epgId, epgId),
       currentProgramme: _preferValue(incoming.currentProgramme, currentProgramme),
-      currentProgrammeDescription: _preferValue(
-        incoming.currentProgrammeDescription,
-        currentProgrammeDescription,
-      ),
+      currentProgrammeDescription: _preferValue(incoming.currentProgrammeDescription, currentProgrammeDescription),
 
       catchUpUrl: _preferValue(incoming.catchUpUrl, catchUpUrl),
       isCatchUp: incoming.isCatchUp ?? isCatchUp,
       catchUpStart: incoming.catchUpStart ?? catchUpStart,
       catchUpEnd: incoming.catchUpEnd ?? catchUpEnd,
+      catchUpMode: _preferValue(incoming.catchUpMode, catchUpMode),
+      catchUpSource: _preferValue(incoming.catchUpSource, catchUpSource),
+      catchUpDays: incoming.catchUpDays ?? catchUpDays,
+      catchUpCorrectionHours: incoming.catchUpCorrectionHours ?? catchUpCorrectionHours,
+      httpHeaders: incoming.normalizedPlatformId == 'iptv' ? incoming.httpHeaders : httpHeaders,
 
       lastWatchedAt: incoming.lastWatchedAt ?? lastWatchedAt,
     );
@@ -706,6 +764,20 @@ extension LiveRoomExtension on LiveRoom {
 
   LiveRoom getLiveRoomWithError() {
     return copyWith(liveStatus: LiveStatus.offline, status: false, isRecord: false);
+  }
+
+  /// Returns a fresh room snapshot for the original live stream.
+  ///
+  /// [copyWith] deliberately treats null as "keep the previous value", which
+  /// is useful for partial metadata merges but cannot clear catch-up state.
+  /// Returning to live must remove the old interval as one snapshot so a later
+  /// schedule render never highlights a retired programme.
+  LiveRoom withoutCatchUp() {
+    final liveRoom = copyWith(isCatchUp: false);
+    liveRoom.catchUpUrl = null;
+    liveRoom.catchUpStart = null;
+    liveRoom.catchUpEnd = null;
+    return liveRoom;
   }
 
   LiveRoom fillFromDetail(LiveRoom? detail) {

@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:pure_live/gen/env.g.dart';
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/plugins/race_http.dart';
@@ -7,6 +6,7 @@ import 'package:pure_live/common/consts/app_consts.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pure_live/common/utils/githup_mirror.dart';
 import 'package:pure_live/common/global/platform_utils.dart';
+
 
 class VersionUtil {
   static PackageInfo? _packageInfo;
@@ -29,14 +29,9 @@ class VersionUtil {
   static const String telegramGroup = 't.me/pure_live_channel';
   static const String telegramGroupUrl = 'https://t.me/pure_live_channel';
 
-  static final String releaseUrl =
-      'https://api.github.com/repos/$updateOwner/$updateRepository/releases?per_page=30';
+  static final String releaseUrl = 'https://api.github.com/repos/$updateOwner/$updateRepository/releases?per_page=30';
 
-  static final GitHubMirror mirror = GitHubMirror(
-    owner: updateOwner,
-    repo: updateRepository,
-    branch: 'master',
-  );
+  static final GitHubMirror mirror = GitHubMirror(owner: updateOwner, repo: updateRepository, branch: 'master');
 
   static List<String> get _versionUrls => SettingsService.to.app.useGitHubOriginForUpdates.v
       ? [mirror.rawUrl('assets/version.json')]
@@ -73,11 +68,17 @@ class VersionUtil {
     return int.tryParse(_packageInfo!.buildNumber) ?? 0;
   }
 
-  Future<void> checkUpdate() async {
+  Future<bool> checkUpdate() async {
     if (_cachedVersionJson != null) {
-      _applyVersionData(_cachedVersionJson!);
-      isHasNewVersion.value = hasNewVersion();
-      return;
+      try {
+        _applyVersionData(_cachedVersionJson!);
+        isHasNewVersion.value = hasNewVersion();
+        return true;
+      } catch (_) {
+        _cachedVersionJson = null;
+        _resetAfterFailedCheck();
+        return false;
+      }
     }
 
     try {
@@ -93,26 +94,32 @@ class VersionUtil {
       ).timeout(const Duration(seconds: 10));
 
       if (data == null) {
-        latestUpdateLog = '更新检查失败';
-        return;
+        _resetAfterFailedCheck();
+        return false;
       }
 
-      _cachedVersionJson = data;
       _applyVersionData(data);
+      _cachedVersionJson = data;
       isHasNewVersion.value = hasNewVersion();
-      debugPrint('🏁 更新线路成功');
+      debugPrint("🏁 更新线路成功");
+      return true;
     } catch (e) {
-      debugPrint('⚠️ 更新检查失败: $e');
-      latestVersion = version;
-      latestUpdateLog = '更新检查失败';
+      debugPrint("⚠️ 更新检查失败: $e");
+      _resetAfterFailedCheck();
+      return false;
     }
   }
 
   static void _applyVersionData(Map<String, dynamic> data) {
     final selected = selectPlatformVersionData(data, platform: _currentPlatformKey);
-    latestVersion = selected['version']?.toString() ?? version;
-    latestVersionNum = selected['version_num'] ?? 0;
-    latestBuildNumber = selected['build_number'];
+    final parsedVersion = selected['version']?.toString().trim() ?? '';
+    final parsedBuildNumber = _versionInt(selected['build_number']);
+    if (parsedVersion.isEmpty || parsedBuildNumber == null || parsedBuildNumber <= 0) {
+      throw const FormatException('Incomplete release identity');
+    }
+    latestVersion = parsedVersion;
+    latestVersionNum = _versionInt(selected['version_num']) ?? 0;
+    latestBuildNumber = parsedBuildNumber;
     latestUpdateLog = selected['version_desc']?.toString() ?? '';
     prerelease = selected['prerelease'] == true;
     downloadUrl = selected['download_url']?.toString() ?? '';
@@ -132,10 +139,7 @@ class VersionUtil {
   /// Keeps update announcements aligned with the artifacts that were really
   /// published for each platform. The top-level object remains the fallback
   /// for older feeds and older clients.
-  static Map<String, dynamic> selectPlatformVersionData(
-    Map<String, dynamic> data, {
-    required String platform,
-  }) {
+  static Map<String, dynamic> selectPlatformVersionData(Map<String, dynamic> data, {required String platform}) {
     final platforms = data['platforms'];
     final platformData = platforms is Map ? platforms[platform] : null;
     if (platformData is! Map) return data;
@@ -152,16 +156,18 @@ class VersionUtil {
   }
 
   static bool hasNewVersion() {
+    return isNewerVersion(latestVersion, version);
+  }
+
+  static bool isNewerVersion(String latest, String current) {
     try {
-      final latestClean = latestVersion.split('-')[0].replaceAll('v', '').trim();
-      final currentClean = version.split('-')[0].replaceAll('v', '').trim();
+      final latestClean = latest.split(RegExp(r'[-+]'))[0].replaceFirst(RegExp('^[vV]'), '').trim();
+      final currentClean = current.split(RegExp(r'[-+]'))[0].replaceFirst(RegExp('^[vV]'), '').trim();
 
       final latestParts = latestClean.split('.').map(int.parse).toList();
       final currentParts = currentClean.split('.').map(int.parse).toList();
 
-      final maxLength = latestParts.length > currentParts.length
-          ? latestParts.length
-          : currentParts.length;
+      final maxLength = latestParts.length > currentParts.length ? latestParts.length : currentParts.length;
 
       while (latestParts.length < maxLength) {
         latestParts.add(0);
@@ -176,5 +182,26 @@ class VersionUtil {
       }
     } catch (_) {}
     return false;
+  }
+
+  static int? _versionInt(Object? value) {
+    return switch (value) {
+      int number => number,
+      num number => number.toInt(),
+      String text => int.tryParse(text.trim()),
+      _ => null,
+    };
+  }
+
+  void _resetAfterFailedCheck() {
+    latestVersion = version;
+    latestBuildNumber = buildNumber > 0 ? buildNumber : null;
+    latestVersionNum = 0;
+    latestUpdateLog = '';
+    prerelease = false;
+    downloadUrl = '';
+    latestAndroidAbis = const {};
+    latestWindowsMsixAvailable = false;
+    isHasNewVersion.value = false;
   }
 }

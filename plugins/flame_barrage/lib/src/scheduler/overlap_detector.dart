@@ -3,12 +3,7 @@ import 'package:flame_barrage/src/model/barrage/barrage_entry.dart';
 class OverlapDetector {
   const OverlapDetector();
 
-  bool canEnter(
-    BarrageEntry current,
-    BarrageEntry last,
-    double screenWidth, {
-    required double safeGap,
-  }) {
+  bool canEnter(BarrageEntry current, BarrageEntry last, double screenWidth, {required double safeGap}) {
     final double lastTailX = last.x + last.width;
 
     if (lastTailX + safeGap > screenWidth) {

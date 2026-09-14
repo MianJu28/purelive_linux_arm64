@@ -1,13 +1,10 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:pure_live/recorder/services/recording_segment_clock.dart';
 
 class RecordingOutputSnapshot {
-  const RecordingOutputSnapshot({
-    required this.bytes,
-    required this.segmentCount,
-    this.latestModified,
-  });
+  const RecordingOutputSnapshot({required this.bytes, required this.segmentCount, this.latestModified});
 
   static const empty = RecordingOutputSnapshot(bytes: 0, segmentCount: 0);
 
@@ -42,11 +39,7 @@ class RecordingOutputMetrics {
   /// Finalization can partially succeed and resume after an app restart, so
   /// replacing the whole session total with only the attempts from one pass
   /// would discard previously committed output.
-  static int reconcileFinalizedBytes({
-    required int totalBytes,
-    required int sourceBytes,
-    required int finalizedBytes,
-  }) {
+  static int reconcileFinalizedBytes({required int totalBytes, required int sourceBytes, required int finalizedBytes}) {
     final safeTotal = totalBytes.clamp(0, 1 << 62).toInt();
     final safeSource = sourceBytes.clamp(0, 1 << 62).toInt();
     final safeFinalized = finalizedBytes.clamp(0, 1 << 62).toInt();
@@ -58,36 +51,28 @@ class RecordingOutputMetrics {
     return RecordingOutputTracker(directoryPath: directoryPath, filePrefix: filePrefix);
   }
 
-  Future<RecordingOutputSnapshot> measure({
-    required String directoryPath,
-    required String filePrefix,
-  }) async {
+  Future<RecordingOutputSnapshot> measure({required String directoryPath, required String filePrefix}) async {
     final normalizedDirectory = directoryPath.trim();
     final normalizedPrefix = filePrefix.trim();
-    if (normalizedDirectory.isEmpty || normalizedPrefix.isEmpty) {
-      return RecordingOutputSnapshot.empty;
-    }
+    if (normalizedDirectory.isEmpty || normalizedPrefix.isEmpty) return RecordingOutputSnapshot.empty;
 
     final directory = Directory(normalizedDirectory);
     if (!await directory.exists()) return RecordingOutputSnapshot.empty;
 
     var bytes = 0;
     var segmentCount = 0;
+    final matcher = RegExp('^${RegExp.escape(normalizedPrefix)}_\\d{6,}(?:\\.clock-v1)?\\.ts\$', caseSensitive: false);
     DateTime? latestModified;
     try {
       await for (final entity in directory.list(followLinks: false)) {
         if (entity is! File) continue;
         final name = p.basename(entity.path);
-        if (!name.startsWith('${normalizedPrefix}_') || !name.toLowerCase().endsWith('.ts')) {
-          continue;
-        }
+        if (!matcher.hasMatch(name)) continue;
         try {
           final stat = await entity.stat();
           bytes += stat.size;
           segmentCount++;
-          if (latestModified == null || stat.modified.isAfter(latestModified)) {
-            latestModified = stat.modified;
-          }
+          if (latestModified == null || stat.modified.isAfter(latestModified)) latestModified = stat.modified;
         } on FileSystemException {
           // A segment can rotate between directory enumeration and stat. The
           // next one-second sample will observe the completed replacement.
@@ -97,11 +82,7 @@ class RecordingOutputMetrics {
       return RecordingOutputSnapshot.empty;
     }
 
-    return RecordingOutputSnapshot(
-      bytes: bytes,
-      segmentCount: segmentCount,
-      latestModified: latestModified,
-    );
+    return RecordingOutputSnapshot(bytes: bytes, segmentCount: segmentCount, latestModified: latestModified);
   }
 
   /// Reads the committed MP4 produced for one recording attempt.
@@ -111,22 +92,14 @@ class RecordingOutputMetrics {
   /// so a stopped card must replace the provisional count with the committed
   /// file size. The converter appends `-N` if a same-prefix file exists; only
   /// the newest committed output belongs to the just-finished attempt.
-  Future<RecordingOutputSnapshot> measureFinalized({
-    required String directoryPath,
-    required String filePrefix,
-  }) async {
+  Future<RecordingOutputSnapshot> measureFinalized({required String directoryPath, required String filePrefix}) async {
     final normalizedDirectory = directoryPath.trim();
     final normalizedPrefix = filePrefix.trim();
-    if (normalizedDirectory.isEmpty || normalizedPrefix.isEmpty) {
-      return RecordingOutputSnapshot.empty;
-    }
+    if (normalizedDirectory.isEmpty || normalizedPrefix.isEmpty) return RecordingOutputSnapshot.empty;
 
     final directory = Directory(normalizedDirectory);
     if (!await directory.exists()) return RecordingOutputSnapshot.empty;
-    final matcher = RegExp(
-      '^${RegExp.escape(normalizedPrefix)}(?:-\\d+)?\\.mp4\$',
-      caseSensitive: false,
-    );
+    final matcher = RegExp('^${RegExp.escape(normalizedPrefix)}(?:-\\d+)?\\.mp4\$', caseSensitive: false);
     int? bytes;
     DateTime? latestModified;
     try {
@@ -153,7 +126,7 @@ class RecordingOutputMetrics {
   }
 }
 
-/// Incremental tracker for FFmpeg's deterministic `%06d.ts` segment output.
+/// Incremental tracker for current and legacy deterministic segment output.
 /// It stats only the active segment and, on rotation, the next sequential
 /// file. Long recordings therefore remain O(1) per UI sample instead of
 /// rescanning every historical segment once per second.
@@ -167,6 +140,7 @@ class RecordingOutputTracker {
   var _currentIndex = 0;
   var _firstIndex = 0;
   var _finalizedBytes = 0;
+  bool _clockProfile = true;
   RecordingOutputSnapshot _lastSnapshot = RecordingOutputSnapshot.empty;
 
   Future<RecordingOutputSnapshot> sample() async {
@@ -175,9 +149,7 @@ class RecordingOutputTracker {
     while (true) {
       final current = File(_segmentPath(_currentIndex));
       if (!await current.exists()) {
-        if (_lastSnapshot.segmentCount > 0 || !await _locateFirstExistingSegment()) {
-          return _lastSnapshot;
-        }
+        if (_lastSnapshot.segmentCount > 0 || !await _locateFirstExistingSegment()) return _lastSnapshot;
         continue;
       }
       try {
@@ -207,15 +179,19 @@ class RecordingOutputTracker {
   Future<bool> _locateFirstExistingSegment() async {
     final directory = Directory(_directoryPath);
     if (!await directory.exists()) return false;
-    final matcher = RegExp('^${RegExp.escape(_filePrefix)}_(\\d{6})\\.ts\$', caseSensitive: false);
+    final matcher = RegExp('^${RegExp.escape(_filePrefix)}_(\\d{6,})(\\.clock-v1)?\\.ts\$', caseSensitive: false);
     int? firstIndex;
+    var clockProfile = true;
     try {
       await for (final entity in directory.list(followLinks: false)) {
         if (entity is! File) continue;
         final match = matcher.firstMatch(p.basename(entity.path));
         if (match == null) continue;
         final index = int.tryParse(match.group(1)!);
-        if (index != null && (firstIndex == null || index < firstIndex)) firstIndex = index;
+        if (index != null && (firstIndex == null || index < firstIndex)) {
+          firstIndex = index;
+          clockProfile = match.group(2) != null;
+        }
       }
     } on FileSystemException {
       return false;
@@ -223,11 +199,15 @@ class RecordingOutputTracker {
     if (firstIndex == null) return false;
     _currentIndex = firstIndex;
     _firstIndex = firstIndex;
+    _clockProfile = clockProfile;
     return true;
   }
 
   String _segmentPath(int index) {
     final suffix = index.toString().padLeft(6, '0');
-    return p.join(_directoryPath, '${_filePrefix}_$suffix.ts');
+    return p.join(
+      _directoryPath,
+      '${_filePrefix}_$suffix${_clockProfile ? RecordingSegmentClock.segmentSuffix : '.ts'}',
+    );
   }
 }

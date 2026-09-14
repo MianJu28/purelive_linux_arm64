@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:pro_mpack/pro_mpack.dart';
 
 class ShareCommandCodec {

@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:pure_live/common/index.dart';
 import 'package:pure_live/model/live_category.dart';
 import 'package:pure_live/core/common/core_log.dart';
@@ -9,8 +8,9 @@ import 'package:pure_live/core/common/http_client.dart';
 import 'package:pure_live/model/live_play_quality.dart';
 import 'package:pure_live/core/interface/live_site.dart';
 import 'package:pure_live/core/interface/live_danmaku.dart';
-import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
 import 'package:pure_live/core/utils/live_quality_label.dart';
+import 'package:pure_live/modules/live_play/controllers/player_controller.dart';
+
 
 class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResolver {
   static const String _streamSdkVersion = '5.23.0-beta.2';
@@ -109,18 +109,12 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   /// only as query parameters for the category endpoint.
   @visibleForTesting
   static Map<String, dynamic>? parseCategoryPageInfo(String html) {
-    final source = RegExp(
-      r'pageInfo\s*=\s*(\{[\s\S]*?\})\s*;',
-      multiLine: true,
-    ).firstMatch(html)?.group(1);
+    final source = RegExp(r'pageInfo\s*=\s*(\{[\s\S]*?\})\s*;', multiLine: true).firstMatch(html)?.group(1);
     if (source == null) return null;
 
-    final moduleId = int.tryParse(
-      RegExp(r'''moduleId\s*:\s*['"]?(-?\d+)''').firstMatch(source)?.group(1) ?? '',
-    );
+    final moduleId = int.tryParse(RegExp(r'''moduleId\s*:\s*['"]?(-?\d+)''').firstMatch(source)?.group(1) ?? '');
     final biz = RegExp(r'''biz\s*:\s*['"]([^'"]+)''').firstMatch(source)?.group(1)?.trim() ?? '';
-    final subBiz =
-        RegExp(r'''subBiz\s*:\s*['"]([^'"]+)''').firstMatch(source)?.group(1)?.trim() ?? '';
+    final subBiz = RegExp(r'''subBiz\s*:\s*['"]([^'"]+)''').firstMatch(source)?.group(1)?.trim() ?? '';
     if (moduleId == null || biz.isEmpty || subBiz.isEmpty) return null;
     return <String, dynamic>{'moduleId': moduleId, 'biz': biz, 'subBiz': subBiz};
   }
@@ -148,9 +142,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
     final List<LiveCategory> categories = [];
     final categoryTabs = result['categoryTabs'] ?? [];
     for (final item in categoryTabs) {
-      categories.add(
-        LiveCategory(id: item['id'].toString(), name: item['title'].toString(), children: []),
-      );
+      categories.add(LiveCategory(id: item['id'].toString(), name: item['title'].toString(), children: []));
     }
     final futures = <Future>[];
     for (final category in categories) {
@@ -207,11 +199,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
         subs.add(subCategory);
         continue;
       }
-      final resultText = await HttpClient.instance.getText(
-        url,
-        queryParameters: {},
-        header: getHeaders(),
-      );
+      final resultText = await HttpClient.instance.getText(url, queryParameters: {}, header: getHeaders());
       final pageInfo = parseCategoryPageInfo(resultText);
       if (pageInfo != null) {
         subCategory.shortName = json.encode(pageInfo);
@@ -230,11 +218,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   /// ============================================================
 
   @override
-  Future<List<LiveRoom>> getCategoryRooms(
-    LiveArea category, {
-    int page = 1,
-    int pageSize = 30,
-  }) async {
+  Future<List<LiveRoom>> getCategoryRooms(LiveArea category, {int page = 1, int pageSize = 30}) async {
     CoreLog.d('getCategoryRooms: ${json.encode(category)}');
 
     final requestPageSize = pageSize;
@@ -299,10 +283,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
     return (cid: roomId, sid: roomId);
   }
 
-  Future<Map<String, dynamic>> getLiveStreamObj({
-    required LiveRoom detail,
-    required String qn,
-  }) async {
+  Future<Map<String, dynamic>> getLiveStreamObj({required LiveRoom detail, required String qn}) async {
     final sequence = DateTime.now().millisecondsSinceEpoch;
     final channel = _channelIds(detail);
     final cid = channel.sid;
@@ -353,14 +334,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
       },
     });
 
-    final query = {
-      'uid': '0',
-      'cid': cid,
-      'sid': sid,
-      'appid': '0',
-      'sequence': sequence.toString(),
-      'encode': 'json',
-    };
+    final query = {'uid': '0', 'cid': cid, 'sid': sid, 'appid': '0', 'sequence': sequence.toString(), 'encode': 'json'};
 
     final result = await HttpClient.instance.postJson(
       'https://stream-manager.yy.com/v3/channel/streams',
@@ -390,9 +364,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
       if (value is! Map || _asInt(value['code']) != 0) return null;
       final url = value['hls']?.toString().trim() ?? '';
       final uri = Uri.tryParse(url);
-      if (uri == null || !uri.hasScheme || !const {'http', 'https'}.contains(uri.scheme)) {
-        return null;
-      }
+      if (uri == null || !uri.hasScheme || !const {'http', 'https'}.contains(uri.scheme)) return null;
       return Map<String, dynamic>.from(value);
     } catch (error) {
       CoreLog.w('YY mobile HLS payload is invalid: $error');
@@ -400,10 +372,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
     }
   }
 
-  Future<Map<String, dynamic>?> _getMobileHlsStream({
-    required LiveRoom detail,
-    required String rate,
-  }) async {
+  Future<Map<String, dynamic>?> _getMobileHlsStream({required LiveRoom detail, required String rate}) async {
     final channel = _channelIds(detail);
     final response = await HttpClient.instance.getText(
       'https://interface.yy.com/hls/new/get/${channel.cid}/${channel.sid}/$rate',
@@ -510,9 +479,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
           (record) => LivePlayQuality(
             quality: LiveQualityLabel.normalize(
               platform: Sites.yySite,
-              rawLabel: nameCounts[record.name] == 1
-                  ? record.name
-                  : '${record.name} · ${record.gear}',
+              rawLabel: nameCounts[record.name] == 1 ? record.name : '${record.name} · ${record.gear}',
               id: record.gear,
               bitrate: record.rate > 0 ? record.rate * 1000 : null,
             ),
@@ -531,10 +498,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   /// ============================================================
 
   @override
-  Future<List<String>> getPlayUrls({
-    required LiveRoom detail,
-    required LivePlayQuality quality,
-  }) async {
+  Future<List<String>> getPlayUrls({required LiveRoom detail, required LivePlayQuality quality}) async {
     final qn = quality.data?.toString() ?? '';
 
     if (qn.isEmpty) {
@@ -573,10 +537,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
       var url = cdnInfo['url']?.toString().trim() ?? '';
       if (url.startsWith('//')) url = 'https:$url';
       final uri = Uri.tryParse(url);
-      if (uri == null ||
-          !uri.hasScheme ||
-          !const {'http', 'https'}.contains(uri.scheme) ||
-          urls.contains(url)) {
+      if (uri == null || !uri.hasScheme || !const {'http', 'https'}.contains(uri.scheme) || urls.contains(url)) {
         continue;
       }
       urls.add(url);
@@ -592,13 +553,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   Future<List<LiveRoom>> getRecommendRooms({int page = 1, int pageSize = 30}) async {
     final resultText = await HttpClient.instance.getJson(
       'https://www.yy.com/more/page.action',
-      queryParameters: {
-        'page': page,
-        'pageSize': pageSize,
-        'biz': 'other',
-        'subBiz': 'idx',
-        'moduleId': '-1',
-      },
+      queryParameters: {'page': page, 'pageSize': pageSize, 'biz': 'other', 'subBiz': 'idx', 'moduleId': '-1'},
       header: getHeaders(),
     );
 
@@ -696,10 +651,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   /// ============================================================
 
   @override
-  Future<LiveRoom> getRoomDetailForRefresh({
-    required String platform,
-    required String roomId,
-  }) async {
+  Future<LiveRoom> getRoomDetailForRefresh({required String platform, required String roomId}) async {
     return _fetchRoomDetail(platform: platform, roomId: roomId);
   }
 
@@ -715,20 +667,13 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
         header: getHeaders(),
       ),
     );
-    final resultCode = response is Map
-        ? int.tryParse(response['resultCode']?.toString() ?? '')
-        : null;
+    final resultCode = response is Map ? int.tryParse(response['resultCode']?.toString() ?? '') : null;
     if (response is! Map || resultCode != 0) {
       throw const FormatException('YY room detail response is invalid');
     }
     final rawItem = response['data'];
     if (rawItem is! Map) {
-      return LiveRoom(
-        roomId: roomId,
-        platform: platform,
-        status: false,
-        liveStatus: LiveStatus.offline,
-      );
+      return LiveRoom(roomId: roomId, platform: platform, status: false, liveStatus: LiveStatus.offline);
     }
     final item = Map<String, dynamic>.from(rawItem);
     final topSid = _asInt(item['sid']) ?? _asInt(roomId) ?? 0;
@@ -804,11 +749,7 @@ class YYSite implements LiveSite, LiveSiteRoomRefresher, LiveSiteRecordRoomResol
   /// ============================================================
 
   @override
-  Future<List<LiveAnchorItem>> searchAnchors(
-    String keyword, {
-    int page = 1,
-    int pageSize = 30,
-  }) async {
+  Future<List<LiveAnchorItem>> searchAnchors(String keyword, {int page = 1, int pageSize = 30}) async {
     final resultText = await HttpClient.instance.getJson(
       'https://www.yy.com/apiSearch/doSearch.json',
       queryParameters: {'q': keyword, 't': '1', 'n': page},

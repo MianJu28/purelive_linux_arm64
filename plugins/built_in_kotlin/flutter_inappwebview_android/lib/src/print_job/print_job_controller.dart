@@ -8,7 +8,8 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
 /// value to avoid breaking changes. See [PlatformPrintJobControllerCreationParams] for
 /// more information.
 @immutable
-class AndroidPrintJobControllerCreationParams extends PlatformPrintJobControllerCreationParams {
+class AndroidPrintJobControllerCreationParams
+    extends PlatformPrintJobControllerCreationParams {
   /// Creates a new [AndroidPrintJobControllerCreationParams] instance.
   const AndroidPrintJobControllerCreationParams({required super.id});
 
@@ -22,7 +23,8 @@ class AndroidPrintJobControllerCreationParams extends PlatformPrintJobController
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformPrintJobController}
-class AndroidPrintJobController extends PlatformPrintJobController with ChannelController {
+class AndroidPrintJobController extends PlatformPrintJobController
+    with ChannelController {
   /// Constructs a [AndroidPrintJobController].
   AndroidPrintJobController(PlatformPrintJobControllerCreationParams params)
       : super.implementation(
@@ -31,8 +33,8 @@ class AndroidPrintJobController extends PlatformPrintJobController with ChannelC
               : AndroidPrintJobControllerCreationParams
                   .fromPlatformPrintJobControllerCreationParams(params),
         ) {
-    channel =
-        MethodChannel('com.pichillilorenzo/flutter_inappwebview_printjobcontroller_${params.id}');
+    channel = MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_printjobcontroller_${params.id}');
     handler = _handleMethod;
     initMethodCallHandler();
   }

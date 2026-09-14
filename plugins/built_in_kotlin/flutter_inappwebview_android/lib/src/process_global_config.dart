@@ -9,7 +9,8 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
 /// value to avoid breaking changes. See [PlatformProcessGlobalConfigCreationParams] for
 /// more information.
 @immutable
-class AndroidProcessGlobalConfigCreationParams extends PlatformProcessGlobalConfigCreationParams {
+class AndroidProcessGlobalConfigCreationParams
+    extends PlatformProcessGlobalConfigCreationParams {
   /// Creates a new [AndroidProcessGlobalConfigCreationParams] instance.
   const AndroidProcessGlobalConfigCreationParams(
     // This parameter prevents breaking changes later.
@@ -25,7 +26,8 @@ class AndroidProcessGlobalConfigCreationParams extends PlatformProcessGlobalConf
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformProcessGlobalConfig}
-class AndroidProcessGlobalConfig extends PlatformProcessGlobalConfig with ChannelController {
+class AndroidProcessGlobalConfig extends PlatformProcessGlobalConfig
+    with ChannelController {
   /// Creates a new [AndroidProcessGlobalConfig].
   AndroidProcessGlobalConfig(PlatformProcessGlobalConfigCreationParams params)
       : super.implementation(
@@ -34,7 +36,8 @@ class AndroidProcessGlobalConfig extends PlatformProcessGlobalConfig with Channe
               : AndroidProcessGlobalConfigCreationParams
                   .fromPlatformProcessGlobalConfigCreationParams(params),
         ) {
-    channel = const MethodChannel('com.pichillilorenzo/flutter_inappwebview_processglobalconfig');
+    channel = const MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_processglobalconfig');
     handler = handleMethod;
     initMethodCallHandler();
   }
@@ -47,8 +50,9 @@ class AndroidProcessGlobalConfig extends PlatformProcessGlobalConfig with Channe
   }
 
   static AndroidProcessGlobalConfig _init() {
-    _instance = AndroidProcessGlobalConfig(AndroidProcessGlobalConfigCreationParams(
-        const PlatformProcessGlobalConfigCreationParams()));
+    _instance = AndroidProcessGlobalConfig(
+        AndroidProcessGlobalConfigCreationParams(
+            const PlatformProcessGlobalConfigCreationParams()));
     return _instance!;
   }
 

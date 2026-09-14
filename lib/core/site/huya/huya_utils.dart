@@ -15,31 +15,41 @@ int rotl64(int t) {
   return high | rotatedLow;
 }
 
-// 这里会有一个复用，当taf-websocket监听到 type=2001314 重新拉起huya-sc-list
-// 为了符合各个平台接口数据统一直通前端的需求，从site.getSuperMessage 标记首次拉起全量返回
-// 从 danmaku.websocket拉起，则只返回最后一个，实现增量SC
-// WebSocket 通知可能早于留言板写入；调用方会执行有界补偿拉取。
-// lPid--s = a.lPresenterUid == topSid
+BaseTarsHttp createHuyaMessageBoardClient() {
+  // This endpoint is auxiliary to playback. Do not inherit the legacy TARS
+  // timeout (60000 seconds) or let one retry retain another retry's socket.
+  final client = BaseTarsHttp('https://wup.huya.com', 'wupui', timeOut: 2, headers: HuyaRequestParams.requestHeaders);
+  client.dio.options.sendTimeout = const Duration(seconds: 2);
+  client.dio.options.receiveTimeout = const Duration(seconds: 2);
+  return client;
+}
+
+/// Both initial room load and WebSocket reconciliation request full snapshots
+/// with [first]; the latter deduplicates by event ID in its current session.
+/// The compatibility single-item path chooses the newest start time, not price.
+/// Each call owns the client supplied by [clientFactory] and always closes it.
 Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({
   required int lPid,
   bool first = false,
+  BaseTarsHttp Function()? clientFactory,
 }) async {
-  final BaseTarsHttp messageBoardClient = BaseTarsHttp(
-    'http://wup.huya.com',
-    'wupui',
-    headers: HuyaRequestParams.requestHeaders,
-  );
+  final messageBoardClient = (clientFactory ?? createHuyaMessageBoardClient)();
   var userId = HuyaUserId()..sHuYaUA = HuyaRequestParams.hysdkUa;
   var req = GetGameEventMessageBoardReq()
     ..lPid = lPid
     ..tId = userId
     ..iMessageBoardScope = 0
-    ..iPageSize = 50;
-  var rsp = await messageBoardClient.tupRequest(
-    'getHeadLineMessageBoard',
-    req,
-    GetGameEventMessageBoardRsp(),
-  );
+    ..iPageSize = 10;
+  final GetGameEventMessageBoardRsp rsp;
+  try {
+    rsp = await messageBoardClient
+        .tupRequest('getHeadLineMessageBoard', req, GetGameEventMessageBoardRsp())
+        .timeout(const Duration(seconds: 3));
+  } finally {
+    // Future.timeout only stops waiting. Closing the actual transport here
+    // prevents outstanding HTTP requests from accumulating on repeated SCs.
+    messageBoardClient.dio.close(force: true);
+  }
   final now = DateTime.now();
   final List<LiveSuperChatMessage> messages = [];
   for (final item in rsp.tMessageBoardPanel.vGameEventMessageBoardInfo) {
@@ -65,8 +75,8 @@ Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({
 
     final message = LiveSuperChatMessage(
       messageId: item.lMessageId > 0 ? 'huya:${item.lMessageId}' : '',
-      backgroundBottomColor: '#246488',
-      backgroundColor: '#ffffff',
+      backgroundBottomColor: "#246488",
+      backgroundColor: "#ffffff",
       endTime: endTime,
       face: item.tMessageUser.sAvatar,
       message: content,
@@ -77,24 +87,11 @@ Future<List<LiveSuperChatMessage>> getHuyaSuperChatMessageList({
 
     messages.add(message);
   }
-  // https://github.com/SlotSun/dart_simple_live/issues/157#issuecomment-5479457055
-  // huya 按 money->level->countDown 排序 调整为 startTime 逆序 最新的在最前面
-  messages.sort((a, b) => b.startTime.compareTo(a.startTime));
-  if (first) {
-    return messages.length > 10 ? messages.sublist(0, 10) : messages;
+  if (first || messages.isEmpty) {
+    return messages;
   } else {
-    return [messages.first];
-  }
-}
-
-class RequestIdGenerator {
-  static int _counter = 0;
-
-  static int next() {
-    return _counter++;
-  }
-
-  static void reset([int value = 0]) {
-    _counter = value;
+    // huya 按money->level->countDown 排序 调整为 startTime
+    messages.sort((a, b) => a.startTime.compareTo(b.startTime));
+    return [messages.last];
   }
 }

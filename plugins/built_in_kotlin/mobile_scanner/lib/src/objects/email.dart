@@ -3,7 +3,12 @@ import 'package:mobile_scanner/src/enums/email_type.dart';
 /// An email message from a 'MAILTO:' or similar QRCode type.
 class Email {
   /// Construct a new [Email] instance.
-  const Email({this.address, this.body, this.subject, this.type = EmailType.unknown});
+  const Email({
+    this.address,
+    this.body,
+    this.subject,
+    this.type = EmailType.unknown,
+  });
 
   /// Construct an [Email] from the given [data].
   factory Email.fromNative(Map<Object?, Object?> data) {

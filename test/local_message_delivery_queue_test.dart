@@ -15,12 +15,7 @@ void main() {
     final delivered = <LocalMessageDelivery>[];
     final queue = LocalMessageDeliveryQueue(onDeliver: delivered.add);
     queue.schedule(
-      LocalMessageDelivery(
-        message: message('hello'),
-        showAsDanmaku: true,
-        roomId: '100',
-        platform: 'bilibili',
-      ),
+      LocalMessageDelivery(message: message('hello'), showAsDanmaku: true, roomId: '100', platform: 'bilibili'),
       delay: const Duration(milliseconds: 20),
     );
 
@@ -40,12 +35,7 @@ void main() {
     final delivered = <LocalMessageDelivery>[];
     final queue = LocalMessageDeliveryQueue(onDeliver: delivered.add);
     queue.schedule(
-      LocalMessageDelivery(
-        message: message('stale'),
-        showAsDanmaku: true,
-        roomId: '100',
-        platform: 'bilibili',
-      ),
+      LocalMessageDelivery(message: message('stale'), showAsDanmaku: true, roomId: '100', platform: 'bilibili'),
       delay: const Duration(milliseconds: 20),
     );
     queue.cancelAll();

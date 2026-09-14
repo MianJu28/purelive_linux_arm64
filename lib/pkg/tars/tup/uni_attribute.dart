@@ -1,11 +1,7 @@
 import 'dart:core';
-
 import 'const.dart';
-
 import 'dart:typed_data';
-
 import 'object_create_exception.dart';
-
 import 'package:pure_live/pkg/tars/codec/tars_struct.dart';
 import 'package:pure_live/pkg/tars/codec/tars_input_stream.dart';
 import 'package:pure_live/pkg/tars/codec/tars_output_stream.dart';
@@ -57,10 +53,10 @@ class UniAttribute extends TarsStruct {
 
   void put<T>(String name, T t) {
     if (name.isEmpty) {
-      throw ArgumentError('put key can not is null');
+      throw ArgumentError("put key can not is null");
     }
     if (t == null) {
-      throw ArgumentError('put value can not is null');
+      throw ArgumentError("put value can not is null");
     }
 
     TarsOutputStream out = TarsOutputStream();
@@ -230,7 +226,7 @@ class UniAttribute extends TarsStruct {
 
       newData = inputStream.readMap<String, Uint8List>(
         {
-          '': Uint8List.fromList([0x0]),
+          "": Uint8List.fromList([0x0]),
         },
         0,
         false,
@@ -251,7 +247,7 @@ class UniAttribute extends TarsStruct {
   void readFrom(TarsInputStream inputStream) {
     if (version == Const.PACKET_TYPE_TUP3) {
       newData = {
-        '': Uint8List.fromList([0x0]),
+        "": Uint8List.fromList([0x0]),
       };
       inputStream.readMap<String, Uint8List>(newData, 0, false);
     } else {

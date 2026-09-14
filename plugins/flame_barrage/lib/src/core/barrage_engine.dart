@@ -119,11 +119,7 @@ class BarrageEngine extends FlameGame with TapCallbacks {
   }
 
   void _resumeLoopIfNeeded() {
-    if (!isPaused &&
-        _appActive &&
-        _initialized &&
-        isAttached &&
-        (_waiting.isNotEmpty || _currentAliveCount > 0)) {
+    if (!isPaused && _appActive && _initialized && isAttached && (_waiting.isNotEmpty || _currentAliveCount > 0)) {
       _startFramePulses();
     }
   }
@@ -154,11 +150,7 @@ class BarrageEngine extends FlameGame with TapCallbacks {
   }
 
   void _onFrameTick(Duration elapsed) {
-    if (isPaused ||
-        !_appActive ||
-        !_initialized ||
-        !isAttached ||
-        (_waiting.isEmpty && _currentAliveCount == 0)) {
+    if (isPaused || !_appActive || !_initialized || !isAttached || (_waiting.isEmpty && _currentAliveCount == 0)) {
       _stopFramePulses();
       return;
     }
@@ -235,11 +227,7 @@ class BarrageEngine extends FlameGame with TapCallbacks {
   bool triggerItemAt(double x, double y, {required bool longPress}) {
     for (var i = _activeEntries.length - 1; i >= 0; i--) {
       final entry = _activeEntries[i];
-      if (!entry.active ||
-          x < entry.x ||
-          x > entry.x + entry.width ||
-          y < entry.y ||
-          y > entry.y + entry.height) {
+      if (!entry.active || x < entry.x || x > entry.x + entry.width || y < entry.y || y > entry.y + entry.height) {
         continue;
       }
       final callback = longPress ? entry.item.onLongTapDown : entry.item.onTapUp;
@@ -300,36 +288,17 @@ class BarrageEngine extends FlameGame with TapCallbacks {
   Color backgroundColor() => Colors.transparent;
 
   void updateConfig(BarrageConfig newConfig) {
-    final oldConfig = _config;
-
-    final speedChanged = oldConfig.baseSpeed != newConfig.baseSpeed;
-
+    final fpsChanged = _config.fps != newConfig.fps;
     _config = newConfig;
-
     _parser.updateMaxCacheSize(newConfig.textCacheMaxSize);
     _layout.updateMaxTextCacheSize(newConfig.textCacheMaxSize);
     _pictureCache.updateMaxSize(newConfig.pictureCacheMaxSize);
     _pool.updateMaxSize(newConfig.barragePoolMaxSize);
-
     if (_initialized) {
       _trackManager.initialize(_config, _calculateAllowedHeight(size.y));
     }
-
-    if (speedChanged) {
-      _updateActiveBarrageSpeed();
-    }
-
-    if (oldConfig.fps != newConfig.fps && _frameTicker?.isActive == true) {
+    if (fpsChanged && _frameTicker?.isActive == true) {
       _startFramePulses();
-    }
-  }
-
-  void _updateActiveBarrageSpeed() {
-    for (final entry in _activeEntries) {
-      if (!entry.active) continue;
-      if (entry.item.type != BarrageType.scroll) continue;
-
-      entry.speed = _config.baseSpeed;
     }
   }
 
@@ -489,12 +458,7 @@ class BarrageEngine extends FlameGame with TapCallbacks {
     _waiting.removeFirst();
     final track = _trackManager.tracks[trackIndex];
     if (item.type == BarrageType.scroll) {
-      mockEntry.speed = _speedStrategy.calculate(
-        mockEntry,
-        size.x,
-        resolvedConfig,
-        targetTrack: track,
-      );
+      mockEntry.speed = _speedStrategy.calculate(mockEntry, size.x, resolvedConfig, targetTrack: track);
     }
     track.lastLaunchTime = now;
     final cacheKey = buildCacheKey(item);

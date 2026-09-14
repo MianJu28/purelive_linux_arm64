@@ -50,10 +50,20 @@ class MultiviewDanmakuSession {
   /// 当前会话绑定的房间键（platform:roomId）；未连接为 null。
   String? get sessionKey => _sessionKey;
 
-  /// 平台例外表：与 live_play 的弹幕门禁保持一致（iptv/cc 不连）。
+  /// Empty/unsupported remote transports never create a multiview chat session.
   static bool isSupportedPlatform(String? platform) {
-    const except = [Sites.iptvSite, Sites.ccSite];
-    return platform != null && !except.contains(platform);
+    // New platform registration must not silently advertise a chat transport.
+    const supported = {
+      Sites.bilibiliSite,
+      Sites.douyuSite,
+      Sites.huyaSite,
+      Sites.douyinSite,
+      Sites.kuaishouSite,
+      Sites.twitchSite,
+      Sites.soopSite,
+      Sites.yySite,
+    };
+    return supported.contains(platform?.trim().toLowerCase());
   }
 
   /// 房间是否具备建会话的最小条件（平台支持且携带弹幕连接参数）。
@@ -130,6 +140,7 @@ class MultiviewDanmakuSession {
     _engine = null;
     if (engine == null) return;
     engine.onMessage = null;
+    engine.onReconnect = null;
     engine.onClose = null;
     engine.onReady = null;
     await _stopEngineQuietly(engine);
@@ -154,6 +165,14 @@ class MultiviewDanmakuSession {
           stackTrace: stackTrace,
         );
       }
+    };
+
+    engine.onReconnect = (reason) {
+      developer.log(
+        'MultiviewDanmakuSession: transport reconnecting for $key '
+        '(${token == _epoch ? 'current' : 'stale'} session): $reason',
+        name: 'MultiviewDanmakuSession',
+      );
     };
 
     engine.onClose = (reason) {

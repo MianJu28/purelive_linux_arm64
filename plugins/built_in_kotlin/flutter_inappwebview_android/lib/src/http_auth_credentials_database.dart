@@ -26,17 +26,19 @@ class AndroidHttpAuthCredentialDatabaseCreationParams
 }
 
 ///{@macro flutter_inappwebview_platform_interface.PlatformHttpAuthCredentialDatabase}
-class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDatabase
-    with ChannelController {
+class AndroidHttpAuthCredentialDatabase
+    extends PlatformHttpAuthCredentialDatabase with ChannelController {
   /// Creates a new [AndroidHttpAuthCredentialDatabase].
-  AndroidHttpAuthCredentialDatabase(PlatformHttpAuthCredentialDatabaseCreationParams params)
+  AndroidHttpAuthCredentialDatabase(
+      PlatformHttpAuthCredentialDatabaseCreationParams params)
       : super.implementation(
           params is AndroidHttpAuthCredentialDatabaseCreationParams
               ? params
               : AndroidHttpAuthCredentialDatabaseCreationParams
                   .fromPlatformHttpAuthCredentialDatabaseCreationParams(params),
         ) {
-    channel = const MethodChannel('com.pichillilorenzo/flutter_inappwebview_credential_database');
+    channel = const MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_credential_database');
     handler = handleMethod;
     initMethodCallHandler();
   }
@@ -49,15 +51,17 @@ class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDataba
   }
 
   static AndroidHttpAuthCredentialDatabase _init() {
-    _instance = AndroidHttpAuthCredentialDatabase(AndroidHttpAuthCredentialDatabaseCreationParams(
-        const PlatformHttpAuthCredentialDatabaseCreationParams()));
+    _instance = AndroidHttpAuthCredentialDatabase(
+        AndroidHttpAuthCredentialDatabaseCreationParams(
+            const PlatformHttpAuthCredentialDatabaseCreationParams()));
     return _instance!;
   }
 
   Future<dynamic> _handleMethod(MethodCall call) async {}
 
   @override
-  Future<List<URLProtectionSpaceHttpAuthCredentials>> getAllAuthCredentials() async {
+  Future<List<URLProtectionSpaceHttpAuthCredentials>>
+      getAllAuthCredentials() async {
     Map<String, dynamic> args = <String, dynamic>{};
     List<dynamic> allCredentials =
         await channel?.invokeMethod<List>('getAllAuthCredentials', args) ?? [];
@@ -65,7 +69,8 @@ class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDataba
     List<URLProtectionSpaceHttpAuthCredentials> result = [];
 
     for (Map<dynamic, dynamic> map in allCredentials) {
-      var element = URLProtectionSpaceHttpAuthCredentials.fromMap(map.cast<String, dynamic>());
+      var element = URLProtectionSpaceHttpAuthCredentials.fromMap(
+          map.cast<String, dynamic>());
       if (element != null) {
         result.add(element);
       }
@@ -95,7 +100,8 @@ class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDataba
 
   @override
   Future<void> setHttpAuthCredential(
-      {required URLProtectionSpace protectionSpace, required URLCredential credential}) async {
+      {required URLProtectionSpace protectionSpace,
+      required URLCredential credential}) async {
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent("host", () => protectionSpace.host);
     args.putIfAbsent("protocol", () => protectionSpace.protocol);
@@ -108,7 +114,8 @@ class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDataba
 
   @override
   Future<void> removeHttpAuthCredential(
-      {required URLProtectionSpace protectionSpace, required URLCredential credential}) async {
+      {required URLProtectionSpace protectionSpace,
+      required URLCredential credential}) async {
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent("host", () => protectionSpace.host);
     args.putIfAbsent("protocol", () => protectionSpace.protocol);
@@ -120,7 +127,8 @@ class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDataba
   }
 
   @override
-  Future<void> removeHttpAuthCredentials({required URLProtectionSpace protectionSpace}) async {
+  Future<void> removeHttpAuthCredentials(
+      {required URLProtectionSpace protectionSpace}) async {
     Map<String, dynamic> args = <String, dynamic>{};
     args.putIfAbsent("host", () => protectionSpace.host);
     args.putIfAbsent("protocol", () => protectionSpace.protocol);
@@ -141,6 +149,7 @@ class AndroidHttpAuthCredentialDatabase extends PlatformHttpAuthCredentialDataba
   }
 }
 
-extension InternalHttpAuthCredentialDatabase on AndroidHttpAuthCredentialDatabase {
+extension InternalHttpAuthCredentialDatabase
+    on AndroidHttpAuthCredentialDatabase {
   get handleMethod => _handleMethod;
 }

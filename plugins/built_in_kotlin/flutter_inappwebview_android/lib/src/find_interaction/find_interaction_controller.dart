@@ -11,7 +11,8 @@ import 'package:flutter_inappwebview_platform_interface/flutter_inappwebview_pla
 class AndroidFindInteractionControllerCreationParams
     extends PlatformFindInteractionControllerCreationParams {
   /// Creates a new [AndroidFindInteractionControllerCreationParams] instance.
-  const AndroidFindInteractionControllerCreationParams({super.onFindResultReceived});
+  const AndroidFindInteractionControllerCreationParams(
+      {super.onFindResultReceived});
 
   /// Creates a [AndroidFindInteractionControllerCreationParams] instance based on [PlatformFindInteractionControllerCreationParams].
   factory AndroidFindInteractionControllerCreationParams.fromPlatformFindInteractionControllerCreationParams(
@@ -27,7 +28,8 @@ class AndroidFindInteractionControllerCreationParams
 class AndroidFindInteractionController extends PlatformFindInteractionController
     with ChannelController {
   /// Constructs a [AndroidFindInteractionController].
-  AndroidFindInteractionController(PlatformFindInteractionControllerCreationParams params)
+  AndroidFindInteractionController(
+      PlatformFindInteractionControllerCreationParams params)
       : super.implementation(
           params is AndroidFindInteractionControllerCreationParams
               ? params
@@ -38,7 +40,8 @@ class AndroidFindInteractionController extends PlatformFindInteractionController
   _debugLog(String method, dynamic args) {
     debugLog(
         className: this.runtimeType.toString(),
-        debugLoggingSettings: PlatformFindInteractionController.debugLoggingSettings,
+        debugLoggingSettings:
+            PlatformFindInteractionController.debugLoggingSettings,
         method: method,
         args: args);
   }
@@ -52,7 +55,8 @@ class AndroidFindInteractionController extends PlatformFindInteractionController
           int activeMatchOrdinal = call.arguments["activeMatchOrdinal"];
           int numberOfMatches = call.arguments["numberOfMatches"];
           bool isDoneCounting = call.arguments["isDoneCounting"];
-          onFindResultReceived!(this, activeMatchOrdinal, numberOfMatches, isDoneCounting);
+          onFindResultReceived!(
+              this, activeMatchOrdinal, numberOfMatches, isDoneCounting);
         }
         break;
       default:
@@ -98,7 +102,8 @@ class AndroidFindInteractionController extends PlatformFindInteractionController
   Future<FindSession?> getActiveFindSession() async {
     Map<String, dynamic> args = <String, dynamic>{};
     Map<String, dynamic>? result =
-        (await channel?.invokeMethod('getActiveFindSession', args))?.cast<String, dynamic>();
+        (await channel?.invokeMethod('getActiveFindSession', args))
+            ?.cast<String, dynamic>();
     return FindSession.fromMap(result);
   }
 
@@ -109,9 +114,11 @@ class AndroidFindInteractionController extends PlatformFindInteractionController
   }
 }
 
-extension InternalFindInteractionController on AndroidFindInteractionController {
+extension InternalFindInteractionController
+    on AndroidFindInteractionController {
   void init(dynamic id) {
-    channel = MethodChannel('com.pichillilorenzo/flutter_inappwebview_find_interaction_$id');
+    channel = MethodChannel(
+        'com.pichillilorenzo/flutter_inappwebview_find_interaction_$id');
     handler = _handleMethod;
     initMethodCallHandler();
   }
