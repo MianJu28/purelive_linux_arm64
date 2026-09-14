@@ -531,10 +531,11 @@ GLX/EGL 窗口 surface 路径仍不稳定（§10.5 缺口 3）。
 缓冲，即呈现阶段的局部撕裂/错位；与内容帧率无关（§10.8 的刷新率不整除是另一层
 平滑度问题）。
 
-处置（已实现）：JM9100 机器上由 runner 默认注入 `__GL_SYNC_TO_VBLANK=1`（Mesa 派生
-GLX 客户端识别的传统开关；`setenv overwrite=0`，用户可预设覆盖），可用
-`PURELIVE_JM9100_VBLANK=0` 关闭；`vblank_mode=1` 因会导致重复/回退帧而默认不启用。
-实测：错位减轻。
+处置（已实现）：JM9100 机器上由 runner 默认注入 `__GL_SYNC_TO_VBLANK=1` 与
+`vblank_mode=3`（Mesa 最强同步档；均 `setenv overwrite=0`，用户可预设覆盖）。
+档位由 `PURELIVE_JM9100_VBLANK` 选择：`0`=关闭同步、`1`=弱档（`vblank_mode=1`）、
+未设或 `3`=最强档。实测：弱档（`vblank_mode=1`，维护者目视）错位减轻但伴随
+重复/回退帧；最强档（`vblank_mode=3`）由维护者按构建产物目视复核。
 
 遗留：
 
