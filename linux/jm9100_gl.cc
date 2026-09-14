@@ -366,11 +366,10 @@ int jm9100_gl_probe_main(void) { return runProbeChild(); }
 // vblank_mode=1 there was measured to slow that thread down and make frames
 // repeat/rewind, so it is deliberately left off.
 void applyPresentationSyncEnvironment() {
-  // PURELIVE_JM9100_VBLANK: 0 = no sync vars; 1 = Mesa weak sync (vblank_mode=1);
-  // unset or 3 = strongest (vblank_mode=3). Measured on this box: without any
-  // sync the presentation shows band/triangle patches of the previous frame
-  // (30 fps sources severe, 60 fps occasional, §10.9); vblank_mode=1 reduces
-  // them; 3 is the strongest Mesa sync level.
+  // PURELIVE_JM9100_VBLANK: 0 = no sync vars; unset or 1 = Mesa weak sync
+  // (vblank_mode=1, the best measured trade-off: band/triangle presentation
+  // artifacts reduced, at the cost of occasional repeated/rewound frames);
+  // 3 = strongest sync (measured to make the artifacts worse on this box).
   const gchar* mode = g_getenv("PURELIVE_JM9100_VBLANK");
   if (mode != nullptr && g_ascii_strcasecmp(mode, "0") == 0) {
     g_print("jm9100: presentation vblank sync disabled (PURELIVE_JM9100_VBLANK=0)\n");
@@ -379,7 +378,7 @@ void applyPresentationSyncEnvironment() {
   // Overwrite=0 keeps values the user set explicitly.
   setenv("__GL_SYNC_TO_VBLANK", "1", 0);
   const char* vblank_mode =
-      (mode != nullptr && g_ascii_strcasecmp(mode, "1") == 0) ? "1" : "3";
+      (mode != nullptr && g_ascii_strcasecmp(mode, "3") == 0) ? "3" : "1";
   setenv("vblank_mode", vblank_mode, 0);
   g_print("jm9100: presentation sync __GL_SYNC_TO_VBLANK=1 vblank_mode=%s\n", vblank_mode);
 }
