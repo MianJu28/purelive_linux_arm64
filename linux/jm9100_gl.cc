@@ -353,10 +353,34 @@ gboolean jm9100_gl_probe_requested(int argc, char** argv) {
 
 int jm9100_gl_probe_main(void) { return runProbeChild(); }
 
+// Presentation sync for the JM9100 X11 session.
+//
+// The X server has no hardware GLX for PCI 0731:9100 (the vendor DDX misses the
+// current ABI, so the server falls back to DRISWRAST), and no compositor owns
+// _NET_WM_CM_S0 in this session. GLX swaps therefore reach the framebuffer
+// without any vblank relationship, and the scanout shows a partially written
+// buffer: bands and triangular patches of the previous frame inside the live
+// picture (docs/LINUX_JM9100_HWDECODE_AUDIT.md §10.9). Mesa-derived GLX clients
+// honour the traditional __GL_SYNC_TO_VBLANK switch, which restores an even
+// presentation. The plugin's video render thread uses EGL; enabling
+// vblank_mode=1 there was measured to slow that thread down and make frames
+// repeat/rewind, so it is deliberately left off.
+void applyPresentationSyncEnvironment() {
+  const gchar* disabled = g_getenv("PURELIVE_JM9100_VBLANK");
+  if (disabled != nullptr && g_ascii_strcasecmp(disabled, "0") == 0) {
+    g_print("jm9100: presentation vblank sync disabled (PURELIVE_JM9100_VBLANK=0)\n");
+    return;
+  }
+  // Overwrite=0 keeps a value the user set explicitly (e.g. =0 to opt out).
+  setenv("__GL_SYNC_TO_VBLANK", "1", 0);
+}
+
 void jm9100_gl_prepare_environment(const char* executable_path) {
   if (!devicePresent()) {
     return;  // Not JM9100 hardware: keep the environment untouched.
   }
+
+  applyPresentationSyncEnvironment();
 
   const gchar* requested = g_getenv(kModeVariable);
   if (requested != nullptr && g_ascii_strcasecmp(requested, "software") == 0) {

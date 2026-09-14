@@ -512,3 +512,34 @@ GLX/EGL 窗口 surface 路径仍不稳定（§10.5 缺口 3）。
 
 - `PURELIVE_MPV_STATS=1`：插件渲染线程每 2 s 打印 `mpvstats: frames=.. fps=.. max_gap=..`；
 - `PURELIVE_FPS_DEBUG=1`：Flutter 侧每 2 s 打印框架帧率与 build/raster 耗时分布。
+
+### 10.9 呈现路径错位（带状/三角状斑块）：GLX 交换未与 vblank 同步（2026-09-14）
+
+现象：播放正常（渲染恒定 30 fps，§10.8），但画面出现局部错位——带状、三角状的
+"上一帧内容"斑块，位置随时间变化（维护者标注三张截图）。
+
+定位：
+
+| 项 | 结果 |
+| --- | --- |
+| 帧率/解码/几何 | 均正常（§10.8），排除丢帧、限速、几何抖动 |
+| 错位形态 | 局部斑块（带状、三角状），边界不规则、位置随时间变化 |
+| 呈现路径 | 应用窗口是 GLX 客户端（`libGLX_mwv207`，Mesa 派生，内含 `vblank_mode`/`SwapIntervalMESA`），渲染结果经 DRI3 共享 pixmap 交服务器；X 侧无硬件 GLX（DRISWRAST）且会话无合成器（`_NET_WM_CM_S0` 无人持有；KWin 虽报 `Compositing.active=true`） |
+| A/B | `vblank_mode=1`（进程级，同时作用于 EGL 与 GLX）：错位减轻，但插件渲染线程被拖慢，出现重复/回退帧 |
+
+结论：窗口的 GLX 交换与 vblank 没有任何同步关系，扫描输出会读到"正在被写入"的
+缓冲，即呈现阶段的局部撕裂/错位；与内容帧率无关（§10.8 的刷新率不整除是另一层
+平滑度问题）。
+
+处置（已实现）：JM9100 机器上由 runner 默认注入 `__GL_SYNC_TO_VBLANK=1`（Mesa 派生
+GLX 客户端识别的传统开关；`setenv overwrite=0`，用户可预设覆盖），可用
+`PURELIVE_JM9100_VBLANK=0` 关闭；`vblank_mode=1` 因会导致重复/回退帧而默认不启用。
+实测：错位减轻。
+
+遗留：
+
+- 长期最优解在系统侧：让 X 侧硬件 GLX 可用（`mwv207_drv.so` 适配当前 Xorg ABI），
+  或让合成器真正接管呈现（`_NET_WM_CM_S0` 被正确持有）。
+- 若 `__GL_SYNC_TO_VBLANK=1` 下仍观察到错位，下一步 A/B：`PURELIVE_JM9100_GL=software`
+  （Mesa swrast + X 拷贝路径）、`videoHardwareDecoder=auto-copy`（排除 dmabuf 互操作）、
+  以及单独验证 `vblank_mode=1` 只作用于 EGL 的组合。
