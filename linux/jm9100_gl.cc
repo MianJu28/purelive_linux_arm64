@@ -340,6 +340,21 @@ void applySoftwareGlEnvironment() {
   setenv("__GLX_VENDOR_LIBRARY_NAME", "mesa", 1);
 }
 
+// On JM9100 the hardware GL vendor (mwv207) is what serves the embedder. The
+// desktop session exports __GLX_VENDOR_LIBRARY_NAME=mwv207 (and glvnd prefers
+// 10_mwv207.json for EGL), but launch paths that rebuild the environment
+// (pkexec, desktop-icon launchers - see docs 应用侧交付与测试清单 §3.1/§3.5)
+// drop those variables, so glvnd falls back to mesa, which has no driver for
+// PCI 0731:9100 and the window renders nothing (white/black screen). Pin them
+// here so the hardware choice never depends on how the process was started.
+void applyHardwareGlEnvironment() {
+  setenv("__GLX_VENDOR_LIBRARY_NAME", "mwv207", 1);
+  if (access("/usr/share/glvnd/egl_vendor.d/10_mwv207.json", F_OK) == 0) {
+    setenv("__EGL_VENDOR_LIBRARY_FILENAMES",
+           "/usr/share/glvnd/egl_vendor.d/10_mwv207.json", 1);
+  }
+}
+
 }  // namespace
 
 gboolean jm9100_gl_probe_requested(int argc, char** argv) {
@@ -375,12 +390,18 @@ void applyPresentationSyncEnvironment() {
     g_print("jm9100: presentation vblank sync disabled (PURELIVE_JM9100_VBLANK=0)\n");
     return;
   }
-  // Overwrite=0 keeps values the user set explicitly.
+  // Overwrite=0 keeps values the user set explicitly (the session exports
+  // vblank_mode=0 as a driver-workaround default), so log the *effective*
+  // values instead of the intended ones.
   setenv("__GL_SYNC_TO_VBLANK", "1", 0);
   const char* vblank_mode =
       (mode != nullptr && g_ascii_strcasecmp(mode, "3") == 0) ? "3" : "1";
   setenv("vblank_mode", vblank_mode, 0);
-  g_print("jm9100: presentation sync __GL_SYNC_TO_VBLANK=1 vblank_mode=%s\n", vblank_mode);
+  const char* sync_effective = g_getenv("__GL_SYNC_TO_VBLANK");
+  const char* vblank_effective = g_getenv("vblank_mode");
+  g_print("jm9100: presentation sync effective __GL_SYNC_TO_VBLANK=%s vblank_mode=%s\n",
+          sync_effective != nullptr ? sync_effective : "(unset)",
+          vblank_effective != nullptr ? vblank_effective : "(unset)");
 }
 
 void jm9100_gl_prepare_environment(const char* executable_path) {
@@ -396,6 +417,17 @@ void jm9100_gl_prepare_environment(const char* executable_path) {
     applySoftwareGlEnvironment();
     return;
   }
+
+  // Pin the hardware GL vendor *before* the probe forks its child. The probe
+  // (and the real UI) both inherit this environment, and the probe's result is
+  // what selects the backend: launch paths that rebuild the environment
+  // (pkexec / desktop-icon launchers, docs 应用侧交付与测试清单 §3.1) drop
+  // __GLX_VENDOR_LIBRARY_NAME, so without this glvnd loads mesa and the probe
+  // would validate a software (llvmpipe) context and mislabel it "hardware".
+  // Setting the variable here makes the probe validate the real mwv207 stack,
+  // and applySoftwareGlEnvironment() below still overrides it back to mesa if
+  // the probe genuinely fails.
+  applyHardwareGlEnvironment();
 
   unsigned long visual_id = 0;
   gchar* renderer = nullptr;

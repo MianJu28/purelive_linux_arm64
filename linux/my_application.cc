@@ -3,6 +3,7 @@
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
+#include <X11/Xlib.h>
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
@@ -17,6 +18,112 @@ struct _MyApplication {
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// PureLive: make sure the freshly launched window is actually on screen.
+//
+// Under KWin (deepin) the window is sometimes mapped but never adopted by the
+// window manager: it has no _NET_WM_DESKTOP and is absent from _NET_CLIENT_LIST,
+// so the compositor never draws it and it never receives focus - the user sees
+// "the app started but there is no window". This is reproduced reliably on the
+// first launch after the previous instance was killed: the window stays
+// WM-unmanaged for minutes (verified by polling _NET_WM_DESKTOP / the WM client
+// list every 250 ms). The only reliable remedy is to withdraw and map the window
+// again, which makes the WM adopt it as a brand new window.
+
+// A window the WM manages has _NET_WM_DESKTOP set; an unmapped/ignored one does
+// not. This is the precise signal we need, independent of focus-stealing policy.
+static gboolean window_managed_by_wm(GtkWindow* window) {
+#ifdef GDK_WINDOWING_X11
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window == nullptr || !GDK_IS_X11_WINDOW(gdk_window)) {
+    return TRUE;
+  }
+  Display* display = gdk_x11_display_get_xdisplay(gdk_window_get_display(gdk_window));
+  Window xid = gdk_x11_window_get_xid(gdk_window);
+  Atom net_wm_desktop = XInternAtom(display, "_NET_WM_DESKTOP", False);
+  Atom actual_type = None;
+  int actual_format = 0;
+  unsigned long nitems = 0, bytes_after = 0;
+  unsigned char* data = nullptr;
+  int status = XGetWindowProperty(display, xid, net_wm_desktop, 0, 1, False,
+                                  AnyPropertyType, &actual_type, &actual_format,
+                                  &nitems, &bytes_after, &data);
+  gboolean managed = (status == Success && actual_type != None);
+  if (data != nullptr) {
+    XFree(data);
+  }
+  return managed;
+#else
+  (void)window;
+  return TRUE;
+#endif
+}
+
+static gboolean clear_keep_above_cb(gpointer data) {
+  gtk_window_set_keep_above(GTK_WINDOW(data), FALSE);
+  return G_SOURCE_REMOVE;
+}
+
+static void present_and_raise(GtkWindow* window) {
+  gtk_window_present(window);
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window != nullptr) {
+    gdk_window_raise(gdk_window);
+  }
+}
+
+typedef struct {
+  GtkWindow* window;  // owned (g_object_ref) for the lifetime of the retry loop
+  guint attempts;
+} VisRetry;
+
+static gboolean ensure_window_visible_cb(gpointer data);
+
+static void schedule_retry(VisRetry* retry, guint ms) {
+  g_timeout_add_full(G_PRIORITY_DEFAULT, ms, ensure_window_visible_cb, retry,
+                     nullptr);
+}
+
+// Runs a few times after startup. Stops as soon as the window is both managed by
+// the WM and focused. If the WM never adopted the window, withdraw+map it so the
+// WM picks it up as a new window. As a last resort, hold it above the others for
+// a moment so the user at least sees it.
+static gboolean ensure_window_visible_cb(gpointer data) {
+  VisRetry* retry = static_cast<VisRetry*>(data);
+  GtkWindow* window = retry->window;
+
+  present_and_raise(window);
+
+  if (window_managed_by_wm(window) && gtk_window_is_active(window)) {
+    g_object_unref(window);
+    g_free(retry);
+    return G_SOURCE_REMOVE;
+  }
+
+  retry->attempts += 1;
+  if (retry->attempts <= 5) {
+    if (!window_managed_by_wm(window)) {
+      // The WM never adopted the window (mapped but unmanaged: not composited,
+      // never focused). Withdrawing and mapping it again makes the WM treat it
+      // as a fresh window and adopt it.
+      gtk_widget_hide(GTK_WIDGET(window));
+      gtk_widget_show(GTK_WIDGET(window));
+    }
+    schedule_retry(retry, 500);
+    return G_SOURCE_REMOVE;
+  }
+
+  if (!window_managed_by_wm(window)) {
+    gtk_widget_hide(GTK_WIDGET(window));
+    gtk_widget_show(GTK_WIDGET(window));
+  }
+  gtk_window_set_keep_above(window, TRUE);
+  g_timeout_add_full(G_PRIORITY_DEFAULT, 4000, clear_keep_above_cb,
+                     g_object_ref(window), g_object_unref);
+  g_object_unref(window);
+  g_free(retry);
+  return G_SOURCE_REMOVE;
+}
 
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
@@ -79,6 +186,18 @@ static void my_application_activate(GApplication* application) {
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
+
+  // PureLive: the upstream Flutter Linux template only shows the window, so a
+  // window manager may keep a freshly launched window behind the active one, or
+  // (under KWin) never adopt it at all - both look like "the app started but
+  // there is no window". Re-check shortly after mapping and, if the WM refused
+  // to manage/activate the window, withdraw+map it so the WM adopts it. The
+  // callback removes itself once the window is managed and focused.
+  gtk_window_set_urgency_hint(GTK_WINDOW(window), TRUE);
+  VisRetry* retry = g_new0(VisRetry, 1);
+  retry->window = GTK_WINDOW(g_object_ref(window));
+  retry->attempts = 0;
+  schedule_retry(retry, 800);
 }
 
 // Implements GApplication::local_command_line.
